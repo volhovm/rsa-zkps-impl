@@ -1,7 +1,23 @@
 use curv::BigInt;
+use curv::arithmetic::traits::Modulo;
 use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 
+
+/// Checks whether n is divisible by any prime p <= upto.
+fn check_small_primes(upto: &u64, n: BigInt) -> bool {
+    use primes::{Sieve, PrimeSet};
+
+    // This should be precomputed during compile-time.
+    for p in Sieve::new().iter().take_while(|x| x <= upto) {
+        let rem = Modulo::modulus(&n,&BigInt::from(p));
+        if rem == BigInt::from(0) {
+            println!("rem = 0 mod prime {:?}", p);
+            return false;
+        };
+    }
+    return true;
+}
 
 fn check_correct_ciphertext_proof() {
     let kp:Keypair = Paillier::keypair();
@@ -28,4 +44,7 @@ fn check_correct_ciphertext_proof() {
 
 fn main() {
     check_correct_ciphertext_proof();
+
+    println!("Small primes check for N = 5, up to 1000: {}", check_small_primes(&1000, BigInt::from(5)));
+    println!("Small primes check for N = 1217, up to first 20 primes: {}", check_small_primes(&20, BigInt::from(1217)));
 }
