@@ -1,18 +1,21 @@
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
 use curv::BigInt;
-use paillier::traits::{Add, Mul};
 use paillier::EncryptWithChosenRandomness;
 use paillier::Paillier;
-use paillier::{EncryptionKey, Randomness, RawCiphertext, RawPlaintext, Keypair};
+use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
 use paillier::*;
 
 
 // Common parameters for the proof system.
+#[derive(Clone, PartialEq, Debug)]
 pub struct ProofParams {
     /// Small number up to which N shouldn't have divisors.
     pub q: u64,
+    /// Number of repeats of the basic protocol.
+    pub reps: usize
 }
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct Instance {
     pub n: BigInt,
     /// N^2
@@ -20,15 +23,21 @@ pub struct Instance {
     pub ct: BigInt
 }
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct Witness {
     pub m: BigInt,
     pub r: BigInt
 }
 
-pub struct Commitment(BigInt);
-pub struct ComRand(BigInt,BigInt);
-pub struct Challenge(bool);
-pub struct Response(BigInt,BigInt);
+#[derive(Clone, PartialEq, Debug)]
+pub struct Commitment(Vec<BigInt>);
+#[derive(Clone, PartialEq, Debug)]
+pub struct ComRand(Vec<(BigInt,BigInt)>);
+#[derive(Clone, PartialEq, Debug)]
+pub struct Challenge(Vec<bool>);
+#[derive(Clone, PartialEq, Debug)]
+pub struct Response(Vec<(BigInt,BigInt)>);
+
 
 pub fn lang_sample() -> (Instance,Witness) {
     let kp:Keypair = Paillier::keypair();
@@ -49,58 +58,112 @@ pub fn lang_sample() -> (Instance,Witness) {
 }
 
 
-pub fn verifier0(params: ProofParams, x: Instance) -> bool {
+pub fn verifier0(params: &ProofParams, x: &Instance) -> bool {
     return super::utils::check_small_primes(&params.q,&x.n);
 }
 
-pub fn prove1(params: ProofParams, inst: Instance) -> (Commitment,ComRand) {
-    let rm = BigInt::sample_below(&inst.n);
-    let rr = BigInt::sample_below(&inst.n);
-    let ek = EncryptionKey::from(&inst.n);
-    let alpha = Paillier::encrypt_with_chosen_randomness(
-                &ek,
-                RawPlaintext::from(rm.clone()),
-                &Randomness(rr.clone())).0.into_owned();
-
-    return (Commitment(alpha),ComRand(rm,rr));
+pub fn prove1(params: &ProofParams, inst: &Instance) -> (Commitment,ComRand) {
+    // TODO What's the difference between (a..b) and [a..b]?.. The second one gives unexpected results.
+    // apparently a..b is already a range I need, so [a..b] is a singleton array?
+    let rand_v: Vec<_> = (0..params.reps).map(|_| {
+                            let rm = BigInt::sample_below(&inst.n);
+                            let rr = BigInt::sample_below(&inst.n);
+                            return (rm,rr);
+                        }).collect();
+    let alpha_v: Vec<_> = rand_v.iter().map(|(rm,rr)| {
+                             let ek = EncryptionKey::from(&inst.n);
+                             return Paillier::encrypt_with_chosen_randomness(
+                                 &ek,
+                                 RawPlaintext::from(rm.clone()),
+                                 &Randomness(rr.clone())).0.into_owned();
+                         }).collect();
+    return (Commitment(alpha_v),ComRand(rand_v));
 }
 
-pub fn verify1() -> Challenge {
-    let b: bool = rand::random();
+pub fn verify1(params: &ProofParams) -> Challenge {
+    let b: Vec<bool> = (0..params.reps).map(|_| rand::random()).collect();
     return Challenge(b);
 }
 
-pub fn prove2(params: ProofParams,
-              inst: Instance,
-              wit: Witness,
-              ch: Challenge,
-              cr: ComRand) -> Response {
-    let Challenge(b) = ch;
-    let ComRand(rm,rr) = cr;
+pub fn prove2(params: &ProofParams,
+              inst: &Instance,
+              wit: &Witness,
+              ch: &Challenge,
+              cr: &ComRand) -> Response {
+    // TODO What's the right way to do this w/o converting to vec?
+    let rng: Vec<usize> = (0..params.reps).collect();
+    let resp_v: Vec<_> = rng.iter().map(|&i| {
+        let b: bool = (&ch.0)[i];
+        let rm:&BigInt = &(&cr.0)[i].0;
+        let rr:&BigInt = &(&cr.0)[i].1;
 
-    let t1 = if b { wit.m } else { BigInt::from(0) };
-    let s1 = BigInt::mod_add(&rm,&t1,&inst.n);
-    let t2 = if b { wit.r } else { BigInt::from(1) };
-    let s2 = BigInt::mod_mul(&rr,&t2,&inst.n2);
-
-    return Response(s1,s2);
+        let t1 = if b { wit.m.clone() } else { BigInt::from(0) };
+        let s1 = BigInt::mod_add(rm,&t1,&inst.n);
+        let t2 = if b { wit.r.clone() } else { BigInt::from(1) };
+        let s2 = BigInt::mod_mul(rr,&t2,&inst.n2);
+        return (s1,s2);
+    }).collect();
+    return Response(resp_v);
 }
 
-pub fn verify2(params: ProofParams,
-               inst: Instance,
-               com: Commitment,
-               ch: Challenge,
-               resp: Response) -> bool {
-    let Challenge(b) = ch;
-    let Response(s1,s2) = resp;
+pub fn verify2(params: &ProofParams,
+               inst: &Instance,
+               com: &Commitment,
+               ch: &Challenge,
+               resp: &Response) -> bool {
+    for i in 0..params.reps {
+        let b:bool = ch.0[i];
+        let s1 = &resp.0[i].0;
+        let s2 = &resp.0[i].1;
+        let alpha = &com.0[i];
 
-    let ec = if b {inst.ct} else {BigInt::from(1)};
-    let lhs = BigInt::mod_mul(&ec,&com.0,&inst.n2);
+        let ec = if b { inst.ct.clone() } else { BigInt::from(1) };
+        let lhs = BigInt::mod_mul(&ec,alpha,&inst.n2);
 
-    let rhs = BigInt::mod_mul(
-        &BigInt::mod_pow(&(&inst.n + 1),&s1,&inst.n2),
-        &BigInt::mod_pow(&s2,&inst.n,&inst.n2),
-        &inst.n2);
+        let rhs = BigInt::mod_mul(
+            &BigInt::mod_pow(&(&inst.n + 1),s1,&inst.n2),
+            &BigInt::mod_pow(s2,&inst.n,&inst.n2),
+            &inst.n2);
 
-    return lhs == rhs;
+        if lhs != rhs { return false; }
+    }
+    return true;
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::protocols::schnorr_paillier::*;
+
+    #[test]
+    fn test_correctness() {
+        // This gives about log33k * 17 = 15 * 17 ~= 256 bits security.
+        let params = ProofParams { q: 33000 , reps: 17 };
+        let (inst,wit) = lang_sample();
+
+        assert!(verifier0(&params,&inst));
+
+        let (com,cr) = prove1(&params,&inst);
+        let ch = verify1(&params);
+
+        let resp = prove2(&params,&inst,&wit,&ch,&cr);
+        assert!(verify2(&params,&inst,&com,&ch,&resp));
+    }
+
+    #[test]
+    fn test_soundness_trivial() {
+        let params = ProofParams { q: 33000 , reps: 17 };
+        let (inst,_) = lang_sample();
+        let (_,wit2) = lang_sample();
+
+        assert!(verifier0(&params,&inst));
+
+        let (com,cr) = prove1(&params,&inst);
+        let ch = verify1(&params);
+
+        // with wit2
+        let resp = prove2(&params,&inst,&wit2,&ch,&cr);
+        assert!(verify2(&params,&inst,&com,&ch,&resp) == false);
+    }
+
 }

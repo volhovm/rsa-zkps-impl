@@ -19,3 +19,6 @@ default-features = false
 package = "kzen-paillier"
 version = "0.4"
 default-features = false
+
+# [dev-dependencies]
+# criterion = "0.3"

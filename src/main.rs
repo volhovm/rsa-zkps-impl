@@ -1,5 +1,4 @@
 use curv::BigInt;
-use curv::arithmetic::traits::Modulo;
 use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 
