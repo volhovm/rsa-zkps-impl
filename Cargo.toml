@@ -3,6 +3,14 @@ name = "rsa_zkps_impl"
 version = "0.1.0"
 edition = "2018"
 
+[lib]
+name = "rsazkps"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rsazkpsbin"
+path = "src/main.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -22,3 +30,8 @@ default-features = false
 
 [dev-dependencies]
 criterion = "0.3.5"
+
+
+[[bench]]
+name = "allbench"
+harness = false

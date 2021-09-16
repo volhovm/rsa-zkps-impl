@@ -2,8 +2,6 @@ use curv::BigInt;
 use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 
-mod protocols;
-
 
 fn check_correct_ciphertext_proof() {
     let kp:Keypair = Paillier::keypair();
@@ -31,7 +29,8 @@ fn check_correct_ciphertext_proof() {
 fn main() {
     check_correct_ciphertext_proof();
 
-    use protocols::utils::check_small_primes;
-    println!("Small primes check for N = 5, up to 1000: {}", check_small_primes(&(1000u64), &BigInt::from(5)));
-    println!("Small primes check for N = 1217, up to first 20 primes: {}", check_small_primes(&20, &BigInt::from(1217)));
+    use rsazkps::protocols::utils::check_small_primes;
+    println!("Small primes check for (prime) N = 5, up to 1000: {}", check_small_primes(1000, &BigInt::from(5)));
+    println!("Small primes check for (prime) N = 6180283, up to 6*10^7: {}", check_small_primes(6000000, &BigInt::from(6180283)));
+    println!("Small primes check for (prod of 2 primes) N = 6180283 * 1217, up to 6*10^7: {}", check_small_primes(6000000, &BigInt::from(6180283u64*1217)));
 }

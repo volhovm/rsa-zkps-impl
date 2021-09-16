@@ -39,8 +39,8 @@ pub struct Challenge(Vec<bool>);
 pub struct Response(Vec<(BigInt,BigInt)>);
 
 
-pub fn lang_sample() -> (Instance,Witness) {
-    let kp:Keypair = Paillier::keypair();
+pub fn lang_sample(big_length: usize) -> (Instance,Witness) {
+    let kp:Keypair = Paillier::keypair_with_modulus_size(big_length);
     let (pk,_) = kp.keys();
     let m = BigInt::sample_below(&pk.n);
     let r = BigInt::sample_below(&pk.n);
@@ -58,8 +58,8 @@ pub fn lang_sample() -> (Instance,Witness) {
 }
 
 
-pub fn verifier0(params: &ProofParams, x: &Instance) -> bool {
-    return super::utils::check_small_primes(&params.q,&x.n);
+pub fn verify0(params: &ProofParams, x: &Instance) -> bool {
+    return super::utils::check_small_primes(params.q,&x.n);
 }
 
 pub fn prove1(params: &ProofParams, inst: &Instance) -> (Commitment,ComRand) {
@@ -90,9 +90,7 @@ pub fn prove2(params: &ProofParams,
               wit: &Witness,
               ch: &Challenge,
               cr: &ComRand) -> Response {
-    // TODO What's the right way to do this w/o converting to vec?
-    let rng: Vec<usize> = (0..params.reps).collect();
-    let resp_v: Vec<_> = rng.iter().map(|&i| {
+    let resp_v: Vec<_> = (0..params.reps).map(|i| {
         let b: bool = (&ch.0)[i];
         let rm:&BigInt = &(&cr.0)[i].0;
         let rr:&BigInt = &(&cr.0)[i].1;
@@ -139,9 +137,9 @@ mod tests {
     fn test_correctness() {
         // This gives about log33k * 17 = 15 * 17 ~= 256 bits security.
         let params = ProofParams { q: 33000 , reps: 17 };
-        let (inst,wit) = lang_sample();
+        let (inst,wit) = lang_sample(2048);
 
-        assert!(verifier0(&params,&inst));
+        assert!(verify0(&params,&inst));
 
         let (com,cr) = prove1(&params,&inst);
         let ch = verify1(&params);
@@ -153,10 +151,10 @@ mod tests {
     #[test]
     fn test_soundness_trivial() {
         let params = ProofParams { q: 33000 , reps: 17 };
-        let (inst,_) = lang_sample();
-        let (_,wit2) = lang_sample();
+        let (inst,_) = lang_sample(2048);
+        let (_,wit2) = lang_sample(2048);
 
-        assert!(verifier0(&params,&inst));
+        assert!(verify0(&params,&inst));
 
         let (com,cr) = prove1(&params,&inst);
         let ch = verify1(&params);
