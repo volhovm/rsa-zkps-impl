@@ -4,6 +4,7 @@ use paillier::EncryptWithChosenRandomness;
 use paillier::Paillier;
 use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
 use paillier::*;
+use std::fmt;
 
 
 // Common parameters for the proof system.
@@ -12,7 +13,31 @@ pub struct ProofParams {
     /// Small number up to which N shouldn't have divisors.
     pub q: u64,
     /// Number of repeats of the basic protocol.
-    pub reps: usize
+    pub reps: usize,
+    /// Bitlength of the RSA modulus.
+    pub n_bitlen: usize,
+    /// Size of the challenge space, upper bound.
+    pub ch_space: BigInt
+}
+
+impl ProofParams {
+    pub fn calc_proof_params(n_bitlen: usize, sec_level: u32, repbits: u32) -> Self {
+        let ch_space = BigInt::pow(&BigInt::from(2), repbits);
+        return ProofParams { q: 2u64.pow(repbits),
+                             reps: (sec_level as f64 / repbits as f64).ceil() as usize,
+                             n_bitlen: n_bitlen,
+                             ch_space: ch_space };
+    }
+}
+
+impl fmt::Display for ProofParams {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ProofParams ( q: {}, reps: {}, n_bitlen: {}, ch_space: {} )",
+               self.q,
+               self.reps,
+               self.n_bitlen,
+               self.ch_space)
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -34,13 +59,13 @@ pub struct Commitment(Vec<BigInt>);
 #[derive(Clone, PartialEq, Debug)]
 pub struct ComRand(Vec<(BigInt,BigInt)>);
 #[derive(Clone, PartialEq, Debug)]
-pub struct Challenge(Vec<bool>);
+pub struct Challenge(Vec<BigInt>);
 #[derive(Clone, PartialEq, Debug)]
 pub struct Response(Vec<(BigInt,BigInt)>);
 
 
-pub fn lang_sample(big_length: usize) -> (Instance,Witness) {
-    let kp:Keypair = Paillier::keypair_with_modulus_size(big_length);
+pub fn lang_sample(params: &ProofParams) -> (Instance,Witness) {
+    let kp:Keypair = Paillier::keypair_with_modulus_size(params.n_bitlen);
     let (pk,_) = kp.keys();
     let m = BigInt::sample_below(&pk.n);
     let r = BigInt::sample_below(&pk.n);
@@ -81,7 +106,7 @@ pub fn prove1(params: &ProofParams, inst: &Instance) -> (Commitment,ComRand) {
 }
 
 pub fn verify1(params: &ProofParams) -> Challenge {
-    let b: Vec<bool> = (0..params.reps).map(|_| rand::random()).collect();
+    let b = (0..params.reps).map(|_| BigInt::sample_below(&params.ch_space)).collect();
     return Challenge(b);
 }
 
@@ -91,13 +116,13 @@ pub fn prove2(params: &ProofParams,
               ch: &Challenge,
               cr: &ComRand) -> Response {
     let resp_v: Vec<_> = (0..params.reps).map(|i| {
-        let b: bool = (&ch.0)[i];
-        let rm:&BigInt = &(&cr.0)[i].0;
-        let rr:&BigInt = &(&cr.0)[i].1;
+        let ch = &(&ch.0)[i];
+        let rm = &(&cr.0)[i].0;
+        let rr = &(&cr.0)[i].1;
 
-        let t1 = if b { wit.m.clone() } else { BigInt::from(0) };
+        let t1 = BigInt::mod_mul(ch, &(wit.m), &inst.n);
         let s1 = BigInt::mod_add(rm,&t1,&inst.n);
-        let t2 = if b { wit.r.clone() } else { BigInt::from(1) };
+        let t2 = BigInt::mod_pow(&(wit.r), ch, &inst.n2);
         let s2 = BigInt::mod_mul(rr,&t2,&inst.n2);
         return (s1,s2);
     }).collect();
@@ -110,12 +135,12 @@ pub fn verify2(params: &ProofParams,
                ch: &Challenge,
                resp: &Response) -> bool {
     for i in 0..params.reps {
-        let b:bool = ch.0[i];
+        let ch = &(&ch.0)[i];
         let s1 = &resp.0[i].0;
         let s2 = &resp.0[i].1;
         let alpha = &com.0[i];
 
-        let ec = if b { inst.ct.clone() } else { BigInt::from(1) };
+        let ec = BigInt::mod_pow(&inst.ct, ch, &inst.n2);
         let lhs = BigInt::mod_mul(&ec,alpha,&inst.n2);
 
         let rhs = BigInt::mod_mul(
@@ -136,8 +161,12 @@ mod tests {
     #[test]
     fn test_correctness() {
         // This gives about log33k * 17 = 15 * 17 ~= 256 bits security.
-        let params = ProofParams { q: 33000 , reps: 17 };
-        let (inst,wit) = lang_sample(2048);
+        let ch_space = BigInt::pow(&BigInt::from(2), 15);
+        let params = ProofParams { q: 2u64.pow(15),
+                                   reps: 17,
+                                   n_bitlen: 2048,
+                                   ch_space: ch_space };
+        let (inst,wit) = lang_sample(&params);
 
         assert!(verify0(&params,&inst));
 
@@ -150,9 +179,13 @@ mod tests {
 
     #[test]
     fn test_soundness_trivial() {
-        let params = ProofParams { q: 33000 , reps: 17 };
-        let (inst,_) = lang_sample(2048);
-        let (_,wit2) = lang_sample(2048);
+        let ch_space = BigInt::pow(&BigInt::from(2), 15);
+        let params = ProofParams { q: 2u64.pow(15),
+                                   reps: 17,
+                                   n_bitlen: 2048,
+                                   ch_space: ch_space};
+        let (inst,_) = lang_sample(&params);
+        let (_,wit2) = lang_sample(&params);
 
         assert!(verify0(&params,&inst));
 

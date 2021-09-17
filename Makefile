@@ -1,2 +1,2 @@
 all:
-	nix-shell -p pkgconfig gmp --command "cargo build"
+	nix-shell -p gmp gnum4 --command "cargo build"
