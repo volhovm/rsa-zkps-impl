@@ -27,6 +27,8 @@ fn check_correct_ciphertext_proof() {
 }
 
 fn main() {
+    rsazkps::protocols::snark_paillier::test();
+
     check_correct_ciphertext_proof();
 
     use rsazkps::protocols::utils::check_small_primes;
