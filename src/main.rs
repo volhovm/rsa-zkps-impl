@@ -30,9 +30,4 @@ fn main() {
     rsazkps::protocols::snark_paillier::test();
 
     check_correct_ciphertext_proof();
-
-    use rsazkps::protocols::utils::check_small_primes;
-    println!("Small primes check for (prime) N = 5, up to 1000: {}", check_small_primes(1000, &BigInt::from(5)));
-    println!("Small primes check for (prime) N = 6180283, up to 6*10^7: {}", check_small_primes(6000000, &BigInt::from(6180283)));
-    println!("Small primes check for (prod of 2 primes) N = 6180283 * 1217, up to 6*10^7: {}", check_small_primes(6000000, &BigInt::from(6180283u64*1217)));
 }
