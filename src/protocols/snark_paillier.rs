@@ -24,10 +24,6 @@ use sapling_crypto::circuit::test::TestConstraintSystem;
 use sapling_crypto::circuit::num::AllocatedNum;
 
 
-// Trying to follow
-// - https://github.com/matter-labs/bellman/blob/master/tests/mimc.rs#L92
-// - https://github.com/alex-ozdemir/bellman-bignat/blob/master/src/set/rsa.rs#L523
-
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Standard Paillier
@@ -72,8 +68,6 @@ impl<E: Engine> Circuit<E> for PailCorrect {
         n2_bn.inputize(cs.namespace(|| "n2 pub"))?;
         ct_bn.inputize(cs.namespace(|| "ct pub"))?;
 
-        // TODO Inputize public inputs?
-
         cs.namespace(|| "calculation");
 
         let tmp1 = g_bn.pow_mod(cs.namespace(|| "g^m"), &m_bn, &n2_bn)?;
@@ -109,46 +103,64 @@ impl<E: Engine> Circuit<E> for PailCorrectOpt {
         cs: &mut CS
     ) -> Result<(),SynthesisError>
     {
-        let n_bitlen = self.p_bitlen * 2;
         // *TODO* Perhaps optimize?
-        // We add 1 limb because it may be that p^2 < N + 1, so N+1 wouldn't fit in n_limbs
-        let n_limbs = (((n_bitlen as f64) / (self.limb_width as f64)).ceil() as usize) + 1;
+        let p_limbs = ((self.p_bitlen as f64) / (self.limb_width as f64)).ceil() as usize;
+        let n_limbs = p_limbs * 2;
         let n2_limbs = n_limbs * 2;
-        //let bignum_params_def = BigNatParams::new(self.limb_width, n_limbs);
 
 
         let mut alloc_bn = |var: Integer,name: &'static str, limbs:usize| -> Result<BigNat<E>,SynthesisError>
         { BigNat::alloc_from_nat(cs.namespace(|| format!("alloc {}",name)), || Ok(var), self.limb_width, limbs) };
 
-        // FIXME we might need to have some constraints making sure numbers are related,
-        // e.g. n = pq etc
+        let m_bn = alloc_bn(self.m, "m", n_limbs)?;
+        let r_bn = alloc_bn(self.r, "r", n_limbs)?;
 
-        // Allocate all bignums
-        let p2_bn = alloc_bn(self.p.clone() * self.p.clone(), "p2", n_limbs)?;
-        let q2_bn = alloc_bn(self.q.clone() * self.q.clone(), "q2", n_limbs)?;
+        let g_bn = alloc_bn(self.g, "g", n_limbs)?;
+        let ct_bn = alloc_bn(self.ct, "ct", n2_limbs)?;
         let n_bn = alloc_bn(self.n.clone(), "n", n_limbs)?;
         let n2_bn = alloc_bn(self.n.clone() * self.n.clone(), "n2", n2_limbs)?;
 
-        let g_bn = alloc_bn(self.g, "g", n_limbs)?;
-        let m_bn = alloc_bn(self.m, "m", n_limbs)?;
-        let r_bn = alloc_bn(self.r, "r", n_limbs)?;
-        let ct_bn = alloc_bn(self.ct, "ct", n2_limbs)?;
 
-        let p_bn = alloc_bn(self.p.clone(), "p", n2_limbs)?;
-        let q_bn = alloc_bn(self.q.clone(), "q", n2_limbs)?;
+        // FIXME we might need to have some constraints making sure numbers are related,
+        // e.g. n = pq etc
 
-        let pinv = self.p.clone().invert(&self.q).unwrap();
-        let qinv = self.q.clone().invert(&self.p).unwrap();
-        let pinv_bn = alloc_bn(pinv, "pinv", n2_limbs)?;
-        let qinv_bn = alloc_bn(qinv, "qinv", n2_limbs)?;
 
-        drop(alloc_bn);
-
+        let p_bn = alloc_bn(self.p.clone(), "p", p_limbs)?;
+        let q_bn = alloc_bn(self.q.clone(), "q", p_limbs)?;
+        p_bn.enforce_coprime(cs.namespace(|| "coprime"), &q_bn)?;
+        //println!("p limbs number: {}", p_bn.limbs.len());
 
         g_bn.inputize(cs.namespace(|| "g pub"))?;
+        ct_bn.inputize(cs.namespace(|| "ct pub"))?;
         n_bn.inputize(cs.namespace(|| "n pub"))?;
         n2_bn.inputize(cs.namespace(|| "n2 pub"))?;
-        ct_bn.inputize(cs.namespace(|| "ct pub"))?;
+
+        // Allocate all bignums
+        let p2_bn = p_bn.mult(cs.namespace(|| "p2"), &p_bn)?;
+        //println!("p2 limbs number: {}", p2_bn.limbs.len());
+        let q2_bn = q_bn.mult(cs.namespace(|| "q2"), &q_bn)?;
+
+        let n2_tmp_bn = p2_bn.mult(cs.namespace(|| "n2 check"), &q2_bn)?;
+        BigNat::assert_equal(cs.namespace(|| "checking n2 validity"), &n2_bn, &n2_tmp_bn)?;
+
+        // otherwise cs is mutably shared
+        let mut alloc_bn = |var: Integer,name: &'static str, limbs:usize| -> Result<BigNat<E>,SynthesisError>
+        { BigNat::alloc_from_nat(cs.namespace(|| format!("alloc {}",name)), || Ok(var), self.limb_width, limbs) };
+
+
+        let p2 = self.p.clone() * self.p.clone();
+        let q2 = self.q.clone() * self.q.clone();
+        let p2inv = p2.clone().invert(&q2).unwrap();
+        let q2inv = q2.clone().invert(&p2).unwrap();
+        let p2inv_bn = alloc_bn(p2inv, "p2inv", n2_limbs)?;
+        let q2inv_bn = alloc_bn(q2inv, "q2inv", n2_limbs)?;
+
+        // Comparisons should be done between BigNat s of the same limbs length
+        let one_long_bn = BigNat::one::<CS>(self.limb_width).with_n_limbs::<CS>(n_limbs);
+        let p2_mul_p2inv = p2_bn.mult_mod(cs.namespace(|| "p2 mul p2inv % q2"), &p2inv_bn, &q2_bn)?.1;
+        BigNat::assert_equal(cs.namespace(|| "checking p2inv validity"), &p2_mul_p2inv, &one_long_bn)?;
+        let q2_mul_q2inv = q2_bn.mult_mod(cs.namespace(|| "q2 mul q2inv % p2"), &q2inv_bn, &p2_bn)?.1;
+        BigNat::assert_equal(cs.namespace(|| "checking q2inv validity"), &q2_mul_q2inv, &one_long_bn)?;
 
 
         // Computations mod p2
@@ -161,17 +173,21 @@ impl<E: Engine> Circuit<E> for PailCorrectOpt {
         let q_tmp2 = r_bn.pow_mod(cs.namespace(|| "r^N mod q2"), &n_bn, &q2_bn)?;
         let q_res = q_tmp1.mult_mod(cs.namespace(|| "g^m * r^N mod q2"), &q_tmp2, &q2_bn)?.1;
 
+
         // CRT mod n2
-
-
         let mut mult_mod_n2 = |ns: &str, a: &BigNat<E>, b: &BigNat<E>| -> BigNat<E> {
             a.mult_mod(cs.namespace(|| format!("mult_mod_n2: {}", ns)), b, &n2_bn).unwrap().1
         };
 
-        let fin_tmp1 = mult_mod_n2("fin add 1", &p_res, &q_bn);
-        let fin_tmp2 = mult_mod_n2("fin add 2", &fin_tmp1, &qinv_bn);
-        let fin_tmp3 = mult_mod_n2("fin add 3", &q_res, &p_bn);
-        let fin_tmp4 = mult_mod_n2("fin add 4", &fin_tmp3, &pinv_bn);
+        //// Extend to n2_limbs?
+
+        let fin_tmp1 = mult_mod_n2("fin mul 1", &p_res, &q2_bn);
+        let fin_tmp2 = mult_mod_n2("fin mul 2", &fin_tmp1, &q2inv_bn);
+        let fin_tmp3 = mult_mod_n2("fin mul 3", &q_res, &p2_bn);
+        let fin_tmp4 = mult_mod_n2("fin mul 4", &fin_tmp3, &p2inv_bn);
+
+        ////BigNat::assert_equal(cs.namespace(|| "tmp check"), &fin_tmp2, &tmp_bn)?;
+
         let lhs =
             fin_tmp2.add::<CS>(&fin_tmp4)?.
             red_mod(cs.namespace(|| "last red"), &n2_bn)?;
@@ -236,6 +252,15 @@ pub fn compute_circuit(n_bitlen: usize, opt: bool) -> Either<PailCorrect,PailCor
     let tmp2 = r.clone().pow_mod(&n, &n2).unwrap();
     let ct = (tmp1 * tmp2) % n2.clone();
 
+
+    let p2 = p.clone() * p.clone();
+    let q2 = q.clone() * q.clone();
+    let p2inv = p2.clone().invert(&q2).unwrap();
+    let q2inv = q2.clone().invert(&p2).unwrap();
+    // g^m r^n mod p^2
+    let tmp = ((ct.clone() % p2.clone()) * q2.clone() * q2inv.clone() + (ct.clone() % q2.clone()) * p2.clone() * p2inv.clone()) % n2.clone();
+    assert!(tmp == ct);
+
     if opt { Either::Right(PailCorrectOpt { p_bitlen: n_bitlen/2, limb_width: 32,
                                             p, q, n, g, r, m, ct }) }
     else { Either::Left(PailCorrect {n_bitlen: n_bitlen, limb_width: 32,
@@ -263,7 +288,7 @@ pub fn estimate_num_constraints<C: PailCircuit<Bn256>>(n_bitlen: usize) {
     (Circuit::<Bn256>::synthesize(circuit, &mut cs)).expect("synthesis failed");
     let constr = cs.num_constraints();
 
-    println!("Num Constraints for {} bits, {}: {}", n_bitlen, C::namedesc(), constr);
+    println!("Num Constraints for {} bits, {}: {:.2} M (*10^6)", n_bitlen, C::namedesc(), (constr as f64 / 1000000f64));
 }
 
 
@@ -288,73 +313,77 @@ pub fn test_completeness<C: PailCircuit<Bn256>>(n_bitlen: usize) {
 }
 
 pub fn test() {
-    //    test_completeness_opt(80);
+//    test_completeness::<PailCorrectOpt>(80);
+
+//    for n in [80,512,1024,2048] {
     for n in [80,512,1024,2048] {
         estimate_num_constraints::<PailCorrect>(n);
         estimate_num_constraints::<PailCorrectOpt>(n);
     }
-//    estimate_num_constraints_opt(80);
-//    estimate_num_constraints(512);
-//    estimate_num_constraints_opt(512);
-//    estimate_num_constraints(1024);
-//    estimate_num_constraints_opt(1024);
-//    estimate_num_constraints(2048);
-//    estimate_num_constraints_opt(2048);
-
-//    test_completeness(80);
-//    test_completeness(330);
-//
-////    estimate_num_constraints(330);
-//    estimate_num_constraints(1024);
-//    estimate_num_constraints(2048);
 }
 
-// From set_proof.rs in bellman bignat examples
-//
-//    let mut circuit = SetBench::<_, ExpSet<_, ParExpComb>> {
-//        inputs: Some(inputs),
-//        params: params.clone(),
-//    };
-// create_random_proof(circuit, &params, rng).unwrap();
-// let prover = prepare_prover(circuit)
-// let proof = prover.create_proof(params, r, s)?;
 
-// They implement Circuit trait for SetBench in rsa.rs
-//
-// examples/rollup_bench.rs has number of constraints calculation:
-//    let circuit = rsa::RollupBench::<Bls12, Poseidon<Bls12>>::from_counts(
-//        t, // Use `t` in place of `c` for sparse-ness.
-//        t,
-//        JubjubBls12::new(),
-//        Poseidon::default(),
-//    );
-//
-//    let mut cs = ConstraintCounter::new();
-//    circuit.synthesize(&mut cs).expect("synthesis failed");
-//    cs.num_constraints()
-//
-// Here RollupBench implements circuit, so it has synthesize.
 
-// pocklington/mod.rs has computation of pow_mod from base and extension.
 
-// wesolowski.rs has something very similar to paillier: proof that "q^l base^r = res"
+////////////////////////////////////////////////////////////////////////////////////
+// Comments
+////////////////////////////////////////////////////////////////////////////////////
 
-// pow_mod for bignats is only used in pocklington and in PowMod circuit (tests).
 
-// Pocklington criterion is used for "challenge" in set/rsa.rs and rollup/rsa.rs
+/*
+From set_proof.rs in bellman bignat examples
 
-// group.rs defines semigroup, which only has power wrt integer exponent.
-// This doesn't work for us.
-// But at the same time CircuitSemiGroup::power can take a bignat as exponent,
-// and this is used in wesolowski::proof_of_exp
-// In turn this is ued in CircuitIntSet::insert, and ::remove, which are used
-// in rsa.rs. This matches what's claimed in the paper: RSA proofs are batched with
-// wesolowski proofs.
+   let mut circuit = SetBench::<_, ExpSet<_, ParExpComb>> {
+       inputs: Some(inputs),
+       params: params.clone(),
+   };
+create_random_proof(circuit, &params, rng).unwrap();
+let prover = prepare_prover(circuit)
+let proof = prover.create_proof(params, r, s)?;
 
-// I could implement semigroup and CircuitSemiGroup for Paillier, but isn't this an overkill?
-// why not use directly bignat::pow?
-// "Bauer" is probably "Brauer"
+They implement Circuit trait for SetBench in rsa.rs
 
-// Why are there two different exp algorithms? One in bignat used for Pocklington,
-// another in group.rs used for wesolowski proofs?
-// Bc it's the same code, just copy-pasted!
+examples/rollup_bench.rs has number of constraints calculation:
+   let circuit = rsa::RollupBench::<Bls12, Poseidon<Bls12>>::from_counts(
+       t, // Use `t` in place of `c` for sparse-ness.
+       t,
+       JubjubBls12::new(),
+       Poseidon::default(),
+   );
+
+   let mut cs = ConstraintCounter::new();
+   circuit.synthesize(&mut cs).expect("synthesis failed");
+   cs.num_constraints()
+
+Here RollupBench implements circuit, so it has synthesize.
+
+pocklington/mod.rs has computation of pow_mod from base and extension.
+
+wesolowski.rs has something very similar to paillier: proof that "q^l base^r = res"
+
+pow_mod for bignats is only used in pocklington and in PowMod circuit (tests).
+
+Pocklington criterion is used for "challenge" in set/rsa.rs and rollup/rsa.rs
+
+group.rs defines semigroup, which only has power wrt integer exponent.
+This doesn't work for us.
+But at the same time CircuitSemiGroup::power can take a bignat as exponent,
+and this is used in wesolowski::proof_of_exp
+In turn this is ued in CircuitIntSet::insert, and ::remove, which are used
+in rsa.rs. This matches what's claimed in the paper: RSA proofs are batched with
+wesolowski proofs.
+
+I could implement semigroup and CircuitSemiGroup for Paillier, but isn't this an overkill?
+why not use directly bignat::pow?
+"Bauer" is probably "Brauer"
+
+Why are there two different exp algorithms? One in bignat used for Pocklington,
+another in group.rs used for wesolowski proofs?
+Bc it's the same code, just copy-pasted!
+
+
+Trying to follow
+- https://github.com/matter-labs/bellman/blob/master/tests/mimc.rs#L92
+- https://github.com/alex-ozdemir/bellman-bignat/blob/master/src/set/rsa.rs#L523
+
+*/
