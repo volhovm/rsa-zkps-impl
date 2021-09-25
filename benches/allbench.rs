@@ -2,6 +2,8 @@ use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use std::time::Duration;
 use rsazkps::protocols::schnorr_paillier as sp;
 
+
+// TODO the public modulus is not randomized. Should it be?
 fn bench_schnorr_paillier_raw(c: &mut Criterion, params: &sp::ProofParams) {
     let mut grp = c.benchmark_group(format!("Group 1: Schnorr Paillier for {}", params));
 
@@ -35,11 +37,12 @@ fn bench_schnorr_paillier_raw(c: &mut Criterion, params: &sp::ProofParams) {
     grp.bench_function("verify2", |b| {
         b.iter_batched(
             || { let (inst,wit) = sp::lang_sample(params);
+                 let (_,precomp) = sp::verify0(params,&inst);
                  let (com,cr) = sp::prove1(params,&inst);
                  let ch = sp::verify1(params);
                  let resp = sp::prove2(params,&inst,&wit,&ch,&cr);
-                 return (inst,com,ch,resp); },
-            |(inst,com,ch,resp)| sp::verify2(params,&inst,&com,&ch,&resp),
+                 return (inst,precomp,com,ch,resp); },
+            |(inst,precomp,com,ch,resp)| sp::verify2(params,&inst,&precomp,&com,&ch,&resp),
             BatchSize::LargeInput
         );
     });
@@ -50,11 +53,11 @@ fn bench_schnorr_paillier_raw(c: &mut Criterion, params: &sp::ProofParams) {
 
 fn bench_schnorr_paillier(c: &mut Criterion) {
 
-    let params1 = sp::ProofParams::calc_proof_params(2048,256,15);
+    let params1 = sp::ProofParams::new(2048,256,15);
     bench_schnorr_paillier_raw(c, &params1);
 
     // Not checking for small primes
-    let params2 = sp::ProofParams::calc_proof_params(2048,256,1);
+    let params2 = sp::ProofParams::new(2048,256,1);
     bench_schnorr_paillier_raw(c, &params2);
 }
 
