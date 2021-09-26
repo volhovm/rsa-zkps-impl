@@ -4,6 +4,7 @@ use paillier::EncryptWithChosenRandomness;
 use paillier::Paillier;
 use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
 use paillier::*;
+use serde::{Serialize};
 use std::fmt;
 
 
@@ -80,11 +81,14 @@ impl fmt::Display for ProofParams {
     }
 }
 
-/// Instance AND language.
-#[derive(Clone, PartialEq, Debug)]
-pub struct Instance {
+#[derive(Clone, PartialEq, Debug, Serialize)]
+pub struct Language {
     /// Public key that is used to generate instances.
-    pub pk: EncryptionKey,
+    pub pk: EncryptionKey
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize)]
+pub struct Instance {
     /// The encryption ciphertext
     pub ct: BigInt
 }
@@ -97,10 +101,10 @@ pub struct Witness {
 
 /// Contains (optionally) ciphertext encrypting -2^{λ+1} R, in case
 /// we're in range proof mode
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct VerifierPrecomp(Option<BigInt>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Commitment(Vec<BigInt>);
 
 #[derive(Clone, PartialEq, Debug)]
@@ -112,37 +116,46 @@ pub struct Challenge(Vec<BigInt>);
 #[derive(Clone, PartialEq, Debug)]
 pub struct Response(Vec<(BigInt,BigInt)>);
 
-
-pub fn lang_sample(params: &ProofParams) -> (Instance,Witness) {
+pub fn sample_lang(params: &ProofParams) -> Language {
     let pk = Paillier::keypair_with_modulus_size(params.n_bitlen).keys().0;
+    Language { pk }
+}
+
+pub fn sample_inst(params: &ProofParams, lang: &Language) -> (Instance,Witness) {
     let m = match &params.range_params {
         Some(RangeProofParams{r,..}) => BigInt::sample_below(&r),
-        None => BigInt::sample_below(&pk.n),
+        None => BigInt::sample_below(&lang.pk.n),
     };
-    let r = BigInt::sample_below(&pk.n);
+    let r = BigInt::sample_below(&lang.pk.n);
     let ct = Paillier::encrypt_with_chosen_randomness(
-             &pk,
+             &lang.pk,
              RawPlaintext::from(m.clone()),
              &Randomness(r.clone())).0.into_owned();
 
-    let inst = Instance { ct, pk };
+    let inst = Instance { ct };
     let wit = Witness { m, r };
 
     return (inst,wit);
 }
 
+pub fn sample_liw(params: &ProofParams) -> (Language,Instance,Witness) {
+    let lang = sample_lang(params);
+    let (inst,wit) = sample_inst(params, &lang);
+    (lang,inst,wit)
+}
 
-pub fn verify0(params: &ProofParams, inst: &Instance) -> (bool,VerifierPrecomp) {
-    if !super::utils::check_small_primes(params.q,&inst.pk.n) {
+
+pub fn verify0(params: &ProofParams, lang: &Language) -> (bool,VerifierPrecomp) {
+    if !super::utils::check_small_primes(params.q,&lang.pk.n) {
         return (false,VerifierPrecomp(None));
     };
 
     let precomp = params.range_params.as_ref().map(|RangeProofParams{rand_range2,..}| {
 //            let rnd = BigInt::sample_below(&inst.pk.n);
             let rnd = BigInt::from(1);
-            let m = &inst.pk.n - rand_range2;
+            let m = &lang.pk.n - rand_range2;
             let neg_ct = Paillier::encrypt_with_chosen_randomness(
-                &inst.pk,
+                &lang.pk,
                 RawPlaintext::from(m),
                 &Randomness(rnd)).0.into_owned();
             neg_ct
@@ -151,10 +164,10 @@ pub fn verify0(params: &ProofParams, inst: &Instance) -> (bool,VerifierPrecomp) 
     (true, VerifierPrecomp(precomp))
 }
 
-pub fn prove1(params: &ProofParams, inst: &Instance) -> (Commitment,ComRand) {
+pub fn prove1(params: &ProofParams, lang: &Language) -> (Commitment,ComRand) {
     // TODO What's the difference between (a..b) and [a..b]?.. The second one gives unexpected results.
     // apparently a..b is already a range I need, so [a..b] is a singleton array?
-    let n: &BigInt = &inst.pk.n;
+    let n: &BigInt = &lang.pk.n;
     let rand_v: Vec<_> = (0..params.reps).map(|_| {
         let rm = match &params.range_params {
             Some(RangeProofParams{ rand_range, .. }) =>
@@ -180,12 +193,12 @@ pub fn verify1(params: &ProofParams) -> Challenge {
 }
 
 pub fn prove2(params: &ProofParams,
-              inst: &Instance,
+              lang: &Language,
               wit: &Witness,
               ch: &Challenge,
               cr: &ComRand) -> Response {
-    let n: &BigInt = &inst.pk.n;
-    let n2: &BigInt = &inst.pk.nn;
+    let n: &BigInt = &lang.pk.n;
+    let n2: &BigInt = &lang.pk.nn;
     let resp_v: Vec<_> = (0..params.reps).map(|i| {
         let ch = &(&ch.0)[i];
         let rm = &(&cr.0)[i].0;
@@ -209,13 +222,14 @@ pub fn prove2(params: &ProofParams,
 }
 
 pub fn verify2(params: &ProofParams,
+               lang: &Language,
                inst: &Instance,
                precomp: &VerifierPrecomp,
                com: &Commitment,
                ch: &Challenge,
                resp: &Response) -> bool {
-    let n: &BigInt = &inst.pk.n;
-    let n2: &BigInt = &inst.pk.nn;
+    let n: &BigInt = &lang.pk.n;
+    let n2: &BigInt = &lang.pk.nn;
     for i in 0..params.reps {
         let ch = &(&ch.0)[i];
         let s1 = &resp.0[i].0;
@@ -225,9 +239,9 @@ pub fn verify2(params: &ProofParams,
 
         if let Some(RangeProofParams{rand_range2,..}) = &params.range_params {
             let neg_ct = precomp.0.as_ref().unwrap();
-            println!("Before challenge size check");
+//            println!("Before challenge size check");
             if s1 >= rand_range2 || s1 < &BigInt::from(0) { return false; }
-            println!("Passed challenge size check");
+//            println!("Passed challenge size check");
             ct = BigInt::mod_mul(&ct, &neg_ct, n2);
         };
 
@@ -241,9 +255,59 @@ pub fn verify2(params: &ProofParams,
 
         if lhs != rhs { return false; }
 
-        println!("Attempt {}, successful!", i);
+//        println!("Attempt {}, successful!", i);
     }
     return true;
+}
+
+pub struct FSProof {
+    fs_com : Commitment,
+    fs_ch : Challenge,
+    fs_resp : Response
+}
+
+fn fs_compute_challenge(lang: &Language, inst:&Instance, fs_com: &Commitment) -> Challenge {
+    use blake2::*;
+    let b = fs_com.0.iter().map(|com:&BigInt| {
+        let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
+        // Use Digest::digest, but it asks for a fixed-sized slice?
+        let mut hasher: Blake2b = Digest::new();
+        hasher.update(&x);
+        let r0 = hasher.finalize();
+        BigInt::from((&(r0.as_slice())[0] & 0b0000001) as u32)
+    }).collect();
+    Challenge(b)
+}
+
+
+pub fn fs_prove(params: &ProofParams,
+                lang: &Language,
+                inst: &Instance,
+                wit: &Witness) -> FSProof {
+    let (fs_com,cr) = prove1(&params,&lang);
+    let fs_ch = fs_compute_challenge(lang,inst,&fs_com);
+    let fs_resp = prove2(&params,&lang,&wit,&fs_ch,&cr);
+
+    FSProof{ fs_com, fs_ch, fs_resp }
+}
+
+
+pub fn fs_verify0(params: &ProofParams,
+                   lang: &Language) -> (bool, VerifierPrecomp) {
+    verify0(params,lang)
+}
+
+pub fn fs_verify(params: &ProofParams,
+                 lang: &Language,
+                 inst: &Instance,
+                 precomp: &VerifierPrecomp,
+                 proof: &FSProof) -> bool {
+
+    let fs_ch_own = fs_compute_challenge(lang,inst,&proof.fs_com);
+    if fs_ch_own != proof.fs_ch { return false; }
+
+    verify2(&params,&lang,&inst,precomp,
+            &proof.fs_com,&proof.fs_ch,&proof.fs_resp)
 }
 
 #[cfg(test)]
@@ -254,36 +318,49 @@ mod tests {
     #[test]
     fn test_correctness() {
         let params = ProofParams::new(2048, 128, 15);
-        let (inst,wit) = lang_sample(&params);
+        let (lang,inst,wit) = sample_liw(&params);
 
-        let (res,precomp) = verify0(&params,&inst);
+        let (res,precomp) = verify0(&params,&lang);
         assert!(res);
 
-        let (com,cr) = prove1(&params,&inst);
+        let (com,cr) = prove1(&params,&lang);
         let ch = verify1(&params);
 
-        let resp = prove2(&params,&inst,&wit,&ch,&cr);
-        assert!(verify2(&params,&inst,&precomp,&com,&ch,&resp));
+        let resp = prove2(&params,&lang,&wit,&ch,&cr);
+        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
     }
+
+    #[test]
+    fn test_correctness_fs() {
+        let params = ProofParams::new(2048, 128, 15);
+        let (lang,inst,wit) = sample_liw(&params);
+
+        let proof = fs_prove(&params,&lang,&inst,&wit);
+        let (res0,precomp) = fs_verify0(&params,&lang);
+        assert!(res0);
+        let res = fs_verify(&params,&lang,&inst,&precomp,&proof);
+        assert!(res);
+    }
+
 
     #[test]
     fn test_correctness_range() {
         let lambda = 128;
         let range = BigInt::pow(&BigInt::from(2), 200);
         let params = ProofParams::new_range(512, lambda, range);
-        let (inst,wit) = lang_sample(&params);
+        let (lang,inst,wit) = sample_liw(&params);
 
         println!("Debug: Instance {:?}", inst);
 
-        let (res,precomp) = verify0(&params,&inst);
+        let (res,precomp) = verify0(&params,&lang);
         println!("Debug: Precomp {:?}", precomp);
         assert!(res);
 
-        let (com,cr) = prove1(&params,&inst);
+        let (com,cr) = prove1(&params,&lang);
         let ch = verify1(&params);
 
-        let resp = prove2(&params,&inst,&wit,&ch,&cr);
-        assert!(verify2(&params,&inst,&precomp,&com,&ch,&resp));
+        let resp = prove2(&params,&lang,&wit,&ch,&cr);
+        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
     }
 
 
@@ -291,19 +368,20 @@ mod tests {
     fn test_soundness_trivial() {
         let params = ProofParams::new(2048, 128, 15);
 
-        let (inst,_) = lang_sample(&params);
-        let (_,wit2) = lang_sample(&params);
+        let lang = sample_lang(&params);
+        let (inst,_) = sample_inst(&params,&lang);
+        let (_,wit2) = sample_inst(&params,&lang);
 
 
-        let (res,precomp) = verify0(&params,&inst);
+        let (res,precomp) = verify0(&params,&lang);
         assert!(res);
 
-        let (com,cr) = prove1(&params,&inst);
+        let (com,cr) = prove1(&params,&lang);
         let ch = verify1(&params);
 
         // with wit2
-        let resp = prove2(&params,&inst,&wit2,&ch,&cr);
-        assert!(verify2(&params,&inst,&precomp,&com,&ch,&resp) == false);
+        let resp = prove2(&params,&lang,&wit2,&ch,&cr);
+        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp) == false);
     }
 
 }

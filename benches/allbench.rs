@@ -10,14 +10,14 @@ fn bench_schnorr_paillier_raw(c: &mut Criterion, params: &sp::ProofParams) {
     grp.measurement_time(Duration::from_secs(120));
 
     grp.bench_function("verify0", |b| {
-        b.iter_batched(|| sp::lang_sample(params).0,
-                       |inst| sp::verify0(params,&inst),
+        b.iter_batched(|| sp::sample_liw(params).0,
+                       |lang| sp::verify0(params,&lang),
                        BatchSize::LargeInput);
     });
 
     grp.bench_function("prove1", |b| {
-        b.iter_batched(|| sp::lang_sample(params).0,
-                       |inst| sp::prove1(params,&inst),
+        b.iter_batched(|| sp::sample_liw(params).0,
+                       |lang| sp::prove1(params,&lang),
                        BatchSize::LargeInput);
     });
 
@@ -25,26 +25,53 @@ fn bench_schnorr_paillier_raw(c: &mut Criterion, params: &sp::ProofParams) {
 
     grp.bench_function("prove2", |b| {
         b.iter_batched(
-            || { let (inst,wit) = sp::lang_sample(params);
-                 let (_,cr) = sp::prove1(params,&inst);
+            || { let (lang,_,wit) = sp::sample_liw(params);
+                 let (_,cr) = sp::prove1(params,&lang);
                  let ch = sp::verify1(params);
-                 return (inst,wit,ch,cr); },
-            |(inst,wit,ch,cr)| sp::prove2(params,&inst,&wit,&ch,&cr),
+                 return (lang,wit,ch,cr); },
+            |(lang,wit,ch,cr)| sp::prove2(params,&lang,&wit,&ch,&cr),
             BatchSize::LargeInput
         );
     });
 
     grp.bench_function("verify2", |b| {
         b.iter_batched(
-            || { let (inst,wit) = sp::lang_sample(params);
-                 let (_,precomp) = sp::verify0(params,&inst);
-                 let (com,cr) = sp::prove1(params,&inst);
+            || { let (lang,inst,wit) = sp::sample_liw(params);
+                 let (_,precomp) = sp::verify0(params,&lang);
+                 let (com,cr) = sp::prove1(params,&lang);
                  let ch = sp::verify1(params);
-                 let resp = sp::prove2(params,&inst,&wit,&ch,&cr);
-                 return (inst,precomp,com,ch,resp); },
-            |(inst,precomp,com,ch,resp)| sp::verify2(params,&inst,&precomp,&com,&ch,&resp),
+                 let resp = sp::prove2(params,&lang,&wit,&ch,&cr);
+                 return (lang,inst,precomp,com,ch,resp); },
+            |(lang,inst,precomp,com,ch,resp)| sp::verify2(params,&lang,&inst,&precomp,&com,&ch,&resp),
             BatchSize::LargeInput
         );
+    });
+
+    grp.finish();
+}
+
+fn bench_schnorr_paillier_fs(c: &mut Criterion, params: &sp::ProofParams) {
+    let mut grp = c.benchmark_group(format!("Group 2: Schnorr Paillier FS for {}", params));
+
+    grp.bench_function("FS prove", |b| {
+        b.iter_batched(|| sp::sample_liw(params),
+                       |(lang,inst,wit)| sp::fs_prove(params,&lang,&inst,&wit),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("FS verify 0", |b| {
+        b.iter_batched(|| sp::sample_lang(params),
+                       |lang| sp::fs_verify0(params,&lang).0,
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("FS verify", |b| {
+        b.iter_batched(|| { let (lang,inst,wit) = sp::sample_liw(params);
+                            let (_,precomp) = sp::fs_verify0(params,&lang);
+                            let proof = sp::fs_prove(params,&lang,&inst,&wit);
+                            (params,lang,inst,precomp,proof) },
+                       |(params,lang,inst,precomp,proof)| sp::fs_verify(params,&lang,&inst,&precomp,&proof),
+                       BatchSize::LargeInput);
     });
 
     grp.finish();
@@ -55,10 +82,12 @@ fn bench_schnorr_paillier(c: &mut Criterion) {
 
     let params1 = sp::ProofParams::new(2048,256,15);
     bench_schnorr_paillier_raw(c, &params1);
+    bench_schnorr_paillier_fs(c, &params1);
 
     // Not checking for small primes
-    let params2 = sp::ProofParams::new(2048,256,1);
+    let params2 = sp::ProofParams::new(2048,128,1);
     bench_schnorr_paillier_raw(c, &params2);
+    bench_schnorr_paillier_fs(c, &params2);
 }
 
 criterion_group!(benches, bench_schnorr_paillier);

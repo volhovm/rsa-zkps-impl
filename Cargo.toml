@@ -17,7 +17,10 @@ path = "src/main.rs"
 rand = "0.8.4"
 rug = "1.13.0"
 zk-paillier = "0.4.0"
+serde = { version = "1.0.130", features = ["derive"] }
+rmp-serde = "0.15.5"
 primes = "0.3.0"
+blake2 = "0.9.1"
 either = "1.6.1"
 # EXACTLY the same version as used by bellman-bignat. Reexports bellman_ce 0.3.3 and pairing_ce 0.20.0
 sapling-crypto_ce = { package = "sapling-crypto_ce", git = "https://github.com/alex-ozdemir/sapling-crypto", branch = "bls12-poseidon", version = "0.1.2" }
