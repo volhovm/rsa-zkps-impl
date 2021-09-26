@@ -82,19 +82,19 @@ impl fmt::Display for ProofParams {
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Language {
+pub struct Lang {
     /// Public key that is used to generate instances.
     pub pk: EncryptionKey
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Instance {
+pub struct Inst {
     /// The encryption ciphertext
     pub ct: BigInt
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Witness {
+pub struct Wit {
     pub m: BigInt,
     pub r: BigInt
 }
@@ -116,12 +116,12 @@ pub struct Challenge(Vec<BigInt>);
 #[derive(Clone, PartialEq, Debug)]
 pub struct Response(Vec<(BigInt,BigInt)>);
 
-pub fn sample_lang(params: &ProofParams) -> Language {
+pub fn sample_lang(params: &ProofParams) -> Lang {
     let pk = Paillier::keypair_with_modulus_size(params.n_bitlen).keys().0;
-    Language { pk }
+    Lang { pk }
 }
 
-pub fn sample_inst(params: &ProofParams, lang: &Language) -> (Instance,Witness) {
+pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let m = match &params.range_params {
         Some(RangeProofParams{r,..}) => BigInt::sample_below(&r),
         None => BigInt::sample_below(&lang.pk.n),
@@ -132,20 +132,20 @@ pub fn sample_inst(params: &ProofParams, lang: &Language) -> (Instance,Witness) 
              RawPlaintext::from(m.clone()),
              &Randomness(r.clone())).0.into_owned();
 
-    let inst = Instance { ct };
-    let wit = Witness { m, r };
+    let inst = Inst { ct };
+    let wit = Wit { m, r };
 
     return (inst,wit);
 }
 
-pub fn sample_liw(params: &ProofParams) -> (Language,Instance,Witness) {
+pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
     let lang = sample_lang(params);
     let (inst,wit) = sample_inst(params, &lang);
     (lang,inst,wit)
 }
 
 
-pub fn verify0(params: &ProofParams, lang: &Language) -> (bool,VerifierPrecomp) {
+pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
     if !super::utils::check_small_primes(params.q,&lang.pk.n) {
         return (false,VerifierPrecomp(None));
     };
@@ -164,7 +164,7 @@ pub fn verify0(params: &ProofParams, lang: &Language) -> (bool,VerifierPrecomp) 
     (true, VerifierPrecomp(precomp))
 }
 
-pub fn prove1(params: &ProofParams, lang: &Language) -> (Commitment,ComRand) {
+pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     // TODO What's the difference between (a..b) and [a..b]?.. The second one gives unexpected results.
     // apparently a..b is already a range I need, so [a..b] is a singleton array?
     let n: &BigInt = &lang.pk.n;
@@ -193,8 +193,8 @@ pub fn verify1(params: &ProofParams) -> Challenge {
 }
 
 pub fn prove2(params: &ProofParams,
-              lang: &Language,
-              wit: &Witness,
+              lang: &Lang,
+              wit: &Wit,
               ch: &Challenge,
               cr: &ComRand) -> Response {
     let n: &BigInt = &lang.pk.n;
@@ -222,8 +222,8 @@ pub fn prove2(params: &ProofParams,
 }
 
 pub fn verify2(params: &ProofParams,
-               lang: &Language,
-               inst: &Instance,
+               lang: &Lang,
+               inst: &Inst,
                precomp: &VerifierPrecomp,
                com: &Commitment,
                ch: &Challenge,
@@ -266,7 +266,7 @@ pub struct FSProof {
     fs_resp : Response
 }
 
-fn fs_compute_challenge(lang: &Language, inst:&Instance, fs_com: &Commitment) -> Challenge {
+fn fs_compute_challenge(lang: &Lang, inst:&Inst, fs_com: &Commitment) -> Challenge {
     use blake2::*;
     let b = fs_com.0.iter().map(|com:&BigInt| {
         let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
@@ -281,9 +281,9 @@ fn fs_compute_challenge(lang: &Language, inst:&Instance, fs_com: &Commitment) ->
 
 
 pub fn fs_prove(params: &ProofParams,
-                lang: &Language,
-                inst: &Instance,
-                wit: &Witness) -> FSProof {
+                lang: &Lang,
+                inst: &Inst,
+                wit: &Wit) -> FSProof {
     let (fs_com,cr) = prove1(&params,&lang);
     let fs_ch = fs_compute_challenge(lang,inst,&fs_com);
     let fs_resp = prove2(&params,&lang,&wit,&fs_ch,&cr);
@@ -293,13 +293,13 @@ pub fn fs_prove(params: &ProofParams,
 
 
 pub fn fs_verify0(params: &ProofParams,
-                   lang: &Language) -> (bool, VerifierPrecomp) {
+                  lang: &Lang) -> (bool, VerifierPrecomp) {
     verify0(params,lang)
 }
 
 pub fn fs_verify(params: &ProofParams,
-                 lang: &Language,
-                 inst: &Instance,
+                 lang: &Lang,
+                 inst: &Inst,
                  precomp: &VerifierPrecomp,
                  proof: &FSProof) -> bool {
 
@@ -350,7 +350,7 @@ mod tests {
         let params = ProofParams::new_range(512, lambda, range);
         let (lang,inst,wit) = sample_liw(&params);
 
-        println!("Debug: Instance {:?}", inst);
+        println!("Debug: Inst {:?}", inst);
 
         let (res,precomp) = verify0(&params,&lang);
         println!("Debug: Precomp {:?}", precomp);
