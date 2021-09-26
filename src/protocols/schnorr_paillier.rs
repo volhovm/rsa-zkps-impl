@@ -99,8 +99,7 @@ pub struct Wit {
     pub r: BigInt
 }
 
-/// Contains (optionally) ciphertext encrypting -2^{λ+1} R, in case
-/// we're in range proof mode
+/// Contains N-2^{λ+1} R
 #[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct VerifierPrecomp(Option<BigInt>);
 
@@ -123,7 +122,11 @@ pub fn sample_lang(params: &ProofParams) -> Lang {
 
 pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let m = match &params.range_params {
-        Some(RangeProofParams{r,..}) => BigInt::sample_below(&r),
+        // [-R,R]
+        Some(RangeProofParams{r,..}) => {
+            let x = BigInt::sample_below(&(2*r));
+            x - r
+        }
         None => BigInt::sample_below(&lang.pk.n),
     };
     let r = BigInt::sample_below(&lang.pk.n);
@@ -150,16 +153,18 @@ pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
         return (false,VerifierPrecomp(None));
     };
 
+//    let precomp = params.range_params.as_ref().map(|RangeProofParams{rand_range2,..}| {
+//            let rnd = BigInt::from(1);
+//            let m = &lang.pk.n - rand_range2;
+//            let neg_ct = Paillier::encrypt_with_chosen_randomness(
+//                &lang.pk,
+//                RawPlaintext::from(m),
+//                &Randomness(rnd)).0.into_owned();
+//            neg_ct
+    //        });
     let precomp = params.range_params.as_ref().map(|RangeProofParams{rand_range2,..}| {
-//            let rnd = BigInt::sample_below(&inst.pk.n);
-            let rnd = BigInt::from(1);
-            let m = &lang.pk.n - rand_range2;
-            let neg_ct = Paillier::encrypt_with_chosen_randomness(
-                &lang.pk,
-                RawPlaintext::from(m),
-                &Randomness(rnd)).0.into_owned();
-            neg_ct
-        });
+        &lang.pk.n - rand_range2
+    });
 
     (true, VerifierPrecomp(precomp))
 }
@@ -171,7 +176,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let rand_v: Vec<_> = (0..params.reps).map(|_| {
         let rm = match &params.range_params {
             Some(RangeProofParams{ rand_range, .. }) =>
-                BigInt::sample_below(&rand_range),
+                (BigInt::sample_below(&(rand_range*2)) - rand_range),
             None => BigInt::sample_below(n),
         };
         let rr = BigInt::sample_below(n);
@@ -204,15 +209,7 @@ pub fn prove2(params: &ProofParams,
         let rm = &(&cr.0)[i].0;
         let rr = &(&cr.0)[i].1;
 
-//        let m_shifted = None;
-        let m_shifted = params.range_params.as_ref().map(|RangeProofParams{rand_range2,..}| {
-            // Is this the most efficient way?..
-            (n - rand_range2 + &wit.m) % n
-        });
-        // I can't create this inside map because of referencing issues
-        let mm = if m_shifted.is_some() { m_shifted.as_ref().unwrap() } else { &wit.m };
-
-        let t1 = BigInt::mod_mul(ch, mm, n);
+        let t1 = BigInt::mod_mul(ch, &wit.m , n);
         let s1 = BigInt::mod_add(rm, &t1, n);
         let t2 = BigInt::mod_pow(&(wit.r), ch, n2);
         let s2 = BigInt::mod_mul(rr, &t2, n2);
@@ -235,14 +232,10 @@ pub fn verify2(params: &ProofParams,
         let s1 = &resp.0[i].0;
         let s2 = &resp.0[i].1;
         let alpha = &com.0[i];
-        let mut ct = inst.ct.clone();
+        let ct = &inst.ct;
 
         if let Some(RangeProofParams{rand_range2,..}) = &params.range_params {
-            let neg_ct = precomp.0.as_ref().unwrap();
-//            println!("Before challenge size check");
-            if s1 >= rand_range2 || s1 < &BigInt::from(0) { return false; }
-//            println!("Passed challenge size check");
-            ct = BigInt::mod_mul(&ct, &neg_ct, n2);
+            if s1 >= rand_range2 && s1 < precomp.0.as_ref().unwrap() { return false; }
         };
 
         let ec = BigInt::mod_pow(&ct, ch, n2);
@@ -254,8 +247,6 @@ pub fn verify2(params: &ProofParams,
             &n2);
 
         if lhs != rhs { return false; }
-
-//        println!("Attempt {}, successful!", i);
     }
     return true;
 }
