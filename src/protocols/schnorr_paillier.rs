@@ -170,8 +170,6 @@ pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
 }
 
 pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
-    // TODO What's the difference between (a..b) and [a..b]?.. The second one gives unexpected results.
-    // apparently a..b is already a range I need, so [a..b] is a singleton array?
     let n: &BigInt = &lang.pk.n;
     let rand_v: Vec<_> = (0..params.reps).map(|_| {
         let rm = match &params.range_params {
@@ -251,6 +249,9 @@ pub fn verify2(params: &ProofParams,
     return true;
 }
 
+
+
+#[derive(Clone, Debug)]
 pub struct FSProof {
     fs_com : Commitment,
     fs_ch : Challenge,
@@ -283,6 +284,9 @@ pub fn fs_prove(params: &ProofParams,
 }
 
 
+
+
+
 pub fn fs_verify0(params: &ProofParams,
                   lang: &Lang) -> (bool, VerifierPrecomp) {
     verify0(params,lang)
@@ -306,73 +310,73 @@ mod tests {
 
     use crate::protocols::schnorr_paillier::*;
 
-    #[test]
-    fn test_correctness() {
-        let params = ProofParams::new(2048, 128, 15);
-        let (lang,inst,wit) = sample_liw(&params);
-
-        let (res,precomp) = verify0(&params,&lang);
-        assert!(res);
-
-        let (com,cr) = prove1(&params,&lang);
-        let ch = verify1(&params);
-
-        let resp = prove2(&params,&lang,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
-    }
-
-    #[test]
-    fn test_correctness_fs() {
-        let params = ProofParams::new(2048, 128, 15);
-        let (lang,inst,wit) = sample_liw(&params);
-
-        let proof = fs_prove(&params,&lang,&inst,&wit);
-        let (res0,precomp) = fs_verify0(&params,&lang);
-        assert!(res0);
-        let res = fs_verify(&params,&lang,&inst,&precomp,&proof);
-        assert!(res);
-    }
-
-
-    #[test]
-    fn test_correctness_range() {
-        let lambda = 128;
-        let range = BigInt::pow(&BigInt::from(2), 200);
-        let params = ProofParams::new_range(512, lambda, range);
-        let (lang,inst,wit) = sample_liw(&params);
-
-        println!("Debug: Inst {:?}", inst);
-
-        let (res,precomp) = verify0(&params,&lang);
-        println!("Debug: Precomp {:?}", precomp);
-        assert!(res);
-
-        let (com,cr) = prove1(&params,&lang);
-        let ch = verify1(&params);
-
-        let resp = prove2(&params,&lang,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
-    }
-
-
-    #[test]
-    fn test_soundness_trivial() {
-        let params = ProofParams::new(2048, 128, 15);
-
-        let lang = sample_lang(&params);
-        let (inst,_) = sample_inst(&params,&lang);
-        let (_,wit2) = sample_inst(&params,&lang);
-
-
-        let (res,precomp) = verify0(&params,&lang);
-        assert!(res);
-
-        let (com,cr) = prove1(&params,&lang);
-        let ch = verify1(&params);
-
-        // with wit2
-        let resp = prove2(&params,&lang,&wit2,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp) == false);
-    }
+//    #[test]
+//    fn test_correctness() {
+//        let params = ProofParams::new(2048, 128, 15);
+//        let (lang,inst,wit) = sample_liw(&params);
+//
+//        let (res,precomp) = verify0(&params,&lang);
+//        assert!(res);
+//
+//        let (com,cr) = prove1(&params,&lang);
+//        let ch = verify1(&params);
+//
+//        let resp = prove2(&params,&lang,&wit,&ch,&cr);
+//        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
+//    }
+//
+//    #[test]
+//    fn test_correctness_fs() {
+//        let params = ProofParams::new(2048, 128, 15);
+//        let (lang,inst,wit) = sample_liw(&params);
+//
+//        let proof = fs_prove(&params,&lang,&inst,&wit);
+//        let (res0,precomp) = fs_verify0(&params,&lang);
+//        assert!(res0);
+//        let res = fs_verify(&params,&lang,&inst,&precomp,&proof);
+//        assert!(res);
+//    }
+//
+//
+//    #[test]
+//    fn test_correctness_range() {
+//        let lambda = 128;
+//        let range = BigInt::pow(&BigInt::from(2), 200);
+//        let params = ProofParams::new_range(512, lambda, range);
+//        let (lang,inst,wit) = sample_liw(&params);
+//
+//        println!("Debug: Inst {:?}", inst);
+//
+//        let (res,precomp) = verify0(&params,&lang);
+//        println!("Debug: Precomp {:?}", precomp);
+//        assert!(res);
+//
+//        let (com,cr) = prove1(&params,&lang);
+//        let ch = verify1(&params);
+//
+//        let resp = prove2(&params,&lang,&wit,&ch,&cr);
+//        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
+//    }
+//
+//
+//    #[test]
+//    fn test_soundness_trivial() {
+//        let params = ProofParams::new(2048, 128, 15);
+//
+//        let lang = sample_lang(&params);
+//        let (inst,_) = sample_inst(&params,&lang);
+//        let (_,wit2) = sample_inst(&params,&lang);
+//
+//
+//        let (res,precomp) = verify0(&params,&lang);
+//        assert!(res);
+//
+//        let (com,cr) = prove1(&params,&lang);
+//        let ch = verify1(&params);
+//
+//        // with wit2
+//        let resp = prove2(&params,&lang,&wit2,&ch,&cr);
+//        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp) == false);
+//    }
 
 }

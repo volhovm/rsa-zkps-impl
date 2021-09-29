@@ -11,6 +11,7 @@ use super::schnorr_paillier as sp;
 use super::paillier_elgamal as pe;
 
 
+#[derive(Clone, Debug)]
 pub struct DVParams {
     pub n_bitlen: usize,
     pub lambda: u32,
@@ -26,6 +27,7 @@ impl DVParams {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct VSK {
     /// Verifier's Paillier secret key
     pub sk: DecryptionKey,
@@ -33,6 +35,7 @@ pub struct VSK {
     pub chs: Vec<BigInt>
 }
 
+#[derive(Clone, Debug)]
 pub struct VPK {
     /// Verifier's Paillier public key
     pub pk: EncryptionKey,
@@ -43,13 +46,15 @@ pub struct VPK {
 }
 
 
-pub fn keygen(params: DVParams) -> (VPK, VSK) {
+pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     // This can be more effective in terms of move/copy
     // e.g. Inst/Wit could contain references inside?
     let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen).keys();
 
     let chs: Vec<BigInt> =
-        iter::repeat(BigInt::sample_below(&params.two_lambda)).take(2*params.lambda as usize).collect();
+        (0..2*params.lambda)
+        .map(|_| BigInt::sample_below(&params.two_lambda))
+        .collect();
 
     let cts_rs: Vec<(BigInt,BigInt)> =
         chs.iter().map( |ch| {
@@ -94,13 +99,13 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
 }
 
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct Commitment(Vec<BigInt>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct ComRand(Vec<(BigInt,BigInt)>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct Challenge(Vec<BigInt>);
 
 #[derive(Clone, Debug)]
@@ -147,35 +152,34 @@ pub struct DVChallenge(Vec<usize>);
 pub struct DVResp{ pub s1: BigInt, pub s2: BigInt }
 
 
-pub fn prover1(lang: &DVLang) -> (DVCom,DVComRand) {
-    let rr = BigInt::sample_below(&lang.pk.n2);
-    let rm = BigInt::sample_below(&lang.pk.n2);
+pub fn prove1(lang: &DVLang) -> (DVCom,DVComRand) {
+    let rm = BigInt::sample_below(&lang.pk.n);
+    // Should be n^2 here?
+    let rr = BigInt::sample_below(&lang.pk.n);
 
     let a = pe::encrypt_with_randomness(&lang.pk,&rm,&rr);
 
     (DVCom{a}, DVComRand{rr, rm})
 }
 
-pub fn verifier1(params: &DVParams) -> DVChallenge {
+pub fn verify1(params: &DVParams) -> DVChallenge {
     let mut rng = rand::thread_rng();
-    let gen = Uniform::from(0..2 * (params.lambda as usize));
+    let gen = Uniform::from(0..(2 * (params.lambda as usize)));
 
     let b = (0..params.lambda).map(|_| gen.sample(&mut rng)).collect();
     DVChallenge(b)
 }
 
-pub fn prover2(vpk: &VPK,
+pub fn prove2(vpk: &VPK,
                cr: &DVComRand,
                wit: &DVWit,
                ch: &DVChallenge) -> DVResp {
     let n2: &BigInt = &vpk.pk.nn;
 
-    let mut ct = BigInt::from(1);
-    for &i in &ch.0 {
-        let vpk_ct: &BigInt = &(vpk.cts[i]);
-        ct = BigInt::mod_mul(&ct, vpk_ct, n2);
-    }
-    let ct = ct; // move here
+    let ct =
+        ch.0.iter()
+        .map(|&i| &vpk.cts[i])
+        .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2));
 
     let rr_ct = Paillier::encrypt(&vpk.pk,RawPlaintext::from(&cr.rr)).0.into_owned();
     let s1 = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.r, n2),
@@ -190,15 +194,16 @@ pub fn prover2(vpk: &VPK,
     DVResp{s1,s2}
 }
 
-pub fn verifier2(vsk: &VSK,
-                 lang: &DVLang,
-                 inst: &DVInst,
-                 com: &DVCom,
-                 ch: &DVChallenge,
-                 resp: &DVResp) -> bool {
-    let ch_raw: BigInt = ch.0.iter().map(|&i| {
-        &vsk.chs[i]
-    }).fold(BigInt::from(0), |acc,x| acc + x );
+pub fn verify2(vsk: &VSK,
+               lang: &DVLang,
+               inst: &DVInst,
+               com: &DVCom,
+               ch: &DVChallenge,
+               resp: &DVResp) -> bool {
+    let ch_raw: BigInt =
+        ch.0.iter()
+        .map(|&i| &vsk.chs[i])
+        .fold(BigInt::from(0), |acc,x| acc + x );
 
     let s1 = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.s1)).0.into_owned();
     let s2 = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.s2)).0.into_owned();
@@ -223,4 +228,38 @@ pub fn verifier2(vsk: &VSK,
     if tmp2 != x2 { return false; }
 
     true
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use crate::protocols::designated::*;
+
+//    #[test]
+//    fn test_correctness_keygen() {
+//        let params = DVParams::new(1024, 32);
+//
+//        let (vpk,_vsk) = keygen(&params);
+//        assert!(verify_vpk(&params,&vpk));
+//    }
+
+//    #[test]
+//    fn test_correctness() {
+//
+//        let params = DVParams::new(256, 16);
+//
+//        let (vpk,vsk) = keygen(&params);
+//        assert!(verify_vpk(&params,&vpk));
+//        println!("VSK: {:?}", &vsk);
+//
+//        let (lang,inst,wit) = sample_liw(&params);
+//        println!("VSK: {:?}", (&lang,&inst,&wit));
+//
+//        let (com,cr) = prove1(&lang);
+//        let ch = verify1(&params);
+//
+//        let resp = prove2(&vpk,&cr,&wit,&ch);
+//        assert!(verify2(&vsk,&lang,&inst,&com,&ch,&resp));
+//    }
 }

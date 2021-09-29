@@ -3,7 +3,7 @@ use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 
 
-fn check_correct_ciphertext_proof() {
+fn _check_correct_ciphertext_proof() {
     let kp:Keypair = Paillier::keypair();
     let (pk,_) = kp.keys();
 
@@ -27,7 +27,5 @@ fn check_correct_ciphertext_proof() {
 }
 
 fn main() {
-    rsazkps::protocols::snark_paillier::test();
-
-    check_correct_ciphertext_proof();
+//    rsazkps::protocols::schnorr_paillier_batched::tests::test_correctness();
 }
