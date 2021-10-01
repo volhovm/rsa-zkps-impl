@@ -15,7 +15,6 @@ use super::paillier_elgamal as pe;
 pub struct DVParams {
     pub n_bitlen: usize,
     pub lambda: u32,
-    pub two_lambda: BigInt,
     pub nizk_params: sp::ProofParams
 }
 
@@ -23,7 +22,7 @@ impl DVParams {
     pub fn new(n_bitlen: usize, lambda: u32) -> DVParams {
         let two_lambda = BigInt::pow(&BigInt::from(2), lambda);
         let nizk_params = sp::ProofParams::new_range(n_bitlen,lambda,two_lambda.clone());
-        DVParams{n_bitlen, lambda, two_lambda, nizk_params}
+        DVParams{n_bitlen, lambda, nizk_params}
     }
 }
 
@@ -49,11 +48,12 @@ pub struct VPK {
 pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     // This can be more effective in terms of move/copy
     // e.g. Inst/Wit could contain references inside?
-    let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen).keys();
+    let (pk,sk) =
+        Paillier::keypair_with_modulus_size(params.n_bitlen * 2 + 4 * (params.lambda as usize)).keys();
 
     let chs: Vec<BigInt> =
         (0..2*params.lambda)
-        .map(|_| BigInt::sample_below(&params.two_lambda))
+        .map(|_| BigInt::sample(params.lambda as usize))
         .collect();
 
     let cts_rs: Vec<(BigInt,BigInt)> =
@@ -125,6 +125,8 @@ pub fn sample_lang(params: &DVParams) -> DVLang {
 }
 
 pub fn sample_inst(lang: &DVLang) -> (DVInst,DVWit) {
+//    let m = BigInt::from(5);
+//    let r = BigInt::from(10);
     let m = BigInt::sample_below(&lang.pk.n);
     let r = BigInt::sample_below(&lang.pk.n2);
     let ct = pe::encrypt_with_randomness(&lang.pk,&m,&r);
@@ -149,13 +151,12 @@ pub struct DVComRand{ pub rr: BigInt, pub rm: BigInt }
 pub struct DVChallenge(Vec<usize>);
 
 #[derive(Clone, Debug)]
-pub struct DVResp{ pub s1: BigInt, pub s2: BigInt }
+pub struct DVResp{ pub s_m: BigInt, pub s_r: BigInt }
 
 
-pub fn prove1(lang: &DVLang) -> (DVCom,DVComRand) {
-    let rm = BigInt::sample_below(&lang.pk.n);
-    // Should be n^2 here?
-    let rr = BigInt::sample_below(&lang.pk.n);
+pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
+    let rm = BigInt::sample(params.n_bitlen + 3 * (params.lambda as usize));
+    let rr = BigInt::sample(2 * params.n_bitlen + 3 * (params.lambda as usize));
 
     let a = pe::encrypt_with_randomness(&lang.pk,&rm,&rr);
 
@@ -166,8 +167,16 @@ pub fn verify1(params: &DVParams) -> DVChallenge {
     let mut rng = rand::thread_rng();
     let gen = Uniform::from(0..(2 * (params.lambda as usize)));
 
-    let b = (0..params.lambda).map(|_| gen.sample(&mut rng)).collect();
-    DVChallenge(b)
+    // There is a better way to do it.
+    use std::collections::HashSet;
+    let mut ix: HashSet<usize> = HashSet::new();
+
+    while ix.len() < params.lambda as usize {
+        let i = gen.sample(&mut rng);
+        if !ix.contains(&i) { ix.insert(i); }
+    }
+
+    DVChallenge(ix.into_iter().collect())
 }
 
 pub fn prove2(vpk: &VPK,
@@ -182,16 +191,16 @@ pub fn prove2(vpk: &VPK,
         .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2));
 
     let rr_ct = Paillier::encrypt(&vpk.pk,RawPlaintext::from(&cr.rr)).0.into_owned();
-    let s1 = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.r, n2),
+    let s_r = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.r, n2),
                              &rr_ct,
                              n2);
 
     let rm_ct = Paillier::encrypt(&vpk.pk,RawPlaintext::from(&cr.rm)).0.into_owned();
-    let s2 = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.m, n2),
+    let s_m = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.m, n2),
                              &rm_ct,
                              n2);
 
-    DVResp{s1,s2}
+    DVResp{s_m,s_r}
 }
 
 pub fn verify2(vsk: &VSK,
@@ -205,18 +214,17 @@ pub fn verify2(vsk: &VSK,
         .map(|&i| &vsk.chs[i])
         .fold(BigInt::from(0), |acc,x| acc + x );
 
-    let s1 = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.s1)).0.into_owned();
-    let s2 = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.s2)).0.into_owned();
+    let s_r = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.s_r)).0.into_owned();
+    let s_m = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.s_m)).0.into_owned();
 
     let pe::PECiphertext{ct1:x1,ct2:x2} =
-        pe::encrypt_with_randomness(&lang.pk, &s1, &s2);
+        pe::encrypt_with_randomness(&lang.pk, &s_m, &s_r);
 
     let tmp1 =
         BigInt::mod_mul(
             &BigInt::mod_pow(&inst.ct.ct1, &ch_raw, &lang.pk.n2),
             &com.a.ct1,
             &lang.pk.n2);
-
     if tmp1 != x1 { return false; }
 
     let tmp2 =
@@ -244,22 +252,19 @@ mod tests {
 //        assert!(verify_vpk(&params,&vpk));
 //    }
 
-//    #[test]
-//    fn test_correctness() {
-//
-//        let params = DVParams::new(256, 16);
-//
-//        let (vpk,vsk) = keygen(&params);
-//        assert!(verify_vpk(&params,&vpk));
-//        println!("VSK: {:?}", &vsk);
-//
-//        let (lang,inst,wit) = sample_liw(&params);
-//        println!("VSK: {:?}", (&lang,&inst,&wit));
-//
-//        let (com,cr) = prove1(&lang);
-//        let ch = verify1(&params);
-//
-//        let resp = prove2(&vpk,&cr,&wit,&ch);
-//        assert!(verify2(&vsk,&lang,&inst,&com,&ch,&resp));
-//    }
+    #[test]
+    fn test_correctness() {
+        let params = DVParams::new(256, 16);
+
+        let (vpk,vsk) = keygen(&params);
+        assert!(verify_vpk(&params,&vpk));
+
+        let (lang,inst,wit) = sample_liw(&params);
+
+        let (com,cr) = prove1(&params,&lang);
+        let ch = verify1(&params);
+
+        let resp = prove2(&vpk,&cr,&wit,&ch);
+        assert!(verify2(&vsk,&lang,&inst,&com,&ch,&resp));
+    }
 }
