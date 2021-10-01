@@ -283,10 +283,6 @@ pub fn fs_prove(params: &ProofParams,
     FSProof{ fs_com, fs_ch, fs_resp }
 }
 
-
-
-
-
 pub fn fs_verify0(params: &ProofParams,
                   lang: &Lang) -> (bool, VerifierPrecomp) {
     verify0(params,lang)

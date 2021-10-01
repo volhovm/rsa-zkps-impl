@@ -231,6 +231,53 @@ pub fn verify2(params: &ProofParams,
 
 
 
+
+
+#[derive(Clone, Debug)]
+pub struct FSProof {
+    fs_com : Commitment,
+    fs_ch : Challenge,
+    fs_resp : Response
+}
+
+fn fs_compute_challenge(len: usize, lang: &Lang, inst:&Inst, fs_com: &Commitment) -> Challenge {
+    use blake2::*;
+    let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, inst, lang)).unwrap();
+    // Use Digest::digest, but it asks for a fixed-sized slice?
+    let mut hasher: Blake2b = Digest::new();
+    hasher.update(&x);
+    let mut res = BigInt::from(0);
+    let r0 = hasher.finalize();
+    for i in 0..len {
+        for j in 0..8 {
+            res.set_bit(i, &(r0.as_slice())[i/8] & (0b0000_0001 << j) == 1);
+        }
+    }
+    Challenge(res)
+}
+
+pub fn fs_prove(params: &ProofParams,
+                lang: &Lang,
+                inst: &Inst,
+                wit: &Wit) -> FSProof {
+    let (fs_com,cr) = prove1(&params,&lang);
+    let fs_ch = fs_compute_challenge(params.reps_n as usize,lang,inst,&fs_com);
+    let fs_resp = prove2(&params,&lang,&wit,&fs_ch,&cr);
+
+    FSProof{ fs_com, fs_ch, fs_resp }
+}
+
+pub fn fs_verify(params: &ProofParams,
+                 lang: &Lang,
+                 inst: &Inst,
+                 proof: &FSProof) -> bool {
+    let fs_ch_own = fs_compute_challenge(params.reps_n as usize,lang,inst,&proof.fs_com);
+    if fs_ch_own != proof.fs_ch { return false; }
+
+    verify2(&params,&lang,&inst,&proof.fs_com,&proof.fs_ch,&proof.fs_resp)
+}
+
+
 #[cfg(test)]
 pub mod tests {
     use crate::protocols::schnorr_paillier_batched::*;
@@ -246,4 +293,15 @@ pub mod tests {
         let resp = prove2(&params,&lang,&wit,&ch,&cr);
         assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
     }
+
+    #[test]
+    fn test_correctness_fs() {
+        let params = ProofParams::new(1024, 128, 128, 32);
+        let (lang,inst,wit) = sample_liw(&params);
+
+        let proof = fs_prove(&params,&lang,&inst,&wit);
+        assert!(fs_verify(&params,&lang,&inst,&proof));
+    }
+
+
 }

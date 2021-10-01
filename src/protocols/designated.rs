@@ -7,7 +7,7 @@ use std::fmt;
 use std::iter;
 use rand::distributions::{Distribution, Uniform};
 
-use super::schnorr_paillier as sp;
+use super::schnorr_paillier_batched as spb;
 use super::paillier_elgamal as pe;
 
 
@@ -15,13 +15,12 @@ use super::paillier_elgamal as pe;
 pub struct DVParams {
     pub n_bitlen: usize,
     pub lambda: u32,
-    pub nizk_params: sp::ProofParams
+    pub nizk_params: spb::ProofParams
 }
 
 impl DVParams {
     pub fn new(n_bitlen: usize, lambda: u32) -> DVParams {
-        let two_lambda = BigInt::pow(&BigInt::from(2), lambda);
-        let nizk_params = sp::ProofParams::new_range(n_bitlen,lambda,two_lambda.clone());
+        let nizk_params = spb::ProofParams::new(n_bitlen,lambda,lambda,lambda);
         DVParams{n_bitlen, lambda, nizk_params}
     }
 }
@@ -40,8 +39,9 @@ pub struct VPK {
     pub pk: EncryptionKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
-    /// Proofs of correctness+range of cts
-    pub nizks: Vec<sp::FSProof>
+    /// Proofs of correctness+range of cts, one per each of two lambda nizks
+    pub nizk1: spb::FSProof,
+    pub nizk2: spb::FSProof
 }
 
 
@@ -56,44 +56,70 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         .map(|_| BigInt::sample(params.lambda as usize))
         .collect();
 
-    let cts_rs: Vec<(BigInt,BigInt)> =
-        chs.iter().map( |ch| {
-            let r = BigInt::sample_below(&pk.n);
-            let ct = Paillier::encrypt_with_chosen_randomness(
+    let rs: Vec<BigInt> =
+        (0..2*params.lambda).map(|_| BigInt::sample_below(&pk.n)).collect();
+
+    let cts: Vec<BigInt> =
+        chs.iter().zip(rs.iter()).map(|(ch,r)|
+            Paillier::encrypt_with_chosen_randomness(
                 &pk,
                 RawPlaintext::from(ch),
-                &Randomness::from(&r)).0.into_owned();
-            (r, ct)
-        }).collect();
+                &Randomness::from(r)).0.into_owned()
+        ).collect();
 
-    let lang = sp::Lang{pk:pk.clone()};
-    let nizks:Vec<sp::FSProof> =
-        chs.iter().zip(cts_rs.iter()).map(|(m,(r,ct))| {
-            sp::fs_prove(&params.nizk_params,
-                         &lang,
-                         &(sp::Inst{ct:ct.clone()}),
-                         &(sp::Wit{m:m.clone(),r:r.clone()}))
-        }).collect();
+    let lang = spb::Lang{pk:pk.clone()};
 
-    // Ciphertexts only
-    let cts: Vec<BigInt> = cts_rs.iter().map(|x| x.1.clone()).collect();
+    let (chs1, chs2) = chs.split_at(params.lambda as usize);
+    let (cts1, cts2) = cts.split_at(params.lambda as usize);
+    let (rs1, rs2) = rs.split_at(params.lambda as usize);
 
-    (VPK{pk,cts,nizks},VSK{sk, chs})
+    // FIX THIS
+    let nizk1: spb::FSProof =
+        spb::fs_prove(
+            &params.nizk_params,
+            &lang,
+            &spb::Inst{cts: cts1.to_vec()},
+            &spb::Wit{ms: chs1.to_vec(), rs: rs1.to_vec() });
+
+    let nizk2: spb::FSProof =
+        spb::fs_prove(
+            &params.nizk_params,
+            &lang,
+            &spb::Inst{cts: cts2.to_vec()},
+            &spb::Wit{ms: chs2.to_vec(), rs: rs2.to_vec() });
+
+    (VPK{pk, cts, nizk1, nizk2},VSK{sk, chs})
 }
 
 pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
-    let lang = sp::Lang{ pk: vpk.pk.clone() };
-    let (res0,precomp) = sp::fs_verify0(&params.nizk_params, &lang);
-    if !res0 { return false; };
+    let lang = spb::Lang{ pk: vpk.pk.clone() };
 
-    for (ct,nizk) in vpk.cts.iter().zip(vpk.nizks.iter()) {
-        let res = sp::fs_verify(&params.nizk_params,
-                                &lang,
-                                &(sp::Inst{ct:ct.clone()}),
-                                &precomp,
-                                &nizk);
-        if !res { return false; }
-    }
+
+    let (cts1, cts2) = vpk.cts.split_at(params.lambda as usize);
+
+    // FIX THIS
+    if !spb::fs_verify(
+        &params.nizk_params,
+        &lang,
+        &spb::Inst{cts: cts1.to_vec()},
+        &vpk.nizk1)
+    { return false; }
+
+    if !spb::fs_verify(
+        &params.nizk_params,
+        &lang,
+        &spb::Inst{cts: cts2.to_vec()},
+        &vpk.nizk2)
+    { return false; }
+
+
+//    for (ct,nizk) in vpk.cts.iter().zip(vpk.nizks.iter()) {
+//        let res = spb::fs_verify(&params.nizk_params,
+//                                &lang,
+//                                &(spb::Inst{ct:ct.clone()}),
+//                                &nizk);
+//        if !res { return false; }
+//    }
 
     return true;
 }
