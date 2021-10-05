@@ -1,0 +1,327 @@
+* Short
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify0
+                        time:   [2.4095 ms 2.4177 ms 2.4265 ms]
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove1
+                        time:   [211.03 ms 211.27 ms 211.53 ms]
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify1
+                        time:   [30.028 us 30.109 us 30.216 us]
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove2
+                        time:   [1.8998 ms 1.9147 ms 1.9309 ms]
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify2
+                        time:   [420.72 ms 421.77 ms 422.89 ms]
+
+S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS prove
+                        time:   [214.64 ms 220.43 ms 227.11 ms]
+S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify 0
+                        time:   [2.3533 ms 2.3587 ms 2.3653 ms]
+S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify
+                        time:   [414.07 ms 414.66 ms 415.28 ms]
+
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify0
+                        time:   [2.6367 us 2.6717 us 2.7107 us]
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove1
+                        time:   [1.4702 s 1.4714 s 1.4727 s]
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify1
+                        time:   [229.88 us 230.06 us 230.23 us]
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove2
+                        time:   [189.62 us 191.08 us 192.65 us]
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify2
+                        time:   [2.9446 s 2.9483 s 2.9523 s]
+
+S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS prove
+                        time:   [1.4743 s 1.4759 s 1.4776 s]
+S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify 0
+                        time:   [1.9158 us 1.9851 us 2.0582 us]
+S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify
+                        time:   [2.9449 s 2.9494 s 2.9551 s]
+
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... prove1
+                        time:   [2.9272 s 2.9317 s 2.9389 s]
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... verify1
+                        time:   [1.8164 us 1.8194 us 1.8225 us]
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... prove2
+                        time:   [14.945 ms 15.044 ms 15.163 ms]
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... verify2
+                        time:   [6.2908 s 6.3001 s 6.3108 s]
+
+Benchmarking DV lam = 128/keygen: Analyzing
+DV lam = 128/keygen     time:   [16.790 s 16.818 s 16.849 s]
+DV lam = 128/verify_vpk time:   [23.353 s 23.388 s 23.429 s]
+DV lam = 128/prove1     time:   [7.6194 ms 7.6704 ms 7.7339 ms]
+DV lam = 128/verify1    time:   [13.439 us 13.478 us 13.522 us]
+DV lam = 128/prove2     time:   [70.539 ms 70.773 ms 71.050 ms]
+DV lam = 128/verify2    time:   [18.031 ms 18.516 ms 18.984 ms]
+* Full log
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify0
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify0: Warming up for 3.0000 s
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify0: Collecting 100 samples in estimated 127.00 s (1300 iterations)
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify0: Analyzing
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify0
+                        time:   [2.4095 ms 2.4177 ms 2.4265 ms]
+Found 5 outliers among 100 measurements (5.00%)
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove1
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove1: Warming up for 3.0000 s
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove1: Collecting 100 samples in estimated 122.11 s (400 iterations)
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove1: Analyzing
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove1
+                        time:   [211.03 ms 211.27 ms 211.53 ms]
+Found 7 outliers among 100 measurements (7.00%)
+  6 (6.00%) high mild
+  1 (1.00%) high severe
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify1
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify1: Warming up for 3.0000 s
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify1: Collecting 100 samples in estimated 120.11 s (4.0M iterations)
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify1: Analyzing
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify1
+                        time:   [30.028 us 30.109 us 30.216 us]
+Found 15 outliers among 100 measurements (15.00%)
+  2 (2.00%) low mild
+  5 (5.00%) high mild
+  8 (8.00%) high severe
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove2
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove2: Warming up for 3.0000 s
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove2: Collecting 100 samples in estimated 122.95 s (400 iterations)
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove2: Analyzing
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/prove2
+                        time:   [1.8998 ms 1.9147 ms 1.9309 ms]
+Found 4 outliers among 100 measurements (4.00%)
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify2
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify2: Warming up for 3.0000 s
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify2: Collecting 100 samples in estimated 152.81 s (200 iterations)
+Benchmarking S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify2: Analyzing
+S-P, ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/verify2
+                        time:   [420.72 ms 421.77 ms 422.89 ms]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS prove
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS prove: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 31.1s, or reduce sample count to 10.
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS prove: Collecting 100 samples in estimated 31.110 s (100 iterations)
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS prove: Analyzing
+S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS prove
+                        time:   [214.64 ms 220.43 ms 227.11 ms]
+Found 19 outliers among 100 measurements (19.00%)
+  4 (4.00%) high mild
+  15 (15.00%) high severe
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify 0
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify 0: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 7.8s, or reduce sample count to 60.
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify 0: Collecting 100 samples in estimated 7.7926 s (100 iterations)
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify 0: Analyzing
+S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify 0
+                        time:   [2.3533 ms 2.3587 ms 2.3653 ms]
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) high mild
+  4 (4.00%) high severe
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 72.0s, or reduce sample count to 10.
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify: Collecting 100 samples in estimated 71.957 s (100 iterations)
+Benchmarking S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify: Analyzing
+S-P FS ProofParams ( q: 32768, reps: 18, n_bitlen: 2048, ch_space: 32768 )/FS verify
+                        time:   [414.07 ms 414.66 ms 415.28 ms]
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
+
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify0
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify0: Warming up for 3.0000 s
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify0: Collecting 100 samples in estimated 121.33 s (1400 iterations)
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify0: Analyzing
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify0
+                        time:   [2.6367 us 2.6717 us 2.7107 us]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove1
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove1: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 120.0s. You may wish to increase target time to 165.0s, or reduce sample count to 70.
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove1: Collecting 100 samples in estimated 164.96 s (100 iterations)
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove1: Analyzing
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove1
+                        time:   [1.4702 s 1.4714 s 1.4727 s]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify1
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify1: Warming up for 3.0000 s
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify1: Collecting 100 samples in estimated 120.76 s (525k iterations)
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify1: Analyzing
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify1
+                        time:   [229.88 us 230.06 us 230.23 us]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove2
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove2: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 120.0s. You may wish to increase target time to 157.5s, or reduce sample count to 70.
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove2: Collecting 100 samples in estimated 157.47 s (100 iterations)
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove2: Analyzing
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/prove2
+                        time:   [189.62 us 191.08 us 192.65 us]
+Found 6 outliers among 100 measurements (6.00%)
+  1 (1.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify2
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify2: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 120.0s. You may wish to increase target time to 460.7s, or reduce sample count to 20.
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify2: Collecting 100 samples in estimated 460.67 s (100 iterations)
+Benchmarking S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify2: Analyzing
+S-P, ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/verify2
+                        time:   [2.9446 s 2.9483 s 2.9523 s]
+Found 9 outliers among 100 measurements (9.00%)
+  7 (7.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS prove
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS prove: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 162.5s, or reduce sample count to 10.
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS prove: Collecting 100 samples in estimated 162.52 s (100 iterations)
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS prove: Analyzing
+S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS prove
+                        time:   [1.4743 s 1.4759 s 1.4776 s]
+Found 7 outliers among 100 measurements (7.00%)
+  1 (1.00%) low mild
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify 0
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify 0: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 8.3s, or reduce sample count to 60.
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify 0: Collecting 100 samples in estimated 8.2872 s (100 iterations)
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify 0: Analyzing
+S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify 0
+                        time:   [1.9158 us 1.9851 us 2.0582 us]
+Found 7 outliers among 100 measurements (7.00%)
+  2 (2.00%) low mild
+  2 (2.00%) high mild
+  3 (3.00%) high severe
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 448.0s, or reduce sample count to 10.
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify: Collecting 100 samples in estimated 448.00 s (100 iterations)
+Benchmarking S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify: Analyzing
+S-P FS ProofParams ( q: 2, reps: 128, n_bitlen: 2048, ch_space: 2 )/FS verify
+                        time:   [2.9449 s 2.9494 s 2.9551 s]
+Found 10 outliers among 100 measurements (10.00%)
+  5 (5.00%) high mild
+  5 (5.00%) high severe
+
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366...
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366...: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 447.3s, or reduce sample count to 10.
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366...: Collecting 100 samples in estimated 447.27 s (100 iterations)
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366...: Analyzing
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366...
+                        time:   [2.9272 s 2.9317 s 2.9389 s]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #2
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #2: Warming up for 3.0000 s
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #2: Collecting 100 samples in estimated 5.0013 s (2.7M iterations)
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #2: Analyzing
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #2
+                        time:   [1.8164 us 1.8194 us 1.8225 us]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #3
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #3: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 457.1s, or reduce sample count to 10.
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #3: Collecting 100 samples in estimated 457.08 s (100 iterations)
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #3: Analyzing
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #3
+                        time:   [14.945 ms 15.044 ms 15.163 ms]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #4
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #4: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 1076.9s, or reduce sample count to 10.
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #4: Collecting 100 samples in estimated 1076.9 s (100 iterations)
+Benchmarking Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #4: Analyzing
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #4
+                        time:   [6.2908 s 6.3001 s 6.3108 s]
+Found 8 outliers among 100 measurements (8.00%)
+  6 (6.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking DV lam = 128/keygen
+Benchmarking DV lam = 128/keygen: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 1684.3s, or reduce sample count to 10.
+Benchmarking DV lam = 128/keygen: Collecting 100 samples in estimated 1684.3 s (100 iterations)
+Benchmarking DV lam = 128/keygen: Analyzing
+DV lam = 128/keygen     time:   [16.790 s 16.818 s 16.849 s]
+                        change: [-0.2095% +0.1753% +0.5286%] (p = 0.37 > 0.05)
+                        No change in performance detected.
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) high mild
+Benchmarking DV lam = 128/verify_vpk
+Benchmarking DV lam = 128/verify_vpk: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 4027.5s, or reduce sample count to 10.
+Benchmarking DV lam = 128/verify_vpk: Collecting 100 samples in estimated 4027.5 s (100 iterations)
+Benchmarking DV lam = 128/verify_vpk: Analyzing
+DV lam = 128/verify_vpk time:   [23.353 s 23.388 s 23.429 s]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking DV lam = 128/prove1
+Benchmarking DV lam = 128/prove1: Warming up for 3.0000 s
+Benchmarking DV lam = 128/prove1: Collecting 100 samples in estimated 6.9830 s (200 iterations)
+Benchmarking DV lam = 128/prove1: Analyzing
+DV lam = 128/prove1     time:   [7.6194 ms 7.6704 ms 7.7339 ms]
+                        change: [+0.8390% +1.5471% +2.4365%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 10 outliers among 100 measurements (10.00%)
+  2 (2.00%) high mild
+  8 (8.00%) high severe
+Benchmarking DV lam = 128/verify1
+Benchmarking DV lam = 128/verify1: Warming up for 3.0000 s
+Benchmarking DV lam = 128/verify1: Collecting 100 samples in estimated 5.0478 s (374k iterations)
+Benchmarking DV lam = 128/verify1: Analyzing
+DV lam = 128/verify1    time:   [13.439 us 13.478 us 13.522 us]
+                        change: [-2.1455% -1.6704% -1.0863%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 15 outliers among 100 measurements (15.00%)
+  4 (4.00%) high mild
+  11 (11.00%) high severe
+Benchmarking DV lam = 128/prove2
+Benchmarking DV lam = 128/prove2: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 10.4s, or reduce sample count to 40.
+Benchmarking DV lam = 128/prove2: Collecting 100 samples in estimated 10.391 s (100 iterations)
+Benchmarking DV lam = 128/prove2: Analyzing
+DV lam = 128/prove2     time:   [70.539 ms 70.773 ms 71.050 ms]
+                        change: [-1.4849% -1.0246% -0.5253%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 13 outliers among 100 measurements (13.00%)
+  7 (7.00%) high mild
+  6 (6.00%) high severe
+Benchmarking DV lam = 128/verify2
+Benchmarking DV lam = 128/verify2: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 12.3s, or reduce sample count to 40.
+Benchmarking DV lam = 128/verify2: Collecting 100 samples in estimated 12.329 s (100 iterations)
+Benchmarking DV lam = 128/verify2: Analyzing
+DV lam = 128/verify2    time:   [18.031 ms 18.516 ms 18.984 ms]
+                        change: [-4.4536% -0.2406% +4.1889%] (p = 0.92 > 0.05)
+                        No change in performance detected.

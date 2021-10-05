@@ -1,0 +1,18 @@
+* Results for b=32
+#+DATE: 2021-10-04
+
+#+BEGIN_SRC
+32 bits
+- DV lam = 32/keygen      time:   [2.6769 s 2.6980 s 2.7219 s]
+- DV lam = 32/verify_vpk  time:   [3.5051 s 3.5131 s 3.5215 s]
+- DV lam = 32/prove1      time:   [6.6803 ms 6.7000 ms 6.7259 ms]
+- DV lam = 32/verify1     time:   [3.3603 us 3.3684 us 3.3769 us]
+- DV lam = 32/prove2      time:   [46.564 ms 46.658 ms 46.765 ms]
+- DV lam = 32/verify2     time:   [13.545 ms 13.865 ms 14.164 ms]
+
+128 bits
+- DV lam = 128/prove1     time:   [7.5411 ms 7.5535 ms 7.5673 ms]
+- DV lam = 128/verify1    time:   [13.714 us 13.747 us 13.780 us]
+- DV lam = 128/prove2     time:   [71.292 ms 71.506 ms 71.760 ms]
+- DV lam = 128/verify2    time:   [17.883 ms 18.560 ms 19.203 ms]
+#+END_SRC
