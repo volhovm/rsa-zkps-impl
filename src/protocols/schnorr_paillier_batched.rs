@@ -200,7 +200,6 @@ pub fn verify2(params: &ProofParams,
         let s_m = &resp.0[i];
         let s_r = &resp.1[i];
 
-
         if s_m >= &params.rand_range { return false; }
 
         let ct_e =
@@ -214,13 +213,13 @@ pub fn verify2(params: &ProofParams,
                 &lang.pk,
                 RawPlaintext::from(s_m),
                 &Randomness::from(s_r)).0.into_owned();
-        let rhs_doublecheck =
-            BigInt::mod_mul(
-                &BigInt::mod_pow(&(&lang.pk.n + 1), &s_m, &lang.pk.nn),
-                &BigInt::mod_pow(s_r, &lang.pk.n, &lang.pk.nn),
-                &lang.pk.nn);
-
-        assert!(rhs == rhs_doublecheck);
+//        let rhs_doublecheck =
+//            BigInt::mod_mul(
+//                &BigInt::mod_pow(&(&lang.pk.n + 1), &s_m, &lang.pk.nn),
+//                &BigInt::mod_pow(s_r, &lang.pk.n, &lang.pk.nn),
+//                &lang.pk.nn);
+//
+//        assert!(rhs == rhs_doublecheck);
 
 
         if lhs != rhs {
