@@ -126,7 +126,8 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
 //    let mut grp = c.benchmark_group(format!("Group 3: Batched Schnorr Paillier for {}", params));
     let mut grp = c.benchmark_group(format!("DV lam = {:?}", params.lambda));
 
-//    grp.measurement_time(Duration::from_secs(30));
+    //grp.measurement_time(Duration::from_secs(30));
+    //grp.sample_size(2);
 
     grp.bench_function("keygen", |b| b.iter(|| dv::keygen(params)));
 
@@ -138,39 +139,39 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
     });
 
 
-    // This could be precomputed for each benchmark, but it's quite expensive?...
-    let (vpk,vsk) = dv::keygen(&params);
+    //// This could be precomputed for each benchmark, but it's quite expensive?...
+    //let (vpk,vsk) = dv::keygen(&params);
 
-    grp.bench_function("prove1", |b| {
-        b.iter_batched(|| dv::sample_liw(params).0,
-                       |lang| dv::prove1(params,&lang),
-                       BatchSize::LargeInput);
-    });
+    //grp.bench_function("prove1", |b| {
+    //    b.iter_batched(|| dv::sample_liw(params).0,
+    //                   |lang| dv::prove1(params,&lang),
+    //                   BatchSize::LargeInput);
+    //});
 
-    grp.bench_function("verify1", |b| b.iter(|| dv::verify1(params)));
+    //grp.bench_function("verify1", |b| b.iter(|| dv::verify1(params)));
 
-    grp.bench_function("prove2", |b| {
-        b.iter_batched(
-            || { let (lang,_,wit) = dv::sample_liw(params);
-                 let (_,cr) = dv::prove1(params,&lang);
-                 let ch = dv::verify1(params);
-                 return (wit,ch,cr); },
-            |(wit,ch,cr)| dv::prove2(&vpk,&cr,&wit,&ch),
-            BatchSize::LargeInput
-        );
-    });
+    //grp.bench_function("prove2", |b| {
+    //    b.iter_batched(
+    //        || { let (lang,_,wit) = dv::sample_liw(params);
+    //             let (_,cr) = dv::prove1(params,&lang);
+    //             let ch = dv::verify1(params);
+    //             return (wit,ch,cr); },
+    //        |(wit,ch,cr)| dv::prove2(&vpk,&cr,&wit,&ch),
+    //        BatchSize::LargeInput
+    //    );
+    //});
 
-    grp.bench_function("verify2", |b| {
-        b.iter_batched(
-            || { let (lang,inst,wit) = dv::sample_liw(params);
-                 let (com,cr) = dv::prove1(params,&lang);
-                 let ch = dv::verify1(params);
-                 let resp = dv::prove2(&vpk,&cr,&wit,&ch);
-                 return (lang,inst,com,ch,resp); },
-            |(lang,inst,com,ch,resp)| dv::verify2(&vsk,&lang,&inst,&com,&ch,&resp),
-            BatchSize::LargeInput
-        );
-    });
+    //grp.bench_function("verify2", |b| {
+    //    b.iter_batched(
+    //        || { let (lang,inst,wit) = dv::sample_liw(params);
+    //             let (com,cr) = dv::prove1(params,&lang);
+    //             let ch = dv::verify1(params);
+    //             let resp = dv::prove2(&vpk,&cr,&wit,&ch);
+    //             return (lang,inst,com,ch,resp); },
+    //        |(lang,inst,com,ch,resp)| dv::verify2(&vsk,&lang,&inst,&com,&ch,&resp),
+    //        BatchSize::LargeInput
+    //    );
+    //});
 
     grp.finish();
 }
@@ -195,9 +196,10 @@ fn bench_schnorr_paillier(c: &mut Criterion) {
 
 fn bench_designated_all(c: &mut Criterion) {
 //    bench_designated(c,&dv::DVParams::new(1024, 32));
-    bench_designated(c,&dv::DVParams::new(1024, 128));
+    bench_designated(c,&dv::DVParams::new(2048, 128));
 }
 
 
-criterion_group!(benches, bench_schnorr_paillier, bench_designated_all);
+//criterion_group!(benches, bench_schnorr_paillier, bench_designated_all);
+criterion_group!(benches, bench_designated_all);
 criterion_main!(benches);

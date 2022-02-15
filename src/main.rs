@@ -9,6 +9,7 @@ use std::hash::Hash;
 use std::sync::atomic::{AtomicU64,Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{SystemTime, UNIX_EPOCH};
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 
 
@@ -93,7 +94,7 @@ where
 }
 
 fn test_lemma_q_div() {
-    for lambda in [10] {
+    for lambda in [5] {
     for q in [7,11,13,19,23,31,47,67] {
 //    for q in [5] {
         let m = lambda;
@@ -210,6 +211,105 @@ fn test_lemma_q_div_bruteforce() {
 }
 
 
+fn test_mylemma() {
+    let m = 4;
+    for lambda in [10] {
+    for q in [2] { // ,11,13,19,23,31,47,67] {
+        let two_lambda = 1 << lambda;
+        let attempts = 10000000;
+        let cores = 4;
+
+        let counter = Arc::new(AtomicU64::new(0));
+
+        let mut handles = vec![];
+        for _i in 0..cores {
+            let counter = Arc::clone(&counter);
+            let handle = thread::spawn(move || {
+                // I hope this gives different randomness per thread
+                let mut rng = rand::thread_rng();
+
+                let mut dx: Vec<i128> = vec![0;8];
+                for _i in 0..(attempts/cores) {
+                    for j in 0..dx.len() {
+                        dx[j] = Uniform::from(-two_lambda..two_lambda).sample(&mut rng);
+                    }
+
+                    let a = dx[0] + dx[1] + dx[2] + dx[3];
+                    let b = dx[4] + dx[5] + dx[6] + dx[7];
+                    let c = dx[2] + dx[3] + dx[4] + dx[5];
+                    let d = dx[0] + dx[1] + dx[6] + dx[7];
+
+
+                    let cond =
+                        a % q == 0 &&
+                        b % q == 0 &&
+                        c % q == 0 &&
+                        d % q == 0;
+
+                    if cond { counter.fetch_add(1, Ordering::SeqCst); }
+                }
+            });
+            handles.push(handle)
+        }
+
+        for handle in handles { handle.join().unwrap(); }
+
+        let v = counter.load(Ordering::SeqCst);
+        println!("q = {:?}, lambda = {:?}, m = {:?}: {:?}/{:?} => 1/Pr = {:.2}; q^m = {:?}",
+                 q,lambda,m,v,attempts,
+                 if v == 0 { 0 as f64 } else {(attempts as f64) / (v as f64)}, q.pow(m) as u32);
+    }}
+}
+
+
+// From https://docs.rs/mod_exp/1.0.1/src/mod_exp/lib.rs.html
+use std::ops::{Shr};
+use num::traits::{Num, One, Zero, Bounded};
+pub fn mod_exp<T>(base: T, exponent: T, modulus: T) -> T where T: Num + PartialOrd + Shr<T, Output=T> + Copy + Bounded {
+    let ONE: T = One::one();
+    let TWO: T = ONE + ONE;
+    let ZERO: T = Zero::zero();
+    let MAX: T = Bounded::max_value();
+
+    assert!((modulus - ONE)  < (MAX / (modulus - ONE)));
+
+    let mut result = ONE;
+    let mut base = base % modulus;
+    let mut exponent = exponent;
+
+    loop {
+        if exponent <= ZERO {
+            break;
+        }
+
+        if exponent % TWO == ONE {
+            result = (result * base) % modulus;
+        }
+
+        exponent = exponent >> ONE;
+        base = (base * base) % modulus;
+    }
+
+    result
+}
+
+fn npq_roots_props(n: u128) {
+    println!("npq_roots_props for n = {:?}", n);
+    let n2 = n * n;
+
+    for e in 2..n2-1 {
+        let mut e1 = e;
+        //let mut ord = 1;
+        //for i in 1..n2 {
+        //    if e1 == 1 { ord = i; break; }
+        //    e1 = (e1 * e) % n2;
+        //}
+        let eN = mod_exp(e,n,n2);
+        if (eN != 0 && eN != 1 && (eN - 1) % n == 0) {
+            println!("e = {:?}; e^N = {:?}, (e^N-1) / N = {:?}", e, eN, ((eN - 1) / n));
+        }
+    }
+}
 
 
 fn _check_correct_ciphertext_proof() {
@@ -235,10 +335,37 @@ fn _check_correct_ciphertext_proof() {
     println!("Bogus proof verification gives: {:?}", res2);
 }
 
+fn test_dv_crs(){
+    use rsazkps::protocols::designated as dv;
+
+    let params = dv::DVParams::new(2048, 128);
+    let start = SystemTime::now();
+    let (vpk,vsk) = dv::keygen(&params);
+    let p1 = SystemTime::now();
+    let res = dv::verify_vpk(&params,&vpk);
+    let p2 = SystemTime::now();
+
+    let delta1 = p1.duration_since(start).expect("error1");
+    let delta2 = p2.duration_since(p1).expect("error2");
+    println!("Keygen: {:?}; verify: {:?}", delta1, delta2);
+}
+
 fn main() {
-    //test_lemma();
-    test_lemma_q_div();
-    //test_lemma_q_div_bruteforce();
+//    //test_lemma();
+//    //test_lemma_q_div();
+//    //    test_mylemma();
+//
+//    //let p = 7;
+//    //let q = 29; // q - 1 = 7 * 4
+//    //let p = 29;
+//    //let q = 59; // q - 1 = 2 * p
+//    npq_roots_props(7*7*13);
+//    npq_roots_props(7*13);
+//    npq_roots_props(3*5*7);
+//    npq_roots_props(3*5*7*11);
+//    npq_roots_props(3*5*7*11*29);  // 7 - 1 = 2 * 3, 11 - 1 = 5 * 2, 29 - 1 = 7 * 4
+//    //test_lemma_q_div_bruteforce();
 //    rsazkps::protocols::snark_paillier::test();
 //    rsazkps::protocols::schnorr_paillier_batched::tests::test_correctness();
+    test_dv_crs();
 }

@@ -1,6 +1,11 @@
 target
 Cargo.lock
 
+main
+main.hi
+main.hs
+main.o
+
 
 # Added by cargo
 
