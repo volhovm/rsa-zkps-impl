@@ -337,17 +337,9 @@ fn _check_correct_ciphertext_proof() {
 
 fn test_dv_crs(){
     use rsazkps::protocols::designated as dv;
-
     let params = dv::DVParams::new(2048, 128);
-    let start = SystemTime::now();
     let (vpk,vsk) = dv::keygen(&params);
-    let p1 = SystemTime::now();
     let res = dv::verify_vpk(&params,&vpk);
-    let p2 = SystemTime::now();
-
-    let delta1 = p1.duration_since(start).expect("error1");
-    let delta2 = p2.duration_since(p1).expect("error2");
-    println!("Keygen: {:?}; verify: {:?}", delta1, delta2);
 }
 
 fn main() {
@@ -368,4 +360,5 @@ fn main() {
 //    rsazkps::protocols::snark_paillier::test();
 //    rsazkps::protocols::schnorr_paillier_batched::tests::test_correctness();
     test_dv_crs();
+//    rsazkps::protocols::n_gcd::test();
 }
