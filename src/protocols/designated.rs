@@ -24,7 +24,8 @@ impl DVParams {
         DVParams{n_bitlen, lambda}
     }
     pub fn vpk_n_bitlen(&self) -> usize {
-        self.n_bitlen + 5 * (self.lambda as usize)
+        //self.n_bitlen + 5 * (self.lambda as usize)
+        2*self.n_bitlen + 5 * (self.lambda as usize)
     }
 
     pub fn nizk_ct_params(&self) -> spb::ProofParams {
