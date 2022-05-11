@@ -1,5 +1,5 @@
 use curv::BigInt;
-use curv::arithmetic::traits::Modulo;
+use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
 
 
 /// Checks whether n is divisible by any prime p <= upto.
@@ -12,6 +12,10 @@ pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
         if rem == BigInt::from(0) { return false; };
     }
     return true;
+}
+
+pub fn bigint_sample_below_sym(b: &BigInt) -> BigInt {
+    BigInt::sample_below(b) - b
 }
 
 #[cfg(test)]

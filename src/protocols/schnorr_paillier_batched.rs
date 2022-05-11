@@ -77,7 +77,7 @@ pub fn sample_lang(params: &ProofParams) -> Lang {
 pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let ms: Vec<BigInt> =
         (0..params.reps_n).map(|_|
-          BigInt::sample_below(&(2*&params.range)) - &params.range).collect();
+          BigInt::sample_below(&params.range) - &params.range/2).collect();
 
     let rs: Vec<BigInt> =
         (0..params.reps_n).map(|_| BigInt::sample_below(&lang.pk.n)).collect();
@@ -284,7 +284,7 @@ pub mod tests {
 
     #[test]
     fn test_correctness() {
-        for i in 0..10 {
+        for _i in 0..1 {
             let params = ProofParams::new(1024, 128, 128, 32);
             let (lang,inst,wit) = sample_liw(&params);
 

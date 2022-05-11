@@ -8,6 +8,7 @@ use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use rand::distributions::{Distribution, Uniform};
 
+use super::utils as utils;
 use super::schnorr_paillier_batched as spb;
 use super::n_gcd as n_gcd;
 use super::paillier_elgamal as pe;
@@ -17,15 +18,18 @@ use super::paillier_elgamal as pe;
 pub struct DVParams {
     pub n_bitlen: usize,
     pub lambda: u32,
+    pub crs_uses: u32,
+    pub trusted_setup: bool
 }
 
 impl DVParams {
-    pub fn new(n_bitlen: usize, lambda: u32) -> DVParams {
-        DVParams{n_bitlen, lambda}
+    pub fn new(n_bitlen: usize, lambda: u32, crs_uses: u32, trusted_setup: bool) -> DVParams {
+        DVParams{n_bitlen, lambda, crs_uses, trusted_setup}
     }
     pub fn vpk_n_bitlen(&self) -> usize {
-        //self.n_bitlen + 5 * (self.lambda as usize)
-        2*self.n_bitlen + 5 * (self.lambda as usize)
+        // N + 2λ + log λ + 1
+        self.n_bitlen + 2 * (self.lambda as usize) +
+            ((self.lambda as f64).log2().ceil() as usize) + 1
     }
 
     pub fn nizk_ct_params(&self) -> spb::ProofParams {
@@ -53,10 +57,10 @@ pub struct VPK {
     pub pk: EncryptionKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
-    /// Proofs of N' having gcd(N,phi(N)) = 1.
+    /// Proof of N' having gcd(N,phi(N)) = 1.
     pub nizk_gcd: n_gcd::Proof,
     /// Proofs of correctness+range of cts.
-    pub nizk_ct: spb::FSProof,
+    pub nizks_ct: Vec<spb::FSProof>,
 }
 
 
@@ -68,21 +72,27 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         //Paillier::keypair_with_modulus_size(params.n_bitlen * 2 + 4 * (params.lambda as usize)).keys();
         Paillier::keypair_with_modulus_size(params.vpk_n_bitlen()).keys();
 
-    let chs: Vec<BigInt> =
-        (0..params.lambda)
-        .map(|_| BigInt::sample(params.lambda as usize))
-        .collect();
+    let ch_range_1 = BigInt::pow(&BigInt::from(2), params.lambda);
+    let ch_range_2 = &ch_range_1 * &ch_range_1 * BigInt::from(params.lambda);
+
+    let mut chs: Vec<BigInt> = vec![];
+    for _i in 0..params.lambda {
+        chs.push(utils::bigint_sample_below_sym(&ch_range_1)); }
+    for _i in 0..params.crs_uses {
+        chs.push(utils::bigint_sample_below_sym(&ch_range_2)); }
 
     let rs: Vec<BigInt> =
-        (0..params.lambda).map(|_| BigInt::sample_below(&pk.n)).collect();
+        (0..(params.lambda + params.crs_uses))
+        .map(|_| BigInt::sample_below(&pk.n))
+        .collect();
 
     let cts: Vec<BigInt> =
         chs.iter().zip(rs.iter()).map(|(ch,r)|
             Paillier::encrypt_with_chosen_randomness(
                 &pk,
                 RawPlaintext::from(ch),
-                &Randomness::from(r)).0.into_owned()
-        ).collect();
+                &Randomness::from(r)).0.into_owned())
+        .collect();
 
     let lang = spb::Lang{pk:pk.clone()};
 
@@ -93,14 +103,40 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
             &n_gcd::Inst{ n: pk.n.clone() },
             &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
             );
+
     let t_p2 = SystemTime::now();
+    let mut nizks_ct: Vec<spb::FSProof> = vec![];
+    let nizk_batches =
+        if params.crs_uses == 0
+           { 1 } else { 2 + (params.crs_uses - 1) / params.lambda };
+    for i in 0..nizk_batches {
+        let batch_from = (i*params.lambda) as usize;
+        let batch_to = std::cmp::min((i+1)*params.lambda,
+                                     params.lambda + params.crs_uses) as usize;
+        println!("Proving batch from {:?} to {:?}", batch_from, batch_to);
+        let mut cts_inst = (&cts[batch_from..batch_to]).to_vec();
+        let mut ms_wit = (&chs[batch_from..batch_to]).to_vec();
+        let mut rs_wit = (&rs[batch_from..batch_to]).to_vec();
+
+        let pad_last_batch = params.crs_uses > 0 && i == nizk_batches - 1;
+        if pad_last_batch {
+            for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
+                ms_wit.push(BigInt::from(0));
+                rs_wit.push(BigInt::from(1));
+                cts_inst.push(Paillier::encrypt_with_chosen_randomness(
+                    &pk,
+                    RawPlaintext::from(BigInt::from(0)),
+                    &Randomness::from(BigInt::from(1))).0.into_owned());
+            }
+        }
+
+        let inst = spb::Inst{cts: cts_inst};
+        let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
+
+        nizks_ct.push(spb::fs_prove(&params.nizk_ct_params(), &lang, &inst, &wit));
+    }
+    println!("Proving done");
         
-    let nizk_ct: spb::FSProof =
-        spb::fs_prove(
-            &params.nizk_ct_params(),
-            &lang,
-            &spb::Inst{cts: cts.to_vec()},
-            &spb::Wit{ms: chs.to_vec(), rs: rs.to_vec() });
     let t_p3 = SystemTime::now();
 
     let t_delta1 = t_p1.duration_since(t_start).expect("error1");
@@ -109,8 +145,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let t_total = t_p3.duration_since(t_start).expect("error2");
     println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
 
-
-    (VPK{pk, cts, nizk_gcd, nizk_ct},VSK{sk, chs})
+    (VPK{pk, cts, nizk_gcd, nizks_ct},VSK{sk, chs})
 }
 
 pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
@@ -125,19 +160,39 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
 
     let t_p1 = SystemTime::now();
 
-    let res2 = spb::fs_verify(
-        &params.nizk_ct_params(),
-        &spb::Lang{ pk: vpk.pk.clone() },
-        &spb::Inst{cts: vpk.cts.to_vec()},
-        &vpk.nizk_ct);
-    if !res2 { return false; }
+    for i in 0..(vpk.nizks_ct.len() as u32) {
+        let batch_from = (i*params.lambda) as usize;
+        let batch_to = std::cmp::min((i+1)*params.lambda,
+                                     params.lambda + params.crs_uses) as usize;
+
+        let mut cts_w = (&vpk.cts[batch_from..batch_to]).to_vec();
+
+        let pad_last_batch = params.crs_uses > 0 && i == (vpk.nizks_ct.len() as u32) - 1;
+        if pad_last_batch {
+            for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
+                cts_w.push(Paillier::encrypt_with_chosen_randomness(
+                    &vpk.pk,
+                    RawPlaintext::from(BigInt::from(0)),
+                    &Randomness::from(BigInt::from(1))).0.into_owned());
+            }
+        }
+
+        let inst = spb::Lang{ pk: vpk.pk.clone() };
+        let wit = spb::Inst{ cts: cts_w };
+
+        let res2 = spb::fs_verify(
+            &params.nizk_ct_params(), &inst, &wit,
+            &vpk.nizks_ct[i as usize]);
+        if !res2 { return false; }
+
+        println!("Verified nizk batch #{:?}", i);
+    }
 
     let t_p2 = SystemTime::now();
     let t_delta1 = t_p1.duration_since(t_start).expect("error1");
     let t_delta2 = t_p2.duration_since(t_p1).expect("error2");
     let t_total = t_p2.duration_since(t_start).expect("error3");
     println!("Keygen verify time (total {:?}): nizk_gcd {:?}; nizk_ct: {:?}", t_total,t_delta1, t_delta2);
-
 
     return true;
 }
@@ -201,7 +256,7 @@ pub struct DVResp{ pub s_m: BigInt, pub s_r: BigInt }
 pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
     // TODO it's broken here
     let rm = BigInt::sample(params.vpk_n_bitlen() +
-                            3 * (params.lambda as usize) +
+                            2 * (params.lambda as usize) +
                             ((params.lambda as f64).log2().ceil() as usize));
     let rr = BigInt::sample(params.vpk_n_bitlen());
 
@@ -285,33 +340,39 @@ pub fn verify2(vsk: &VSK,
     true
 }
 
+pub fn test_correctness_keygen() {
+    let params = DVParams::new(1024, 32, 32, false);
+    let (vpk,_vsk) = keygen(&params);
+    assert!(verify_vpk(&params,&vpk));
+}
+
 
 #[cfg(test)]
 mod tests {
 
     use crate::protocols::designated::*;
 
-//    #[test]
-//    fn test_correctness_keygen() {
-//        let params = DVParams::new(1024, 32);
-//
-//        let (vpk,_vsk) = keygen(&params);
-//        assert!(verify_vpk(&params,&vpk));
-//    }
-
     #[test]
-    fn test_correctness() {
-        let params = DVParams::new(256, 16);
+    fn test_correctness_keygen() {
+        let params = DVParams::new(1024, 32, 5, false);
 
-        let (vpk,vsk) = keygen(&params);
+        let (vpk,_vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
-
-        let (lang,inst,wit) = sample_liw(&params);
-
-        let (com,cr) = prove1(&params,&lang);
-        let ch = verify1(&params);
-
-        let resp = prove2(&vpk,&cr,&wit,&ch);
-        assert!(verify2(&vsk,&lang,&inst,&com,&ch,&resp));
     }
+
+//    #[test]
+//    fn test_correctness() {
+//        let params = DVParams::new(256, 16);
+//
+//        let (vpk,vsk) = keygen(&params);
+//        assert!(verify_vpk(&params,&vpk));
+//
+//        let (lang,inst,wit) = sample_liw(&params);
+//
+//        let (com,cr) = prove1(&params,&lang);
+//        let ch = verify1(&params);
+//
+//        let resp = prove2(&vpk,&cr,&wit,&ch);
+//        assert!(verify2(&vsk,&lang,&inst,&com,&ch,&resp));
+//    }
 }

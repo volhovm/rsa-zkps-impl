@@ -196,7 +196,7 @@ fn bench_schnorr_paillier(c: &mut Criterion) {
 
 fn bench_designated_all(c: &mut Criterion) {
 //    bench_designated(c,&dv::DVParams::new(1024, 32));
-    bench_designated(c,&dv::DVParams::new(2048, 128));
+    bench_designated(c,&dv::DVParams::new(2048, 128, 1, false));
 }
 
 

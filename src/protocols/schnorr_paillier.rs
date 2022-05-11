@@ -21,9 +21,9 @@ impl RangeProofParams {
     /// Generates new range proof params, precomputes range values
     /// that are used in the actual proof.
     pub fn new(lambda: u32, r: BigInt) -> Self {
-        let two_lambda = BigInt::pow(&BigInt::from(2), lambda - 1);
+        let two_lambda_min1 = BigInt::pow(&BigInt::from(2), lambda - 1);
         // R 2^{λ-1}
-        let rand_range = &r * two_lambda;
+        let rand_range = &r * two_lambda_min1;
 
         RangeProofParams{ lambda, r, rand_range }
     }
@@ -117,10 +117,10 @@ pub fn sample_lang(params: &ProofParams) -> Lang {
 
 pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let m = match &params.range_params {
-        // [-R,R]
+        // [-R/2,R/2]
         Some(RangeProofParams{r,..}) => {
-            let x = BigInt::sample_below(&(2*r));
-            x - r
+            let x = BigInt::sample_below(&(r));
+            x - r/2
         }
         None => BigInt::sample_below(&lang.pk.n),
     };

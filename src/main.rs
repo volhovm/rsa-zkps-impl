@@ -337,7 +337,7 @@ fn _check_correct_ciphertext_proof() {
 
 fn test_dv_crs(){
     use rsazkps::protocols::designated as dv;
-    let params = dv::DVParams::new(2048, 128);
+    let params = dv::DVParams::new(2048, 128, 1, false);
     let (vpk,vsk) = dv::keygen(&params);
     let res = dv::verify_vpk(&params,&vpk);
 }
@@ -359,6 +359,7 @@ fn main() {
 //    //test_lemma_q_div_bruteforce();
 //    rsazkps::protocols::snark_paillier::test();
 //    rsazkps::protocols::schnorr_paillier_batched::tests::test_correctness();
-    test_dv_crs();
-//    rsazkps::protocols::n_gcd::test();
+    //test_dv_crs();
+    rsazkps::protocols::designated::test_correctness_keygen();
+    //    rsazkps::protocols::n_gcd::test();
 }
