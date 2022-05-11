@@ -7,30 +7,25 @@ use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
-
 #[derive(Clone, PartialEq, Debug)]
 pub struct RangeProofParams {
     /// Security parameter
     pub lambda: u32,
     /// Range of the original message value.
     pub r: BigInt,
-    /// R 2^λ
+    /// R 2^{λ-1}
     pub rand_range: BigInt,
-    /// R 2^{λ+1}
-    pub rand_range2: BigInt,
 }
 
 impl RangeProofParams {
     /// Generates new range proof params, precomputes range values
     /// that are used in the actual proof.
     pub fn new(lambda: u32, r: BigInt) -> Self {
-        let two_lambda = BigInt::pow(&BigInt::from(2), lambda);
-        // R 2^λ
+        let two_lambda = BigInt::pow(&BigInt::from(2), lambda - 1);
+        // R 2^{λ-1}
         let rand_range = &r * two_lambda;
-        // R 2^{λ+1}
-        let rand_range2 = &rand_range * &BigInt::from(2);
 
-        RangeProofParams{ lambda, r, rand_range, rand_range2 }
+        RangeProofParams{ lambda, r, rand_range }
     }
 }
 
@@ -162,11 +157,8 @@ pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
 //                &Randomness(rnd)).0.into_owned();
 //            neg_ct
     //        });
-    let precomp = params.range_params.as_ref().map(|RangeProofParams{rand_range2,..}| {
-        &lang.pk.n - rand_range2
-    });
 
-    (true, VerifierPrecomp(precomp))
+    (true, VerifierPrecomp(None))
 }
 
 pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
@@ -174,7 +166,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let rand_v: Vec<_> = (0..params.reps).map(|_| {
         let rm = match &params.range_params {
             Some(RangeProofParams{ rand_range, .. }) =>
-                (BigInt::sample_below(&(rand_range*2)) - rand_range),
+                BigInt::sample_below(&rand_range),
             None => BigInt::sample_below(n),
         };
         let rr = BigInt::sample_below(n);
@@ -232,8 +224,8 @@ pub fn verify2(params: &ProofParams,
         let alpha = &com.0[i];
         let ct = &inst.ct;
 
-        if let Some(RangeProofParams{rand_range2,..}) = &params.range_params {
-            if s1 >= rand_range2 && s1 < precomp.0.as_ref().unwrap() { return false; }
+        if let Some(RangeProofParams{rand_range,..}) = &params.range_params {
+            if s1 >= rand_range  { return false; }
         };
 
         let ec = BigInt::mod_pow(&ct, ch, n2);
@@ -300,6 +292,7 @@ pub fn fs_verify(params: &ProofParams,
     verify2(&params,&lang,&inst,precomp,
             &proof.fs_com,&proof.fs_ch,&proof.fs_resp)
 }
+
 
 #[cfg(test)]
 mod tests {

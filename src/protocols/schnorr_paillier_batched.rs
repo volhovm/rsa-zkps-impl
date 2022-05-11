@@ -23,7 +23,7 @@ pub struct ProofParams {
     pub ch_space: BigInt,
     /// Range of the original message value, R
     pub range: BigInt,
-    /// 2^λ R n
+    /// 2^{λ-1} R n
     pub rand_range: BigInt,
 }
 
@@ -31,7 +31,7 @@ impl ProofParams {
     pub fn new(n_bitlen: usize, lambda: u32, reps_n: u32, range_bits: u32) -> Self {
         let range = BigInt::pow(&BigInt::from(2), range_bits);
         let rand_range =
-            BigInt::pow(&BigInt::from(2), lambda) * &range * BigInt::from(reps_n);
+            BigInt::pow(&BigInt::from(2), lambda - 1) * &range * BigInt::from(reps_n);
         let ch_space = BigInt::pow(&BigInt::from(2), reps_n);
         let reps_m = reps_n * 2 - 1;
         return ProofParams { n_bitlen, lambda, reps_n, reps_m,
@@ -76,7 +76,8 @@ pub fn sample_lang(params: &ProofParams) -> Lang {
 
 pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let ms: Vec<BigInt> =
-        (0..params.reps_n).map(|_| BigInt::sample_below(&params.range)).collect();
+        (0..params.reps_n).map(|_|
+          BigInt::sample_below(&(2*&params.range)) - &params.range).collect();
 
     let rs: Vec<BigInt> =
         (0..params.reps_n).map(|_| BigInt::sample_below(&lang.pk.n)).collect();
@@ -283,14 +284,16 @@ pub mod tests {
 
     #[test]
     fn test_correctness() {
-        let params = ProofParams::new(1024, 128, 128, 32);
-        let (lang,inst,wit) = sample_liw(&params);
+        for i in 0..10 {
+            let params = ProofParams::new(1024, 128, 128, 32);
+            let (lang,inst,wit) = sample_liw(&params);
 
-        let (com,cr) = prove1(&params,&lang);
-        let ch = verify1(&params);
+            let (com,cr) = prove1(&params,&lang);
+            let ch = verify1(&params);
 
-        let resp = prove2(&params,&lang,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
+            let resp = prove2(&params,&lang,&wit,&ch,&cr);
+            assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
+        }
     }
 
     #[test]
