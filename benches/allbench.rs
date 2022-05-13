@@ -177,7 +177,7 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
 }
 
 
-
+#[allow(dead_code)]
 fn bench_schnorr_paillier(c: &mut Criterion) {
 
     let params1 = sp::ProofParams::new(2048,256,15);
