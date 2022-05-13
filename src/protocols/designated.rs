@@ -8,7 +8,7 @@ use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use rand::distributions::{Distribution, Uniform};
 
-use super::utils as utils;
+use super::utils as u;
 use super::schnorr_paillier_batched as spb;
 use super::n_gcd as n_gcd;
 use super::paillier_elgamal as pe;
@@ -16,30 +16,95 @@ use super::paillier_elgamal as pe;
 
 #[derive(Clone, Debug)]
 pub struct DVParams {
-    pub n_bitlen: usize,
+    /// N of the prover
+    pub n_bitlen: u32,
+    /// Security parameter
     pub lambda: u32,
+    /// The number of CRS reuses
     pub crs_uses: u32,
-    pub trusted_setup: bool
+    /// Whether malicious setup (that introduces VPK proofs) is enabled
+    pub malicious_setup: bool
 }
 
 impl DVParams {
-    pub fn new(n_bitlen: usize, lambda: u32, crs_uses: u32, trusted_setup: bool) -> DVParams {
-        DVParams{n_bitlen, lambda, crs_uses, trusted_setup}
-    }
-    pub fn vpk_n_bitlen(&self) -> usize {
-        // N + 2λ + log λ + 1
-        self.n_bitlen + 2 * (self.lambda as usize) +
-            ((self.lambda as f64).log2().ceil() as usize) + 1
+    pub fn new(n_bitlen: u32, lambda: u32, crs_uses: u32, malicious_setup: bool) -> DVParams {
+        DVParams{n_bitlen, lambda, crs_uses, malicious_setup}
     }
 
-    pub fn nizk_ct_params(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.n_bitlen,self.lambda,self.lambda,self.lambda)
+    /// Range slack of the batched range proof.
+    pub fn range_slack_bitlen(&self) -> u32 {
+        2 * self.lambda + u::log2ceil(self.lambda) - 1
     }
 
+    /// The actual size of generated challenges.
+    fn ch_small_bitlen(&self) -> u32 { self.lambda }
+
+    // @volhovm: FIXME shouldn't it account for the batched range
+    // proof slack? I suspect not, because big ciphertext blinding is
+    // needed for soundness (for the oracle not to reveal the CRS),
+    // and thus for soundness we can assume trusted setup?
+    fn ch_big_bitlen(&self) -> u32 { 2 * self.lambda + u::log2ceil(self.lambda) } 
+
+    /// Maximum size of the summed-up challenge, real.
+    pub fn max_ch_bitlen(&self) -> u32 {
+        if self.crs_uses == 0 {
+            self.lambda + u::log2ceil(self.lambda)
+        } else {
+            2 * self.lambda + u::log2ceil(self.lambda) // FIXME, shouldn't it be a bit more?
+        }
+    }
+
+    /// Maximum size of the summed-up challenge
+    pub fn max_ch_proven_bitlen(&self) -> u32 {
+        if self.crs_uses == 0 {
+            // sum of lambda (small challenges with slack)
+            (self.ch_small_bitlen() + self.range_slack_bitlen())
+                + u::log2ceil(self.lambda)
+        } else {
+            // a single big challenge with slack
+            self.ch_big_bitlen() + self.range_slack_bitlen() + 1
+        }
+    }
+
+    pub fn rand_bitlen(&self) -> u32 {
+        // r should be lambda bits more than c * w, where c is maximum
+        // sum-challenge according to what is known (in the trusted
+        // case) or proven by the batched protocol (in the malicious
+        // setup case).
+        self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+    }
+
+    // M should be bigger than r + cw, but r should hide cw perfectly;
+    // so cw is always negligibly smaller than r. We could just take M
+    // to be n and achieve statistical completeness in this respect,
+    // but adding one extra bit will give us perfect completeness,
+    // because now r + cw < 2 r.
+    pub fn vpk_n_bitlen(&self) -> u32 {
+        self.rand_bitlen() + 1
+    }
+
+    /// Params for the first batch, for challenges of lambda bits.
+    pub fn nizk_ct_params_1(&self) -> spb::ProofParams {
+        spb::ProofParams::new(self.vpk_n_bitlen() as usize,
+                              self.lambda,
+                              self.lambda,
+                              self.lambda)
+    }
+
+    /// Params for the second+ batches, for challenges of 2 * lambda +
+    /// log lambda bits.
+    pub fn nizk_ct_params_2(&self) -> spb::ProofParams {
+        spb::ProofParams::new(self.vpk_n_bitlen() as usize,
+                              self.lambda,
+                              self.lambda,
+                              2 * self.lambda + u::log2ceil(self.lambda))
+    }
+
+    /// Parameters for the GCD NIZK proof.
     pub fn nizk_gcd_params(&self) -> n_gcd::ProofParams {
-        n_gcd::ProofParams{n_bitlen: self.n_bitlen,
-                           lambda: self.lambda,
-                           pmax: 10000}
+        n_gcd::ProofParams{ n_bitlen: self.n_bitlen as usize,
+                            lambda: self.lambda,
+                            pmax: 10000 }
     }
 }
 
@@ -69,17 +134,15 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     // This can be more effective in terms of move/copy
     // e.g. Inst/Wit could contain references inside?
     let (pk,sk) =
-        //Paillier::keypair_with_modulus_size(params.n_bitlen * 2 + 4 * (params.lambda as usize)).keys();
-        Paillier::keypair_with_modulus_size(params.vpk_n_bitlen()).keys();
+        Paillier::keypair_with_modulus_size(params.vpk_n_bitlen() as usize).keys();
 
-    let ch_range_1 = BigInt::pow(&BigInt::from(2), params.lambda);
-    let ch_range_2 = &ch_range_1 * &ch_range_1 * BigInt::from(params.lambda);
-
+    let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen());
+    let ch_range_2 = BigInt::pow(&BigInt::from(2), params.ch_big_bitlen());
     let mut chs: Vec<BigInt> = vec![];
     for _i in 0..params.lambda {
-        chs.push(utils::bigint_sample_below_sym(&ch_range_1)); }
+        chs.push(u::bigint_sample_below_sym(&ch_range_1)); }
     for _i in 0..params.crs_uses {
-        chs.push(utils::bigint_sample_below_sym(&ch_range_2)); }
+        chs.push(u::bigint_sample_below_sym(&ch_range_2)); }
 
     let rs: Vec<BigInt> =
         (0..(params.lambda + params.crs_uses))
@@ -108,7 +171,9 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let mut nizks_ct: Vec<spb::FSProof> = vec![];
     let nizk_batches =
         if params.crs_uses == 0
-           { 1 } else { 2 + (params.crs_uses - 1) / params.lambda };
+    { 1 } else { 2 + (params.crs_uses - 1) / params.lambda };
+
+    // FIXME: batches from 1 should use different range!
     for i in 0..nizk_batches {
         let batch_from = (i*params.lambda) as usize;
         let batch_to = std::cmp::min((i+1)*params.lambda,
@@ -130,10 +195,11 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
             }
         }
 
+        let params = if i == 0 { params.nizk_ct_params_1() } else { params.nizk_ct_params_2() };
         let inst = spb::Inst{cts: cts_inst};
         let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
 
-        nizks_ct.push(spb::fs_prove(&params.nizk_ct_params(), &lang, &inst, &wit));
+        nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
     }
     println!("Proving done");
         
@@ -177,12 +243,13 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
             }
         }
 
+        let params =
+            if i == 0 { params.nizk_ct_params_1() }
+            else { params.nizk_ct_params_2() };
         let inst = spb::Lang{ pk: vpk.pk.clone() };
         let wit = spb::Inst{ cts: cts_w };
 
-        let res2 = spb::fs_verify(
-            &params.nizk_ct_params(), &inst, &wit,
-            &vpk.nizks_ct[i as usize]);
+        let res2 = spb::fs_verify(&params, &inst, &wit, &vpk.nizks_ct[i as usize]);
         if !res2 { return false; }
 
         println!("Verified nizk batch #{:?}", i);
@@ -219,7 +286,7 @@ pub struct DVInst { pub ct: pe::PECiphertext }
 pub struct DVWit { pub m: BigInt, pub r: BigInt }
 
 pub fn sample_lang(params: &DVParams) -> DVLang {
-    let (pk,_sk) = pe::keygen(params.n_bitlen);
+    let (pk,_sk) = pe::keygen(params.n_bitlen as usize);
     DVLang{pk}
 }
 
@@ -255,10 +322,8 @@ pub struct DVResp{ pub s_m: BigInt, pub s_r: BigInt }
 
 pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
     // TODO it's broken here
-    let rm = BigInt::sample(params.vpk_n_bitlen() +
-                            2 * (params.lambda as usize) +
-                            ((params.lambda as f64).log2().ceil() as usize));
-    let rr = BigInt::sample(params.vpk_n_bitlen());
+    let rm = BigInt::sample(params.rand_bitlen() as usize);
+    let rr = BigInt::sample(params.vpk_n_bitlen() as usize);
 
     let a = pe::encrypt_with_randomness(&lang.pk,&rm,&rr);
 

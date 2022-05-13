@@ -18,6 +18,10 @@ pub fn bigint_sample_below_sym(b: &BigInt) -> BigInt {
     BigInt::sample_below(b) - b
 }
 
+pub fn log2ceil(x: u32) -> u32 {
+   (x as f64).log2().ceil() as u32
+}
+
 #[cfg(test)]
 mod tests {
 

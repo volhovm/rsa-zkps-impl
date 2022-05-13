@@ -37,6 +37,7 @@ impl ProofParams {
         return ProofParams { n_bitlen, lambda, reps_n, reps_m,
                              range, rand_range, ch_space };
     }
+
 }
 
 impl fmt::Display for ProofParams {
