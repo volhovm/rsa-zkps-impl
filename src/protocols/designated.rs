@@ -16,7 +16,7 @@ use super::paillier_elgamal as pe;
 
 #[derive(Clone, Debug)]
 pub struct DVParams {
-    /// N of the prover
+    /// N of the prover, bit length
     pub n_bitlen: u32,
     /// Security parameter
     pub lambda: u32,
@@ -85,7 +85,7 @@ impl DVParams {
 
     /// Params for the first batch, for challenges of lambda bits.
     pub fn nizk_ct_params_1(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.vpk_n_bitlen() as usize,
+        spb::ProofParams::new(self.vpk_n_bitlen(),
                               self.lambda,
                               self.lambda,
                               self.lambda)
@@ -94,7 +94,7 @@ impl DVParams {
     /// Params for the second+ batches, for challenges of 2 * lambda +
     /// log lambda bits.
     pub fn nizk_ct_params_2(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.vpk_n_bitlen() as usize,
+        spb::ProofParams::new(self.vpk_n_bitlen(),
                               self.lambda,
                               self.lambda,
                               2 * self.lambda + u::log2ceil(self.lambda))

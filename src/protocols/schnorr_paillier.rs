@@ -37,7 +37,7 @@ pub struct ProofParams {
     /// Number of repeats of the basic protocol.
     pub reps: usize,
     /// Bitlength of the RSA modulus.
-    pub n_bitlen: usize,
+    pub n_bitlen: u32,
     /// Size of the challenge space, upper bound.
     pub ch_space: BigInt,
     /// Whether to run in a range-proof mode.
@@ -45,7 +45,7 @@ pub struct ProofParams {
 }
 
 impl ProofParams {
-    fn calc_proof_params(n_bitlen: usize,
+    fn calc_proof_params(n_bitlen: u32,
                          lambda: u32,
                          repbits: u32,
                          range_params: Option<RangeProofParams>) -> Self {
@@ -54,11 +54,11 @@ impl ProofParams {
                              reps: (lambda as f64 / repbits as f64).ceil() as usize,
                              n_bitlen, ch_space, range_params };
     }
-    pub fn new(n_bitlen: usize, lambda: u32, repbits: u32) -> Self {
+    pub fn new(n_bitlen: u32, lambda: u32, repbits: u32) -> Self {
 
         Self::calc_proof_params(n_bitlen,lambda,repbits,None)
     }
-    pub fn new_range(n_bitlen: usize,
+    pub fn new_range(n_bitlen: u32,
                      lambda: u32,
                      r: BigInt) -> Self {
         let range_params = RangeProofParams::new(lambda,r);
@@ -111,7 +111,7 @@ pub struct Challenge(Vec<BigInt>);
 pub struct Response(Vec<(BigInt,BigInt)>);
 
 pub fn sample_lang(params: &ProofParams) -> Lang {
-    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen).keys().0;
+    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys().0;
     Lang { pk }
 }
 
@@ -211,7 +211,7 @@ pub fn prove2(params: &ProofParams,
 pub fn verify2(params: &ProofParams,
                lang: &Lang,
                inst: &Inst,
-               precomp: &VerifierPrecomp,
+               _precomp: &VerifierPrecomp,
                com: &Commitment,
                ch: &Challenge,
                resp: &Response) -> bool {

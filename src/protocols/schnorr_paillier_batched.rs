@@ -12,7 +12,7 @@ use std::fmt;
 #[derive(Clone, PartialEq, Debug)]
 pub struct ProofParams {
     /// Bitlength of the RSA modulus.
-    pub n_bitlen: usize,
+    pub n_bitlen: u32,
     /// Security parameter, also.
     pub lambda: u32,
     /// Number of repeats n, usually =lambda
@@ -28,7 +28,7 @@ pub struct ProofParams {
 }
 
 impl ProofParams {
-    pub fn new(n_bitlen: usize, lambda: u32, reps_n: u32, range_bits: u32) -> Self {
+    pub fn new(n_bitlen: u32, lambda: u32, reps_n: u32, range_bits: u32) -> Self {
         let range = BigInt::pow(&BigInt::from(2), range_bits);
         let rand_range =
             BigInt::pow(&BigInt::from(2), lambda - 1) * &range * BigInt::from(reps_n);
@@ -71,7 +71,7 @@ pub struct Wit {
 }
 
 pub fn sample_lang(params: &ProofParams) -> Lang {
-    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen).keys().0;
+    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys().0;
     Lang { pk }
 }
 
