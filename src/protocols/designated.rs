@@ -66,12 +66,21 @@ impl DVParams {
         }
     }
 
-    pub fn rand_bitlen(&self) -> u32 {
+    pub fn rand_m_bitlen(&self) -> u32 {
         // r should be lambda bits more than c * w, where c is maximum
         // sum-challenge according to what is known (in the trusted
         // case) or proven by the batched protocol (in the malicious
         // setup case).
         self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+    }
+
+    pub fn rand_r_bitlen(&self) -> u32 {
+        // @volhovm FIXME: which randomness we use here depends on
+        // what randomness is used for Paillier on Prover's side. It
+        // can either be randomness from N or from N^2.
+        
+        self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+        //2 * self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
     }
 
     // M should be bigger than r + cw, but r should hide cw perfectly;
@@ -80,7 +89,7 @@ impl DVParams {
     // but adding one extra bit will give us perfect completeness,
     // because now r + cw < 2 r.
     pub fn vpk_n_bitlen(&self) -> u32 {
-        self.rand_bitlen() + 1
+        std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 1
     }
 
     /// Params for the first batch, for challenges of lambda bits.
@@ -173,7 +182,6 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         if params.crs_uses == 0
     { 1 } else { 2 + (params.crs_uses - 1) / params.lambda };
 
-    // FIXME: batches from 1 should use different range!
     for i in 0..nizk_batches {
         let batch_from = (i*params.lambda) as usize;
         let batch_to = std::cmp::min((i+1)*params.lambda,
@@ -195,7 +203,8 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
             }
         }
 
-        let params = if i == 0 { params.nizk_ct_params_1() } else { params.nizk_ct_params_2() };
+        let params = if i == 0 { params.nizk_ct_params_1() }
+                     else { params.nizk_ct_params_2() };
         let inst = spb::Inst{cts: cts_inst};
         let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
 
@@ -311,26 +320,65 @@ pub fn sample_liw(params: &DVParams) -> (DVLang,DVInst,DVWit) {
 pub struct DVCom{ pub a: pe::PECiphertext }
 
 #[derive(Clone, Debug)]
-pub struct DVComRand{ pub rr: BigInt, pub rm: BigInt }
+pub struct DVComRand {
+    pub rm_m: BigInt,
+    pub rm_r: BigInt,
+    pub rr_m: BigInt,
+    pub rr_r: BigInt,
+    pub tm1: BigInt,
+    pub tm2: BigInt,
+    pub tm3: BigInt,
+    pub tr1: BigInt,
+    pub tr2: BigInt,
+    pub tr3: BigInt,
+}
 
 #[derive(Clone, Debug)]
-pub struct DVChallenge(Vec<usize>);
+pub struct DVChallenge1(Vec<usize>);
+#[derive(Clone, Debug)]
+pub struct DVChallenge2(BigInt);
 
 #[derive(Clone, Debug)]
-pub struct DVResp{ pub s_m: BigInt, pub s_r: BigInt }
+pub struct DVResp1{
+    pub sm: BigInt,
+    pub sr: BigInt,
+    pub tm: BigInt,
+    pub tr: BigInt,
+}
+
+#[derive(Clone, Debug)]
+pub struct DVResp2{
+    pub um1: BigInt,
+    pub um2: BigInt,
+    pub um3: BigInt,
+    pub ur1: BigInt,
+    pub ur2: BigInt,
+    pub ur3: BigInt,
+}
 
 
 pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
     // TODO it's broken here
-    let rm = BigInt::sample(params.rand_bitlen() as usize);
-    let rr = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
+    let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
 
-    let a = pe::encrypt_with_randomness(&lang.pk,&rm,&rr);
+    let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
+    let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
 
-    (DVCom{a}, DVComRand{rr, rm})
+    let tm1 = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let tm2 = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let tm3 = BigInt::sample(params.vpk_n_bitlen() as usize);
+
+    let tr1 = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let tr2 = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let tr3 = BigInt::sample(params.vpk_n_bitlen() as usize);
+
+    let a = pe::encrypt_with_randomness(&lang.pk,&rm_m,&rr_m);
+
+    (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r, tm1, tm2, tm3, tr1, tr2, tr3})
 }
 
-pub fn verify1(params: &DVParams) -> DVChallenge {
+pub fn verify1(params: &DVParams) -> DVChallenge1 {
     let mut rng = rand::thread_rng();
     let gen = Uniform::from(0..(2 * (params.lambda as usize)));
 
@@ -343,13 +391,13 @@ pub fn verify1(params: &DVParams) -> DVChallenge {
         if !ix.contains(&i) { ix.insert(i); }
     }
 
-    DVChallenge(ix.into_iter().collect())
+    DVChallenge1(ix.into_iter().collect())
 }
 
 pub fn prove2(vpk: &VPK,
-               cr: &DVComRand,
-               wit: &DVWit,
-               ch: &DVChallenge) -> DVResp {
+              cr: &DVComRand,
+              wit: &DVWit,
+              ch: &DVChallenge1) -> DVResp1 {
     let n2: &BigInt = &vpk.pk.nn;
 
     let ct =
@@ -357,50 +405,125 @@ pub fn prove2(vpk: &VPK,
         .map(|&i| &vpk.cts[i])
         .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2));
 
-    let rr_ct = Paillier::encrypt(&vpk.pk,RawPlaintext::from(&cr.rr)).0.into_owned();
-    let s_r = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.r, n2),
-                             &rr_ct,
+    let sm_ct = Paillier::encrypt_with_chosen_randomness(
+                  &vpk.pk,
+                  RawPlaintext::from(&cr.rm_m),
+                  &Randomness::from(&cr.rm_r)).0.into_owned();
+    let sm = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.m, n2),
+                             &sm_ct,
                              n2);
 
-    let rm_ct = Paillier::encrypt(&vpk.pk,RawPlaintext::from(&cr.rm)).0.into_owned();
-    let s_m = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.m, n2),
-                             &rm_ct,
+    let sr_ct = Paillier::encrypt_with_chosen_randomness(
+                  &vpk.pk,
+                  RawPlaintext::from(&cr.rr_m),
+                  &Randomness::from(&cr.rr_r)).0.into_owned();
+    let sr = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.r, n2),
+                             &sr_ct,
                              n2);
 
-    DVResp{s_m,s_r}
+    let tm_ct = Paillier::encrypt_with_chosen_randomness(
+                  &vpk.pk,
+                  RawPlaintext::from(&cr.tm2),
+                  &Randomness::from(&cr.tm3)).0.into_owned();
+    let tm = BigInt::mod_mul(&BigInt::mod_pow(&ct, &cr.tm1, n2),
+                             &tm_ct,
+                             n2);
+
+    let tr_ct = Paillier::encrypt_with_chosen_randomness(
+                  &vpk.pk,
+                  RawPlaintext::from(&cr.tr2),
+                  &Randomness::from(&cr.tr3)).0.into_owned();
+    let tr = BigInt::mod_mul(&BigInt::mod_pow(&ct, &cr.tr1, n2),
+                             &tr_ct,
+                             n2);
+
+    DVResp1{sm, sr, tm, tr}
 }
 
-pub fn verify2(vsk: &VSK,
+pub fn verify2(params: &DVParams) -> DVChallenge2 {
+    let d = BigInt::sample(params.lambda as usize);
+    DVChallenge2(d)
+}
+
+pub fn prove3(vpk: &VPK,
+              cr: &DVComRand,
+              wit: &DVWit,
+              ch: &DVChallenge2) -> DVResp2 {
+    let n2: &BigInt = &vpk.pk.nn;
+    let d: &BigInt = &ch.0;
+
+    let um1 = BigInt::mod_add(&BigInt::mod_mul(&wit.m, d, n2), &cr.tm1, n2);
+    let um2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rm_m, d, n2), &cr.tm2, n2);
+    let um3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rm_r, d, n2), &cr.tm3, n2);
+
+    let ur1 = BigInt::mod_add(&BigInt::mod_mul(&wit.r, d, n2), &cr.tr1, n2);
+    let ur2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rr_m, d, n2), &cr.tr2, n2);
+    let ur3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rr_r, d, n2), &cr.tr3, n2);
+
+    DVResp2{um1, um2, um3, ur1, ur2, ur3}
+}
+
+pub fn verify3(vsk: &VSK,
+               vpk: &VPK,
                lang: &DVLang,
                inst: &DVInst,
                com: &DVCom,
-               ch: &DVChallenge,
-               resp: &DVResp) -> bool {
-    let ch_raw: BigInt =
-        ch.0.iter()
+               ch1: &DVChallenge1,
+               ch2: &DVChallenge2,
+               resp1: &DVResp1,
+               resp2: &DVResp2) -> bool {
+    let ch1_ct =
+        ch1.0.iter()
+        .map(|&i| &vpk.cts[i])
+        .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, &vpk.pk.nn));
+
+    let ch1_raw: BigInt =
+        ch1.0.iter()
         .map(|&i| &vsk.chs[i])
         .fold(BigInt::from(0), |acc,x| acc + x );
 
-    let s_r = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.s_r)).0.into_owned();
-    let s_m = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.s_m)).0.into_owned();
+    let sr = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sr)).0.into_owned();
+    let sm = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sm)).0.into_owned();
 
-    let pe::PECiphertext{ct1:x1,ct2:x2} =
-        pe::encrypt_with_randomness(&lang.pk, &s_m, &s_r);
+    // a Y^c = Enc_psi(s_m,s_r)
+    {
+        let pe::PECiphertext{ct1:x1,ct2:x2} =
+            pe::encrypt_with_randomness(&lang.pk, &sm, &sr);
 
-    let tmp1 =
-        BigInt::mod_mul(
-            &BigInt::mod_pow(&inst.ct.ct1, &ch_raw, &lang.pk.n2),
-            &com.a.ct1,
-            &lang.pk.n2);
-    if tmp1 != x1 { return false; }
+        let tmp1 =
+            BigInt::mod_mul(
+                &BigInt::mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.n2),
+                &com.a.ct1,
+                &lang.pk.n2);
+        if tmp1 != x1 { return false; }
 
-    let tmp2 =
-        BigInt::mod_mul(
-            &BigInt::mod_pow(&inst.ct.ct2, &ch_raw, &lang.pk.n2),
-            &com.a.ct2,
-            &lang.pk.n2);
+        let tmp2 =
+            BigInt::mod_mul(
+                &BigInt::mod_pow(&inst.ct.ct2, &ch1_raw, &lang.pk.n2),
+                &com.a.ct2,
+                &lang.pk.n2);
+        if tmp2 != x2 { return false; }
+    }
 
-    if tmp2 != x2 { return false; }
+    {
+        let ct = Paillier::encrypt_with_chosen_randomness(
+                &vpk.pk,
+                RawPlaintext::from(&resp2.um2),
+                &Randomness::from(&resp2.um3)).0.into_owned();
+        let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.um1, &vpk.pk.nn), &ct, &vpk.pk.nn);
+        let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sm, &ch2.0, &vpk.pk.nn), &resp1.tm, &vpk.pk.nn);
+        if lhs != rhs { return false; }
+    }
+
+    {
+        let ct = Paillier::encrypt_with_chosen_randomness(
+                &vpk.pk,
+                RawPlaintext::from(&resp2.ur2),
+                &Randomness::from(&resp2.ur3)).0.into_owned();
+        let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.ur1, &vpk.pk.nn), &ct, &vpk.pk.nn);
+        let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sr, &ch2.0, &vpk.pk.nn), &resp1.tr, &vpk.pk.nn);
+        if lhs != rhs { return false; }
+    }
 
     true
 }
