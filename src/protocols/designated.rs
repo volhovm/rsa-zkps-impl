@@ -1,4 +1,4 @@
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
+use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation};
 use curv::BigInt;
 use paillier::{Paillier, EncryptionKey, DecryptionKey,
                KeyGeneration, Encrypt, Decrypt, RawCiphertext,
@@ -379,19 +379,14 @@ pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
 }
 
 pub fn verify1(params: &DVParams) -> DVChallenge1 {
-    let mut rng = rand::thread_rng();
-    let gen = Uniform::from(0..(2 * (params.lambda as usize)));
+    let b = BigInt::sample(params.lambda as usize);
 
-    // There is a better way to do it.
-    use std::collections::HashSet;
-    let mut ix: HashSet<usize> = HashSet::new();
-
-    while ix.len() < params.lambda as usize {
-        let i = gen.sample(&mut rng);
-        if !ix.contains(&i) { ix.insert(i); }
+    let mut ix: Vec<usize> = vec![];
+    for i in 0..(params.lambda as usize) {
+        if b.test_bit(i) { ix.push(i); }
     }
 
-    DVChallenge1(ix.into_iter().collect())
+    DVChallenge1(ix)
 }
 
 pub fn prove2(vpk: &VPK,
@@ -472,6 +467,7 @@ pub fn verify3(vsk: &VSK,
                ch2: &DVChallenge2,
                resp1: &DVResp1,
                resp2: &DVResp2) -> bool {
+    println!("Verify3, ch1: {:?}", ch1);
     let ch1_ct =
         ch1.0.iter()
         .map(|&i| &vpk.cts[i])
@@ -485,36 +481,46 @@ pub fn verify3(vsk: &VSK,
     let sr = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sr)).0.into_owned();
     let sm = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sm)).0.into_owned();
 
+    println!("Verify3 1");
     // a Y^c = Enc_psi(s_m,s_r)
     {
         let pe::PECiphertext{ct1:x1,ct2:x2} =
             pe::encrypt_with_randomness(&lang.pk, &sm, &sr);
 
+        println!("Verify3 1.1");
         let tmp1 =
             BigInt::mod_mul(
-                &BigInt::mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.n2),
+                &u::bigint_mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.n2),
                 &com.a.ct1,
                 &lang.pk.n2);
+        println!("Verify3 1.2");
         if tmp1 != x1 { return false; }
+        println!("Verify3 1.3");
 
         let tmp2 =
             BigInt::mod_mul(
-                &BigInt::mod_pow(&inst.ct.ct2, &ch1_raw, &lang.pk.n2),
+                &u::bigint_mod_pow(&inst.ct.ct2, &ch1_raw, &lang.pk.n2),
                 &com.a.ct2,
                 &lang.pk.n2);
         if tmp2 != x2 { return false; }
+        println!("Verify3 1.4");
     }
 
+    println!("Verify3 2");
     {
         let ct = Paillier::encrypt_with_chosen_randomness(
                 &vpk.pk,
                 RawPlaintext::from(&resp2.um2),
                 &Randomness::from(&resp2.um3)).0.into_owned();
+        println!("Verify3 2.1");
         let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.um1, &vpk.pk.nn), &ct, &vpk.pk.nn);
+        println!("Verify3 2.2");
         let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sm, &ch2.0, &vpk.pk.nn), &resp1.tm, &vpk.pk.nn);
+        println!("Verify3 2.3");
         if lhs != rhs { return false; }
     }
 
+    println!("Verify3 3");
     {
         let ct = Paillier::encrypt_with_chosen_randomness(
                 &vpk.pk,
@@ -548,19 +554,22 @@ mod tests {
         assert!(verify_vpk(&params,&vpk));
     }
 
-//    #[test]
-//    fn test_correctness() {
-//        let params = DVParams::new(256, 16);
-//
-//        let (vpk,vsk) = keygen(&params);
-//        assert!(verify_vpk(&params,&vpk));
-//
-//        let (lang,inst,wit) = sample_liw(&params);
-//
-//        let (com,cr) = prove1(&params,&lang);
-//        let ch = verify1(&params);
-//
-//        let resp = prove2(&vpk,&cr,&wit,&ch);
-//        assert!(verify2(&vsk,&lang,&inst,&com,&ch,&resp));
-//    }
+    #[test]
+    fn test_correctness() {
+        let params = DVParams::new(256, 16, 0, true);
+
+        let (vpk,vsk) = keygen(&params);
+        assert!(verify_vpk(&params,&vpk));
+
+        let (lang,inst,wit) = sample_liw(&params);
+
+        let (com,cr) = prove1(&params,&lang);
+        let ch1 = verify1(&params);
+
+        let resp1 = prove2(&vpk,&cr,&wit,&ch1);
+        let ch2 = verify2(&params);
+        let resp2 = prove3(&vpk,&cr,&wit,&ch2);
+
+        assert!(verify3(&vsk,&vpk,&lang,&inst,&com,&ch1,&ch2,&resp1,&resp2));
+    }
 }

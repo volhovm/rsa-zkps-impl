@@ -1,5 +1,5 @@
 use curv::BigInt;
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
+use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, NumberTests};
 
 
 /// Checks whether n is divisible by any prime p <= upto.
@@ -16,6 +16,16 @@ pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
 
 pub fn bigint_sample_below_sym(b: &BigInt) -> BigInt {
     BigInt::sample_below(b) - b
+}
+
+/// Mod_pow but allowing exponents to be negative.
+pub fn bigint_mod_pow(a: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
+    if BigInt::is_negative(exponent) {
+        let inv: Option<BigInt> = BigInt::mod_inv(a, modulus);
+        BigInt::mod_pow(&inv.unwrap(),&-exponent,modulus)
+    } else {
+        BigInt::mod_pow(a,exponent,modulus)
+    }
 }
 
 pub fn log2ceil(x: u32) -> u32 {
