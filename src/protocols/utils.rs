@@ -15,7 +15,7 @@ pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
 }
 
 pub fn bigint_sample_below_sym(b: &BigInt) -> BigInt {
-    BigInt::sample_below(b) - b
+    BigInt::sample_below(b) - b / 2
 }
 
 /// Mod_pow but allowing exponents to be negative.

@@ -39,6 +39,6 @@ fn main() {
 //    rsazkps::protocols::snark_paillier::test();
 //    rsazkps::protocols::schnorr_paillier_batched::tests::test_correctness();
     //test_dv_crs();
-    rsazkps::protocols::designated::test_correctness_keygen();
+    rsazkps::protocols::designated::test();
     //    rsazkps::protocols::n_gcd::test();
 }

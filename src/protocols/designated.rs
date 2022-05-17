@@ -89,7 +89,7 @@ impl DVParams {
     // but adding one extra bit will give us perfect completeness,
     // because now r + cw < 2 r.
     pub fn vpk_n_bitlen(&self) -> u32 {
-        std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 1
+        2 * std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 1
     }
 
     /// Params for the first batch, for challenges of lambda bits.
@@ -152,6 +152,8 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         chs.push(u::bigint_sample_below_sym(&ch_range_1)); }
     for _i in 0..params.crs_uses {
         chs.push(u::bigint_sample_below_sym(&ch_range_2)); }
+
+    println!("Challenges vector: {:?}", chs);
 
     let rs: Vec<BigInt> =
         (0..(params.lambda + params.crs_uses))
@@ -300,10 +302,12 @@ pub fn sample_lang(params: &DVParams) -> DVLang {
 }
 
 pub fn sample_inst(lang: &DVLang) -> (DVInst,DVWit) {
-//    let m = BigInt::from(5);
-//    let r = BigInt::from(10);
+    // FIXME the bug is here! Even with fixed m/r being small,
+    // the proof does not always verify. Sometimes.
+    //let m = BigInt::from(5);
+    //let r = BigInt::from(10);
     let m = BigInt::sample_below(&lang.pk.n);
-    let r = BigInt::sample_below(&lang.pk.n2);
+    let r = BigInt::sample_below(&lang.pk.n);
     let ct = pe::encrypt_with_randomness(&lang.pk,&m,&r);
     (DVInst{ct}, DVWit{m, r})
 }
@@ -399,6 +403,7 @@ pub fn prove2(vpk: &VPK,
         ch.0.iter()
         .map(|&i| &vpk.cts[i])
         .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2));
+    println!("Challenge: {:+}", ct);
 
     let sm_ct = Paillier::encrypt_with_chosen_randomness(
                   &vpk.pk,
@@ -467,11 +472,11 @@ pub fn verify3(vsk: &VSK,
                ch2: &DVChallenge2,
                resp1: &DVResp1,
                resp2: &DVResp2) -> bool {
-    println!("Verify3, ch1: {:?}", ch1);
     let ch1_ct =
         ch1.0.iter()
         .map(|&i| &vpk.cts[i])
         .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, &vpk.pk.nn));
+    let ch1_ct_dec = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&ch1_ct)).0.into_owned();
 
     let ch1_raw: BigInt =
         ch1.0.iter()
@@ -481,21 +486,17 @@ pub fn verify3(vsk: &VSK,
     let sr = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sr)).0.into_owned();
     let sm = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sm)).0.into_owned();
 
-    println!("Verify3 1");
     // a Y^c = Enc_psi(s_m,s_r)
     {
         let pe::PECiphertext{ct1:x1,ct2:x2} =
             pe::encrypt_with_randomness(&lang.pk, &sm, &sr);
 
-        println!("Verify3 1.1");
         let tmp1 =
             BigInt::mod_mul(
                 &u::bigint_mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.n2),
                 &com.a.ct1,
                 &lang.pk.n2);
-        println!("Verify3 1.2");
         if tmp1 != x1 { return false; }
-        println!("Verify3 1.3");
 
         let tmp2 =
             BigInt::mod_mul(
@@ -503,24 +504,18 @@ pub fn verify3(vsk: &VSK,
                 &com.a.ct2,
                 &lang.pk.n2);
         if tmp2 != x2 { return false; }
-        println!("Verify3 1.4");
     }
 
-    println!("Verify3 2");
     {
         let ct = Paillier::encrypt_with_chosen_randomness(
                 &vpk.pk,
                 RawPlaintext::from(&resp2.um2),
                 &Randomness::from(&resp2.um3)).0.into_owned();
-        println!("Verify3 2.1");
         let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.um1, &vpk.pk.nn), &ct, &vpk.pk.nn);
-        println!("Verify3 2.2");
         let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sm, &ch2.0, &vpk.pk.nn), &resp1.tm, &vpk.pk.nn);
-        println!("Verify3 2.3");
         if lhs != rhs { return false; }
     }
 
-    println!("Verify3 3");
     {
         let ct = Paillier::encrypt_with_chosen_randomness(
                 &vpk.pk,
@@ -534,10 +529,108 @@ pub fn verify3(vsk: &VSK,
     true
 }
 
-pub fn test_correctness_keygen() {
-    let params = DVParams::new(1024, 32, 32, false);
-    let (vpk,_vsk) = keygen(&params);
+pub fn test() {
+    for i in 0..10 {
+    let params = DVParams::new(256, 16, 0, true);
+    
+    let (vpk,vsk) = keygen(&params);
     assert!(verify_vpk(&params,&vpk));
+    
+    let (lang,inst,wit) = sample_liw(&params);
+    
+    let (com,cr) = prove1(&params,&lang);
+    let ch1 = verify1(&params);
+    
+    let resp1 = prove2(&vpk,&cr,&wit,&ch1);
+    let ch2 = verify2(&params);
+    let resp2 = prove3(&vpk,&cr,&wit,&ch2);
+    
+        assert!(verify3(&vsk,&vpk,&lang,&inst,&com,&ch1,&ch2,&resp1,&resp2));
+    }
+}
+
+pub fn test2() {
+    for i in 0..200 {
+    let params = DVParams::new(256, 16, 0, true);
+    
+    let (vpk,vsk) = keygen(&params);
+    let v_n2: &BigInt = &vpk.pk.nn;
+    assert!(verify_vpk(&params,&vpk));
+    
+    let (lang,inst,wit) = sample_liw(&params);
+
+    let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
+    let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
+
+    let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
+    let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
+
+    let a = pe::encrypt_with_randomness(&lang.pk,&rm_m,&rr_m);
+
+    let b = BigInt::sample(params.lambda as usize);
+
+    let mut ch: Vec<usize> = vec![];
+    for i in 0..(params.lambda as usize) {
+        if b.test_bit(i) { ch.push(i); }
+    }
+
+    let ch_ct =
+        ch.iter()
+        .map(|&i| &vpk.cts[i])
+        .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, v_n2));
+
+    let sm_ct = Paillier::encrypt_with_chosen_randomness(
+                  &vpk.pk,
+                  RawPlaintext::from(&rm_m),
+                  &Randomness::from(&rm_r)).0.into_owned();
+    let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, v_n2),
+                             &sm_ct,
+                             v_n2);
+
+    let sr_ct = Paillier::encrypt_with_chosen_randomness(
+                  &vpk.pk,
+                  RawPlaintext::from(&rr_m),
+                  &Randomness::from(&rr_r)).0.into_owned();
+    let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, v_n2),
+                             &sr_ct,
+                             v_n2);
+
+    let sr = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&sr)).0.into_owned();
+    let sm = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&sm)).0.into_owned();
+
+    let ch1_raw: BigInt =
+        ch.iter()
+        .map(|&i| &vsk.chs[i])
+        .fold(BigInt::from(0), |acc,x| acc + x );
+    println!("Raw challenge dec: {:?}", ch1_raw);
+    {
+        let pe::PECiphertext{ct1:x1,ct2:x2} =
+            pe::encrypt_with_randomness(&lang.pk, &sm, &sr);
+
+        let mut tofail = false;
+        println!("Verify3 1.1");
+        let tmp1 =
+            BigInt::mod_mul(
+                &u::bigint_mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.n2),
+                &a.ct1,
+                &lang.pk.n2);
+        println!("Verify3 1.2");
+        if tmp1 != x1 { tofail = true; println!("Failed check 1"); }
+        println!("Verify3 1.3");
+
+        let tmp2 =
+            BigInt::mod_mul(
+                &u::bigint_mod_pow(&inst.ct.ct2, &ch1_raw, &lang.pk.n2),
+                &a.ct2,
+                &lang.pk.n2);
+        if tmp2 != x2 { tofail = true; println!("Failed check 2"); }
+        println!("Verify3 1.4");
+
+        assert!(!tofail);
+    }
+
+    }
+
 }
 
 
