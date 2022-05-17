@@ -89,7 +89,8 @@ impl DVParams {
     // but adding one extra bit will give us perfect completeness,
     // because now r + cw < 2 r.
     pub fn vpk_n_bitlen(&self) -> u32 {
-        2 * std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 1
+        // FIXME: 
+         std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) / 2 + 1
     }
 
     /// Params for the first batch, for challenges of lambda bits.
@@ -153,8 +154,6 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     for _i in 0..params.crs_uses {
         chs.push(u::bigint_sample_below_sym(&ch_range_2)); }
 
-    println!("Challenges vector: {:?}", chs);
-
     let rs: Vec<BigInt> =
         (0..(params.lambda + params.crs_uses))
         .map(|_| BigInt::sample_below(&pk.n))
@@ -188,7 +187,6 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         let batch_from = (i*params.lambda) as usize;
         let batch_to = std::cmp::min((i+1)*params.lambda,
                                      params.lambda + params.crs_uses) as usize;
-        println!("Proving batch from {:?} to {:?}", batch_from, batch_to);
         let mut cts_inst = (&cts[batch_from..batch_to]).to_vec();
         let mut ms_wit = (&chs[batch_from..batch_to]).to_vec();
         let mut rs_wit = (&rs[batch_from..batch_to]).to_vec();
@@ -212,7 +210,6 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
 
         nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
     }
-    println!("Proving done");
         
     let t_p3 = SystemTime::now();
 
@@ -262,8 +259,6 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
 
         let res2 = spb::fs_verify(&params, &inst, &wit, &vpk.nizks_ct[i as usize]);
         if !res2 { return false; }
-
-        println!("Verified nizk batch #{:?}", i);
     }
 
     let t_p2 = SystemTime::now();
@@ -393,23 +388,26 @@ pub fn verify1(params: &DVParams) -> DVChallenge1 {
     DVChallenge1(ix)
 }
 
-pub fn prove2(vpk: &VPK,
+pub fn prove2(params: &DVParams,
+              vpk: &VPK,
               cr: &DVComRand,
               wit: &DVWit,
-              ch: &DVChallenge1) -> DVResp1 {
+              ch: &DVChallenge1,
+              query_ix: usize) -> DVResp1 {
     let n2: &BigInt = &vpk.pk.nn;
 
-    let ct =
-        ch.0.iter()
-        .map(|&i| &vpk.cts[i])
-        .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2));
-    println!("Challenge: {:+}", ct);
+    let ch_ct =
+        BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
+                        &ch.0.iter()
+                          .map(|&i| &vpk.cts[i])
+                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2)),
+                        n2);
 
     let sm_ct = Paillier::encrypt_with_chosen_randomness(
                   &vpk.pk,
                   RawPlaintext::from(&cr.rm_m),
                   &Randomness::from(&cr.rm_r)).0.into_owned();
-    let sm = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.m, n2),
+    let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, n2),
                              &sm_ct,
                              n2);
 
@@ -417,7 +415,7 @@ pub fn prove2(vpk: &VPK,
                   &vpk.pk,
                   RawPlaintext::from(&cr.rr_m),
                   &Randomness::from(&cr.rr_r)).0.into_owned();
-    let sr = BigInt::mod_mul(&BigInt::mod_pow(&ct, &wit.r, n2),
+    let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, n2),
                              &sr_ct,
                              n2);
 
@@ -425,7 +423,7 @@ pub fn prove2(vpk: &VPK,
                   &vpk.pk,
                   RawPlaintext::from(&cr.tm2),
                   &Randomness::from(&cr.tm3)).0.into_owned();
-    let tm = BigInt::mod_mul(&BigInt::mod_pow(&ct, &cr.tm1, n2),
+    let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &cr.tm1, n2),
                              &tm_ct,
                              n2);
 
@@ -433,7 +431,7 @@ pub fn prove2(vpk: &VPK,
                   &vpk.pk,
                   RawPlaintext::from(&cr.tr2),
                   &Randomness::from(&cr.tr3)).0.into_owned();
-    let tr = BigInt::mod_mul(&BigInt::mod_pow(&ct, &cr.tr1, n2),
+    let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &cr.tr1, n2),
                              &tr_ct,
                              n2);
 
@@ -463,7 +461,8 @@ pub fn prove3(vpk: &VPK,
     DVResp2{um1, um2, um3, ur1, ur2, ur3}
 }
 
-pub fn verify3(vsk: &VSK,
+pub fn verify3(params: &DVParams,
+               vsk: &VSK,
                vpk: &VPK,
                lang: &DVLang,
                inst: &DVInst,
@@ -471,14 +470,17 @@ pub fn verify3(vsk: &VSK,
                ch1: &DVChallenge1,
                ch2: &DVChallenge2,
                resp1: &DVResp1,
-               resp2: &DVResp2) -> bool {
+               resp2: &DVResp2,
+               query_ix: usize) -> bool {
     let ch1_ct =
-        ch1.0.iter()
-        .map(|&i| &vpk.cts[i])
-        .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, &vpk.pk.nn));
-    let ch1_ct_dec = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&ch1_ct)).0.into_owned();
+        BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
+                        &ch1.0.iter()
+                          .map(|&i| &vpk.cts[i])
+                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, &vpk.pk.nn)),
+                        &vpk.pk.nn);
 
     let ch1_raw: BigInt =
+        &vsk.chs[(params.lambda as usize) + query_ix] + 
         ch1.0.iter()
         .map(|&i| &vsk.chs[i])
         .fold(BigInt::from(0), |acc,x| acc + x );
@@ -529,29 +531,11 @@ pub fn verify3(vsk: &VSK,
     true
 }
 
-pub fn test() {
-    for i in 0..10 {
-    let params = DVParams::new(256, 16, 0, true);
-    
-    let (vpk,vsk) = keygen(&params);
-    assert!(verify_vpk(&params,&vpk));
-    
-    let (lang,inst,wit) = sample_liw(&params);
-    
-    let (com,cr) = prove1(&params,&lang);
-    let ch1 = verify1(&params);
-    
-    let resp1 = prove2(&vpk,&cr,&wit,&ch1);
-    let ch2 = verify2(&params);
-    let resp2 = prove3(&vpk,&cr,&wit,&ch2);
-    
-        assert!(verify3(&vsk,&vpk,&lang,&inst,&com,&ch1,&ch2,&resp1,&resp2));
-    }
-}
 
-pub fn test2() {
-    for i in 0..200 {
-    let params = DVParams::new(256, 16, 0, true);
+// To debug N bound
+pub fn test() {
+    for _i in 0..200 {
+    let params = DVParams::new(2048, 128, 0, true);
     
     let (vpk,vsk) = keygen(&params);
     let v_n2: &BigInt = &vpk.pk.nn;
@@ -649,20 +633,26 @@ mod tests {
 
     #[test]
     fn test_correctness() {
-        let params = DVParams::new(256, 16, 0, true);
+        for _i in 0..10 {
+            let queries:usize = 60;
+            let params = DVParams::new(256, 16, queries as u32, true);
 
-        let (vpk,vsk) = keygen(&params);
-        assert!(verify_vpk(&params,&vpk));
+            let (vpk,vsk) = keygen(&params);
+            assert!(verify_vpk(&params,&vpk));
 
-        let (lang,inst,wit) = sample_liw(&params);
+            for query_ix in 0..queries {
+                let (lang,inst,wit) = sample_liw(&params);
 
-        let (com,cr) = prove1(&params,&lang);
-        let ch1 = verify1(&params);
+                let (com,cr) = prove1(&params,&lang);
+                let ch1 = verify1(&params);
 
-        let resp1 = prove2(&vpk,&cr,&wit,&ch1);
-        let ch2 = verify2(&params);
-        let resp2 = prove3(&vpk,&cr,&wit,&ch2);
+                let resp1 = prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
+                let ch2 = verify2(&params);
+                let resp2 = prove3(&vpk,&cr,&wit,&ch2);
 
-        assert!(verify3(&vsk,&vpk,&lang,&inst,&com,&ch1,&ch2,&resp1,&resp2));
+                assert!(verify3(&params,&vsk,&vpk,&lang,&inst,
+                                &com,&ch1,&ch2,&resp1,&resp2,query_ix));
+            }
+        }
     }
 }
