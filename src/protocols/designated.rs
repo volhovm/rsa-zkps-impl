@@ -36,13 +36,10 @@ impl DVParams {
         2 * self.lambda + u::log2ceil(self.lambda) - 1
     }
 
-    /// The actual size of generated challenges.
+    /// The size of honestly generated challenges (first λ).
     fn ch_small_bitlen(&self) -> u32 { self.lambda }
 
-    // @volhovm: FIXME shouldn't it account for the batched range
-    // proof slack? I suspect not, because big ciphertext blinding is
-    // needed for soundness (for the oracle not to reveal the CRS),
-    // and thus for soundness we can assume trusted setup?
+    /// The size of honestly generated challenges (λ+1 ... λ+Q) for Q number of queries.
     fn ch_big_bitlen(&self) -> u32 { 2 * self.lambda + u::log2ceil(self.lambda) } 
 
     /// Maximum size of the summed-up challenge, real.
@@ -56,13 +53,14 @@ impl DVParams {
 
     /// Maximum size of the summed-up challenge
     pub fn max_ch_proven_bitlen(&self) -> u32 {
+        let slack = if self.malicious_setup { self.range_slack_bitlen() } else { 0 };
         if self.crs_uses == 0 {
             // sum of lambda (small challenges with slack)
-            (self.ch_small_bitlen() + self.range_slack_bitlen())
+            (self.ch_small_bitlen() + slack)
                 + u::log2ceil(self.lambda)
         } else {
             // a single big challenge with slack
-            self.ch_big_bitlen() + self.range_slack_bitlen() + 1
+            self.ch_big_bitlen() + slack + 1
         }
     }
 
@@ -89,8 +87,10 @@ impl DVParams {
     // but adding one extra bit will give us perfect completeness,
     // because now r + cw < 2 r.
     pub fn vpk_n_bitlen(&self) -> u32 {
-        // FIXME: 
-         std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) / 2 + 1
+        // TODO: According to my calculations, it should be max(x,y)
+        // + 1, not +2. Maybe this has to do with the symmetric range.
+        // But the difference does not affect the performance anyway.
+        std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 2
     }
 
     /// Params for the first batch, for challenges of lambda bits.
@@ -529,92 +529,6 @@ pub fn verify3(params: &DVParams,
     }
 
     true
-}
-
-
-// To debug N bound
-pub fn test() {
-    for _i in 0..200 {
-    let params = DVParams::new(2048, 128, 0, true);
-    
-    let (vpk,vsk) = keygen(&params);
-    let v_n2: &BigInt = &vpk.pk.nn;
-    assert!(verify_vpk(&params,&vpk));
-    
-    let (lang,inst,wit) = sample_liw(&params);
-
-    let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
-    let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
-
-    let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
-    let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
-
-    let a = pe::encrypt_with_randomness(&lang.pk,&rm_m,&rr_m);
-
-    let b = BigInt::sample(params.lambda as usize);
-
-    let mut ch: Vec<usize> = vec![];
-    for i in 0..(params.lambda as usize) {
-        if b.test_bit(i) { ch.push(i); }
-    }
-
-    let ch_ct =
-        ch.iter()
-        .map(|&i| &vpk.cts[i])
-        .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, v_n2));
-
-    let sm_ct = Paillier::encrypt_with_chosen_randomness(
-                  &vpk.pk,
-                  RawPlaintext::from(&rm_m),
-                  &Randomness::from(&rm_r)).0.into_owned();
-    let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, v_n2),
-                             &sm_ct,
-                             v_n2);
-
-    let sr_ct = Paillier::encrypt_with_chosen_randomness(
-                  &vpk.pk,
-                  RawPlaintext::from(&rr_m),
-                  &Randomness::from(&rr_r)).0.into_owned();
-    let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, v_n2),
-                             &sr_ct,
-                             v_n2);
-
-    let sr = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&sr)).0.into_owned();
-    let sm = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&sm)).0.into_owned();
-
-    let ch1_raw: BigInt =
-        ch.iter()
-        .map(|&i| &vsk.chs[i])
-        .fold(BigInt::from(0), |acc,x| acc + x );
-    println!("Raw challenge dec: {:?}", ch1_raw);
-    {
-        let pe::PECiphertext{ct1:x1,ct2:x2} =
-            pe::encrypt_with_randomness(&lang.pk, &sm, &sr);
-
-        let mut tofail = false;
-        println!("Verify3 1.1");
-        let tmp1 =
-            BigInt::mod_mul(
-                &u::bigint_mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.n2),
-                &a.ct1,
-                &lang.pk.n2);
-        println!("Verify3 1.2");
-        if tmp1 != x1 { tofail = true; println!("Failed check 1"); }
-        println!("Verify3 1.3");
-
-        let tmp2 =
-            BigInt::mod_mul(
-                &u::bigint_mod_pow(&inst.ct.ct2, &ch1_raw, &lang.pk.n2),
-                &a.ct2,
-                &lang.pk.n2);
-        if tmp2 != x2 { tofail = true; println!("Failed check 2"); }
-        println!("Verify3 1.4");
-
-        assert!(!tofail);
-    }
-
-    }
-
 }
 
 
