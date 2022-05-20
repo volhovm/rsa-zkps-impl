@@ -40,7 +40,7 @@ impl DVParams {
     fn ch_small_bitlen(&self) -> u32 { self.lambda }
 
     /// The size of honestly generated challenges (λ+1 ... λ+Q) for Q number of queries.
-    fn ch_big_bitlen(&self) -> u32 { 2 * self.lambda + u::log2ceil(self.lambda) } 
+    fn ch_big_bitlen(&self) -> u32 { 2 * self.lambda + u::log2ceil(self.lambda) }
 
     /// Maximum size of the summed-up challenge, real.
     pub fn max_ch_bitlen(&self) -> u32 {
@@ -76,7 +76,7 @@ impl DVParams {
         // @volhovm FIXME: which randomness we use here depends on
         // what randomness is used for Paillier on Prover's side. It
         // can either be randomness from N or from N^2.
-        
+
         self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
         //2 * self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
     }
@@ -117,6 +117,11 @@ impl DVParams {
                             pmax: 10000 }
     }
 }
+
+
+////////////////////////////////////////////////////////////////////////////
+// Keygen
+////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Debug)]
 pub struct VSK {
@@ -210,7 +215,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
 
         nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
     }
-        
+
     let t_p3 = SystemTime::now();
 
     let t_delta1 = t_p1.duration_since(t_start).expect("error1");
@@ -270,6 +275,9 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
     return true;
 }
 
+////////////////////////////////////////////////////////////////////////////
+// Interactive part
+////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Debug)]
 pub struct Commitment(Vec<BigInt>);
@@ -480,7 +488,7 @@ pub fn verify3(params: &DVParams,
                         &vpk.pk.nn);
 
     let ch1_raw: BigInt =
-        &vsk.chs[(params.lambda as usize) + query_ix] + 
+        &vsk.chs[(params.lambda as usize) + query_ix] +
         ch1.0.iter()
         .map(|&i| &vsk.chs[i])
         .fold(BigInt::from(0), |acc,x| acc + x );
