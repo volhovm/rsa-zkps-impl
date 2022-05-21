@@ -103,3 +103,21 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
                       &vpk.nizk_gen) { return false; }
     true
 }
+
+
+#[cfg(test)]
+mod tests {
+
+    use crate::protocols::designated::*;
+
+    #[test]
+    fn test_correctness_keygen() {
+        let range = BigInt::pow(&BigInt::from(2), 256);
+        let params = DVRParams { dv_params: DVRParams::new(1024, 32, 5, false),
+                                 range: range };
+
+        let (vpk,_vsk) = keygen(&params);
+        assert!(verify_vpk(&params,&vpk));
+    }
+
+}

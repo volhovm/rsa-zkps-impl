@@ -174,6 +174,8 @@ pub fn fs_verify(params: &ProofParams,
                  inst: &Inst,
                  precomp: &VerifierPrecomp,
                  proof: &FSProof) -> bool {
+    let (res0, _) = fs_verify0(params,lang);
+    if !res0 { return false; }
 
     let fs_ch_own = fs_compute_challenge(lang,inst,&proof.fs_com);
     if fs_ch_own != proof.fs_ch { return false; }
@@ -183,24 +185,38 @@ pub fn fs_verify(params: &ProofParams,
 }
 
 
-//#[cfg(test)]
-//mod tests {
-//
-//    use crate::protocols::schnorr_paillier::*;
-//
-//    #[test]
-//    fn test_correctness() {
-//        let params = ProofParams::new(2048, 128, 15);
-//        let (lang,inst,wit) = sample_liw(&params);
-//
-//        let (res,precomp) = verify0(&params,&lang);
-//        assert!(res);
-//
-//        let (com,cr) = prove1(&params,&lang);
-//        let ch = verify1(&params);
-//
-//        let resp = prove2(&params,&lang,&wit,&ch,&cr);
-//        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
-//    }
-//
-//}
+#[cfg(test)]
+mod tests {
+
+    use crate::protocols::schnorr_paillier::*;
+
+    #[test]
+    fn test_correctness() {
+        let params = ProofParams::new(2048, 128, 15);
+        let (lang,inst,wit) = sample_liw(&params);
+
+        let (res,precomp) = verify0(&params,&lang);
+        assert!(res);
+
+        let (com,cr) = prove1(&params,&lang);
+        let ch = verify1(&params);
+
+        let resp = prove2(&params,&lang,&wit,&ch,&cr);
+        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
+    }
+
+    #[test]
+    fn test_correctness_fs() {
+        let params = ProofParams::new(2048, 128, 15);
+        let (lang,inst,wit) = sample_liw(&params);
+
+        let proof = fs_prove(&params,&lang,&inst,&wit);
+        let (res0,precomp) = fs_verify0(&params,&lang);
+        assert!(res0);
+        let res = fs_verify(&params,&lang,&inst,&precomp,&proof);
+        assert!(res);
+    }
+
+
+
+}
