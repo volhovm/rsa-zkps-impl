@@ -13,6 +13,7 @@ use super::utils as u;
 use super::schnorr_paillier_batched as spb;
 use super::n_gcd as n_gcd;
 use super::paillier_elgamal as pe;
+use super::schnorr_exp as se;
 
 
 #[derive(Clone, Debug)]
@@ -21,6 +22,17 @@ pub struct DVRParams {
     pub dv_params: dv::DVParams,
     /// Range we're proving
     pub range: BigInt
+}
+
+impl DVRParams {
+    /// Parameters for the Gen g/h NIZK proof.
+    pub fn nizk_se_params(&self) -> se::ProofParams {
+        let repbits = 15;
+        se::ProofParams::new(self.dv_params.n_bitlen,
+                             self.dv_params.lambda,
+                             repbits)
+    }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -50,7 +62,8 @@ pub struct VPK {
     pub g: BigInt,
     /// Second generator w.r.t. N, h = g^f mod N, where f is secret.
     pub h: BigInt,
-
+    /// Schnorr proof of g/h
+    pub nizk_gen: se::FSProof,
 }
 
 impl VPK {
@@ -70,14 +83,23 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let g = BigInt::sample_below(&dv_vpk.pk.n);
     let f = BigInt::sample_below(&phi);
     let h = BigInt::mod_pow(&g, &f, &dv_vpk.pk.n);
+    let nizk_gen = se::fs_prove(
+        &params.nizk_se_params(),
+        &se::Lang{n: dv_vpk.pk.n.clone(), h: h.clone()},
+        &se::Inst{g: g.clone()},
+        &se::Wit{x: f.clone()});
+          
     let vsk = VSK{dv_vsk, f};
-    let vpk = VPK{dv_vpk, g, h};
-    // FIXME: add schnorr proof for g/f
+    let vpk = VPK{dv_vpk, g, h, nizk_gen};
     (vpk,vsk)
 }
 
 pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
     if !dv::verify_vpk(&params.dv_params, &vpk.dv_vpk) { return false; }
-    // FIXME: add schnorr proof for g/f
+    if !se::fs_verify(&params.nizk_se_params(),
+                      &se::Lang{n: vpk.dv_vpk.pk.n.clone(), h: vpk.h.clone()},
+                      &se::Inst{g: vpk.g.clone()},
+                      &se::VerifierPrecomp(None),
+                      &vpk.nizk_gen) { return false; }
     true
 }

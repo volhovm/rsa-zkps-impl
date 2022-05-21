@@ -14,10 +14,25 @@ pub struct ProofParams {
     pub lambda: u32,
     /// Small number up to which N shouldn't have divisors.
     pub q: u64,
+    /// Number of repetitions of the protocol.
+    pub reps: usize,
     /// Bitlength of the RSA modulus.
     pub n_bitlen: u32,
     /// Size of the challenge space, upper bound.
     pub ch_space: BigInt,
+}
+
+impl ProofParams {
+    // Rep bits is bitlength of the smallest prime in N.
+    pub fn new(n_bitlen: u32,
+           lambda: u32,
+           repbits: u32) -> Self {
+        let ch_space = BigInt::pow(&BigInt::from(2), repbits);
+        let reps = (lambda as f64 / repbits as f64).ceil() as usize;
+        let q = 2u64.pow(repbits);
+        return ProofParams { q, reps, n_bitlen, lambda, ch_space };
+    }
+
 }
 
 
@@ -26,7 +41,7 @@ pub struct Lang {
     /// RSA modulus
     pub n: BigInt,
     /// Randomly sampled from Z_N
-    pub h: BigInt
+    pub h: BigInt,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
@@ -41,21 +56,24 @@ pub struct Wit {
     pub x: BigInt
 }
 
+
+
 /// Contains N-2^{λ+1} R
 #[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct VerifierPrecomp(Option<BigInt>);
+pub struct VerifierPrecomp(pub Option<BigInt>);
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Commitment(BigInt);
+pub struct Commitment(Vec<BigInt>);
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct ComRand(BigInt);
+pub struct ComRand(Vec<BigInt>);
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Challenge(BigInt);
+pub struct Challenge(Vec<BigInt>);
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Response(BigInt);
+pub struct Response(Vec<BigInt>);
+
 
 
 pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
@@ -67,14 +85,18 @@ pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
 }
 
 pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
-    let n = &lang.n;
-    let r = BigInt::sample_below(n);
-    let com = BigInt::mod_pow(&lang.h, &r, n);
-    return (Commitment(com),ComRand(r));
+    let mut rand_v = vec![];
+    let mut com_v = vec![];
+    for _i in 0..params.reps {
+        let r = BigInt::sample_below(&lang.n);
+        com_v.push(BigInt::mod_pow(&lang.h, &r, &lang.n));
+        rand_v.push(r);
+    }
+    return (Commitment(com_v),ComRand(rand_v));
 }
 
 pub fn verify1(params: &ProofParams) -> Challenge {
-    let b = BigInt::sample_below(&params.ch_space);
+    let b = (0..params.reps).map(|_| BigInt::sample_below(&params.ch_space)).collect();
     return Challenge(b);
 }
 
@@ -84,8 +106,10 @@ pub fn prove2(params: &ProofParams,
               ch: &Challenge,
               cr: &ComRand) -> Response {
     let n: &BigInt = &lang.n;
-    let resp = BigInt::mod_add(&cr.0, &BigInt::mod_mul(&wit.x,&ch.0, n), n);
-    return Response(resp);
+    let resp_v: Vec<_> = (0..params.reps).map(|i| {
+        BigInt::mod_add(&cr.0[i], &BigInt::mod_mul(&wit.x,&ch.0[i], n), n)
+    }).collect();
+    return Response(resp_v);
 }
 
 pub fn verify2(params: &ProofParams,
@@ -97,10 +121,13 @@ pub fn verify2(params: &ProofParams,
                resp: &Response) -> bool {
     let n = &lang.n;
 
-    let lhs = BigInt::mod_mul(&BigInt::mod_pow(&inst.g, &ch.0, n), &com.0, n);
-    let rhs = BigInt::mod_pow(&lang.h, &resp.0, n);
+    for i in 0..params.reps {
+        let lhs = BigInt::mod_mul(&BigInt::mod_pow(&inst.g, &ch.0[i], n), &com.0[i], n);
+        let rhs = BigInt::mod_pow(&lang.h, &resp.0[i], n);
 
-    lhs == rhs
+        if lhs != rhs { return false; }
+    }
+    true
 }
 
 
@@ -112,14 +139,16 @@ pub struct FSProof {
     fs_resp : Response
 }
 
-fn fs_compute_challenge(lang: &Lang, inst:&Inst, com: &Commitment) -> Challenge {
+fn fs_compute_challenge(lang: &Lang, inst:&Inst, fs_com: &Commitment) -> Challenge {
     use blake2::*;
-    let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
-    // Use Digest::digest, but it asks for a fixed-sized slice?
-    let mut hasher: Blake2b = Digest::new();
-    hasher.update(&x);
-    let r0 = hasher.finalize();
-    let b = BigInt::from((&(r0.as_slice())[0] & 0b0000001) as u32);
+    let b = fs_com.0.iter().map(|com:&BigInt| {
+        let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
+        // Use Digest::digest, but it asks for a fixed-sized slice?
+        let mut hasher: Blake2b = Digest::new();
+        hasher.update(&x);
+        let r0 = hasher.finalize();
+        BigInt::from((&(r0.as_slice())[0] & 0b0000001) as u32)
+    }).collect();
     Challenge(b)
 }
 
