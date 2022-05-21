@@ -33,6 +33,7 @@ impl DVRParams {
                              repbits)
     }
 
+    pub fn lambda(&self) -> u32 { self.dv_params.lambda }
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -67,6 +68,7 @@ pub struct VPK {
 }
 
 impl VPK {
+    pub fn n(&self) -> &BigInt { &self.dv_vpk.pk.n }
     pub fn pk(&self) -> &EncryptionKey { &self.dv_vpk.pk }
     pub fn cts(&self) -> &Vec<BigInt> { &self.dv_vpk.cts }
     pub fn nizk_gcd(&self) -> &n_gcd::Proof { &self.dv_vpk.nizk_gcd }
@@ -105,19 +107,73 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
 }
 
 
+////////////////////////////////////////////////////////////////////////////
+// Interactive part
+////////////////////////////////////////////////////////////////////////////
+
+pub struct DVRCom { }
+
+pub struct DVRComRand { }
+
+pub fn pedersenCommit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
+    // FIXME over Z_N, right? Or Z_N^2?
+    BigInt::mod_mul(
+        &BigInt::mod_pow(&vpk.g, msg, vpk.n()),
+        &BigInt::mod_pow(&vpk.h, r, vpk.n()),
+        vpk.n())
+}
+
+
+pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit) -> (DVRCom,DVRComRand) {
+    // For the message first
+    {
+        // 2^{λ-1}N
+        let t_m = u::bigint_sample_below_sym(
+            &(&BigInt::pow(&BigInt::from(2),params.dv_params.lambda - 1) * vpk.n()));
+        // FIXME over Z_N, right? Or Z_N^2?
+        let com_m = pedersenCommit(&vpk, &wit.m, &t_m);
+
+        // λ 2^{4λ+Q} R
+        let r_m = u::bigint_sample_below_sym(
+            &(&BigInt::from(params.lambda()) *
+              &BigInt::pow(&BigInt::from(2),4 * params.lambda() + params.dv_params.crs_uses) *
+              &params.range));
+        // λ 2^{5λ+Q - 1} N
+        let sigma_m = u::bigint_sample_below_sym(
+            &(&BigInt::from(params.lambda()) *
+              &BigInt::pow(&BigInt::from(2),5 * params.lambda() + params.dv_params.crs_uses - 1) *
+              vpk.n()));
+        let beta_m = pedersenCommit(&vpk, &r_m, &sigma_m);
+
+    }
+
+    let t_r = u::bigint_sample_below_sym(
+        &(&BigInt::pow(&BigInt::from(2),params.dv_params.lambda - 1) * vpk.n()));
+    // FIXME over Z_N, right? Or Z_N^2?
+    let com_r = pedersenCommit(&vpk, &wit.r, &t_r);
+
+
+    unimplemented!()
+}
+
+////////////////////////////////////////////////////////////////////////////
+// Tests
+////////////////////////////////////////////////////////////////////////////
+
 #[cfg(test)]
 mod tests {
-
-    use crate::protocols::designated::*;
+    use crate::protocols::designated_range::*;
+    use crate::protocols::designated as dv;
+    use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation};
+    use curv::BigInt;
 
     #[test]
     fn test_correctness_keygen() {
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams { dv_params: DVRParams::new(1024, 32, 5, false),
+        let params = DVRParams { dv_params: dv::DVParams::new(1024, 32, 5, false),
                                  range: range };
 
         let (vpk,_vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
     }
-
 }
