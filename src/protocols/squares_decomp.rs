@@ -82,9 +82,9 @@ pub fn mods(a: &BigInt, n: &BigInt) -> BigInt {
         panic!("Mods: negative modulus");
     }
     let mut b = a % n;
-    if &(&BigInt::from(2) * a) > n {
-        b = b - n;
-    }
+//    if &(&BigInt::from(2) * a) > n {
+//        b = b - n;
+//    }
     b
 }
 
@@ -107,7 +107,7 @@ pub fn quos(a: &BigInt, n: &BigInt) -> BigInt {
     if n <= &BigInt::from(0) {
         panic!("Negative modulus");
     }
-    (a - mods(a, n)) / n
+    a / n
 }
 
 // remainder in Gaussian integers when dividing w by z
@@ -150,9 +150,9 @@ pub fn root4(p: &BigInt) -> BigInt {
         let a = powmods(&j, &k, p);
         println!("root4 6");
         let b = mods(&(&a * &a), p);
-        println!("{:?}, {:?}", a, b);
+        println!("a: {:?}, b: {:?}, p: {:?}", a, b, p);
         println!("root4 7");
-        if &b == &BigInt::from(-1) {
+        if &b == &BigInt::from(p-1) {
             return a;
         }
         println!("root4 8");
@@ -223,15 +223,17 @@ pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
 pub fn test_two_squares() {
     let mut p: BigInt;
 
-    loop {
-        p = BigInt::sample(128);
-        if (&p % &BigInt::from(4)) == BigInt::from(1) &&
-            BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
-    }
+    for _i in 0..1000 {
+        loop {
+            p = BigInt::sample(128);
+            if (&p % &BigInt::from(4)) == BigInt::from(1) &&
+                BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
+        }
 
-    println!("Computing decomposition");
-    let (a,b) = two_squares_decompose(&p);
-    assert!(&a * &a + &b * &b == p);
+        println!("Computing decomposition");
+        let (a,b) = two_squares_decompose(&p);
+        assert!(&a * &a + &b * &b == p);
+    }
 }
 
 pub fn test_three_squares() {
@@ -254,14 +256,17 @@ mod tests {
     fn test_two_squares() {
         let mut p: BigInt;
 
-        loop {
-            p = BigInt::sample(1024);
-            if (&p % &BigInt::from(4)) == BigInt::from(1) &&
-                BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
-        }
+        for _i in 0..100 {
 
-        let (a,b) = two_squares_decompose(&p);
-        assert!(&a * &a + &b * &b == p);
+            loop {
+                p = BigInt::sample(1024);
+                if (&p % &BigInt::from(4)) == BigInt::from(1) &&
+                    BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
+            }
+
+            let (a,b) = two_squares_decompose(&p);
+            assert!(&a * &a + &b * &b == p);
+        }
     }
 
     #[test]
