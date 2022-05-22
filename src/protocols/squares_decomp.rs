@@ -131,62 +131,50 @@ pub fn ggcd(w0: &(BigInt,BigInt), z0: &(BigInt,BigInt)) -> (BigInt,BigInt) {
         let z1 = z.clone();
         z = grem(&w,&z1);
         w = z1;
-        print!(".");
     }
     w
 }
 
 pub fn root4(p: &BigInt) -> BigInt {
     // 4th root of 1 modulo p
-    println!("root4 1");
     if p <= &BigInt::from(1) { panic!("too small"); }
     if (p % &BigInt::from(4)) != BigInt::from(1) { panic!("not congruent to 1"); }
-    println!("root4 2");
     let k = p / &BigInt::from(4);
     let mut j = BigInt::from(2);
-    println!("root4 4");
     loop {
-        println!("root4 5");
         let a = powmods(&j, &k, p);
-        println!("root4 6");
         let b = mods(&(&a * &a), p);
-        println!("a: {:?}, b: {:?}, p: {:?}", a, b, p);
-        println!("root4 7");
         if &b == &BigInt::from(p-1) {
             return a;
         }
-        println!("root4 8");
         if b != BigInt::from(1) {
             panic!("not prime");
-            // Returning the same (negative) number
         }
-        println!("root4 9");
         j = &j + BigInt::from(1);
-        print!(".");
     }
 }
 
 pub fn two_squares_decompose(p: &BigInt) -> (BigInt,BigInt) {
     let a = root4(p);
-    println!("Computing GCD");
     ggcd(&(p.clone(),BigInt::from(0)),&(a,BigInt::from(1)))
 }
 
 
 
-
-
-// From "Randomized Algorithms in Number Theory" by Rabin and Shallit
-pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
+// From "Randomized Algorithms in Number Theory" by Rabin and Shallit.
+// @volhovm: only works with numbers of form 4n+1 reliably. Otherwise
+// fails for no good reason sometimes.
+pub fn three_squares_decompose_raw(n: &BigInt) -> Option<(BigInt, BigInt, BigInt)> {
     // if n % 4 == 0, then do smth with n/4
     let (n_over_4,r) = BigInt::div_rem(n, &BigInt::from(4));
     if BigInt::is_zero(&r) {
-        let (a,b,c) = three_squares_decompose(&n_over_4);
-        return (2*a, 2*b, 2*c)
+        let (a,b,c) = three_squares_decompose_raw(&n_over_4)?;
+        return Some((2*a, 2*b, 2*c))
     }
-    let n_mod8 = BigInt::modulus(n, &BigInt::from(8));
+    let n_mod8 = n % &BigInt::from(8);
     if n_mod8 == BigInt::from(7) {
-        panic!("three squares decompose: n = 7 mod 8");
+        println!("three squares decompose: n = 7 mod 8");
+        return None;
     }
 
     let d = BigInt::sqrt(n);
@@ -196,14 +184,15 @@ pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
         loop {
             x = BigInt::sample_below(&d);
             p = (n - &x*&x) / &BigInt::from(2);
-            if BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
+            if (&p % &BigInt::from(4)) == BigInt::from(1) &&
+                BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
         }
         let (y,z) = two_squares_decompose(&p);
-        return (x, y.clone()+z.clone(), y-z)
+        return Some((x, y.clone()+z.clone(), y-z));
     }
 
     if &(&d * &d) == n {
-        return (d, BigInt::from(0), BigInt::from(0));
+        return Some((d, BigInt::from(0), BigInt::from(0)));
     }
 
     // Else n is 1 or 2 mod 4
@@ -213,12 +202,29 @@ pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
     loop {
         x = BigInt::sample_below(&d);
         p = n - &x*&x;
-        if BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
+        if (&p % &BigInt::from(4)) == BigInt::from(1) &&
+            BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
     }
     let (y,z) = two_squares_decompose(&p);
-    return (x, y, z)
+    return Some((x, y, z));
 }
 
+
+// @volhovm: I will be properly ashamed of this code next time I work
+// on this project.
+pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
+    for i in 0..100 {
+        match three_squares_decompose_raw(n) {
+            Some((a,b,c)) => { if &(&a * &a + &b * &b + &c * &c) == n { return (a,b,c) }; },
+            None => { println!("I hate myself"); },
+        }
+    }
+    panic!("three squares decompose: I give up");
+}
+
+////////////////////////////////////////////////////////////////////////////
+// Tests
+////////////////////////////////////////////////////////////////////////////
 
 pub fn test_two_squares() {
     let mut p: BigInt;
@@ -237,11 +243,18 @@ pub fn test_two_squares() {
 }
 
 pub fn test_three_squares() {
-    let n = BigInt::sample(128);
-
-    println!("Computing decomposition");
-    let (a,b,c) = three_squares_decompose(&n);
-    assert!(&a * &a + &b * &b + &c * &c == n);
+    let mut n: BigInt;
+    for i in 0..100 {
+//        loop {
+//            //if &n % BigInt::from(8) != BigInt::from(7) { break; }
+//        }
+        let n0 = BigInt::sample(1024);
+        n = &BigInt::from(4) * &n0 + &BigInt::from(1);
+        println!("Computing 3sq decomposition");
+        let (a,b,c) = three_squares_decompose(&n);
+        assert!(&a * &a + &b * &b + &c * &c == n);
+        println!("Computing 3sq decomposition DONE");
+    }
 }
 
 

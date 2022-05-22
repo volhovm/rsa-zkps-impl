@@ -39,6 +39,6 @@ fn main() {
 //    rsazkps::protocols::snark_paillier::test();
 //    rsazkps::protocols::schnorr_paillier_batched::tests::test_correctness();
     //test_dv_crs();
-    rsazkps::protocols::squares_decomp::test_two_squares();
+    rsazkps::protocols::squares_decomp::test_three_squares();
     //    rsazkps::protocols::n_gcd::test();
 }
