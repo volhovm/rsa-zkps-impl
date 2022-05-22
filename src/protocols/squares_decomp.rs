@@ -22,7 +22,7 @@ pub fn bigint_to_bui(n: &BigInt) -> nb::BigUint {
     nb::BigUint::from_bytes_be(&(BigInt::to_bytes(n))[..])
 }
 
-pub fn two_squares_decompose(p: &BigInt) -> (BigInt, BigInt) {
+pub fn two_squares_decompose_wip(p: &BigInt) -> (BigInt, BigInt) {
     use num_bigint::{BigInt, ToBigInt, RandBigInt};
     use core::ops::Rem;
 
@@ -131,27 +131,44 @@ pub fn ggcd(w0: &(BigInt,BigInt), z0: &(BigInt,BigInt)) -> (BigInt,BigInt) {
         let z1 = z.clone();
         z = grem(&w,&z1);
         w = z1;
+        print!(".");
     }
     w
 }
 
 pub fn root4(p: &BigInt) -> BigInt {
     // 4th root of 1 modulo p
+    println!("root4 1");
     if p <= &BigInt::from(1) { panic!("too small"); }
     if (p % &BigInt::from(4)) != BigInt::from(1) { panic!("not congruent to 1"); }
+    println!("root4 2");
     let k = p / &BigInt::from(4);
     let mut j = BigInt::from(2);
+    println!("root4 4");
     loop {
+        println!("root4 5");
         let a = powmods(&j, &k, p);
+        println!("root4 6");
         let b = mods(&(&a * &a), p);
-        if b == BigInt::from(-1) { return a; }
-        if b != BigInt::from(1) { panic!("not prime"); }
-        j = &j + 1;
+        println!("{:?}, {:?}", a, b);
+        println!("root4 7");
+        if &b == &BigInt::from(-1) {
+            return a;
+        }
+        println!("root4 8");
+        if b != BigInt::from(1) {
+            panic!("not prime");
+            // Returning the same (negative) number
+        }
+        println!("root4 9");
+        j = &j + BigInt::from(1);
+        print!(".");
     }
 }
 
-pub fn sq2(p: &BigInt) -> (BigInt,BigInt) {
+pub fn two_squares_decompose(p: &BigInt) -> (BigInt,BigInt) {
     let a = root4(p);
+    println!("Computing GCD");
     ggcd(&(p.clone(),BigInt::from(0)),&(a,BigInt::from(1)))
 }
 
@@ -200,4 +217,59 @@ pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
     }
     let (y,z) = two_squares_decompose(&p);
     return (x, y, z)
+}
+
+
+pub fn test_two_squares() {
+    let mut p: BigInt;
+
+    loop {
+        p = BigInt::sample(128);
+        if (&p % &BigInt::from(4)) == BigInt::from(1) &&
+            BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
+    }
+
+    println!("Computing decomposition");
+    let (a,b) = two_squares_decompose(&p);
+    assert!(&a * &a + &b * &b == p);
+}
+
+pub fn test_three_squares() {
+    let n = BigInt::sample(128);
+
+    println!("Computing decomposition");
+    let (a,b,c) = three_squares_decompose(&n);
+    assert!(&a * &a + &b * &b + &c * &c == n);
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use crate::protocols::squares_decomp::*;
+    use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Zero, Roots, Integer, Primes, Converter};
+    use curv::BigInt;
+
+    #[test]
+    fn test_two_squares() {
+        let mut p: BigInt;
+
+        loop {
+            p = BigInt::sample(1024);
+            if (&p % &BigInt::from(4)) == BigInt::from(1) &&
+                BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
+        }
+
+        let (a,b) = two_squares_decompose(&p);
+        assert!(&a * &a + &b * &b == p);
+    }
+
+    #[test]
+    fn test_three_squares() {
+        let n = BigInt::sample(128);
+
+        let (a,b,c) = three_squares_decompose(&n);
+        assert!(&a * &a + &b * &b + &c * &c == n);
+    }
+
 }
