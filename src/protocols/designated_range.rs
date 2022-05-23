@@ -80,17 +80,24 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let (dv_vpk, dv_vsk) = dv::keygen(&params.dv_params);
     let p = &dv_vsk.sk.p;
     let q = &dv_vsk.sk.q;
-    let phi = p * q * (p-1) * (q-1);
     // FIXME: not sure g in Z_N or in Z_{N^2}
-    let g = BigInt::sample_below(&dv_vpk.pk.n);
+    let h = BigInt::sample_below(&dv_vpk.pk.n);
+    let phi = (p-1) * (q-1);
     let f = BigInt::sample_below(&phi);
-    let h = BigInt::mod_pow(&g, &f, &dv_vpk.pk.n);
+    let g = BigInt::mod_pow(&h, &f, &dv_vpk.pk.n);
     let nizk_gen = se::fs_prove(
         &params.nizk_se_params(),
         &se::Lang{n: dv_vpk.pk.n.clone(), h: h.clone()},
         &se::Inst{g: g.clone()},
         &se::Wit{x: f.clone()});
-          
+
+    if !se::fs_verify(&params.nizk_se_params(),
+                      &se::Lang{n: dv_vpk.pk.n.clone(), h: h.clone()},
+                      &se::Inst{g: g.clone()},
+                      &se::VerifierPrecomp(None),
+                      &nizk_gen) { panic!("DVRange keygen"); }
+
+
     let vsk = VSK{dv_vsk, f};
     let vpk = VPK{dv_vpk, g, h, nizk_gen};
     (vpk,vsk)
@@ -115,7 +122,7 @@ pub struct DVRCom { }
 
 pub struct DVRComRand { }
 
-pub fn pedersenCommit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
+pub fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
     // FIXME over Z_N, right? Or Z_N^2?
     BigInt::mod_mul(
         &BigInt::mod_pow(&vpk.g, msg, vpk.n()),
@@ -131,7 +138,7 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit)
         let t_m = u::bigint_sample_below_sym(
             &(&BigInt::pow(&BigInt::from(2),params.dv_params.lambda - 1) * vpk.n()));
         // FIXME over Z_N, right? Or Z_N^2?
-        let com_m = pedersenCommit(&vpk, &wit.m, &t_m);
+        let com_m = pedersen_commit(&vpk, &wit.m, &t_m);
 
         // λ 2^{4λ+Q} R
         let r_m = u::bigint_sample_below_sym(
@@ -143,14 +150,14 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit)
             &(&BigInt::from(params.lambda()) *
               &BigInt::pow(&BigInt::from(2),5 * params.lambda() + params.dv_params.crs_uses - 1) *
               vpk.n()));
-        let beta_m = pedersenCommit(&vpk, &r_m, &sigma_m);
+        let beta_m = pedersen_commit(&vpk, &r_m, &sigma_m);
 
     }
 
     let t_r = u::bigint_sample_below_sym(
         &(&BigInt::pow(&BigInt::from(2),params.dv_params.lambda - 1) * vpk.n()));
     // FIXME over Z_N, right? Or Z_N^2?
-    let com_r = pedersenCommit(&vpk, &wit.r, &t_r);
+    let com_r = pedersen_commit(&vpk, &wit.r, &t_r);
 
 
     unimplemented!()

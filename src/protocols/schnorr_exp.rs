@@ -36,6 +36,11 @@ impl ProofParams {
 }
 
 
+////////////////////////////////////////////////////////////////////////////
+// Language
+////////////////////////////////////////////////////////////////////////////
+
+
 #[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Lang {
     /// RSA modulus
@@ -56,6 +61,30 @@ pub struct Wit {
     pub x: BigInt
 }
 
+
+pub fn sample_lang(params: &ProofParams) -> Lang {
+    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys().0;
+    let h = BigInt::sample_below(&pk.n);
+    Lang{n: pk.n.clone(), h: h.clone()}
+}
+
+pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
+    let x = BigInt::sample_below(&lang.n);
+    let g = BigInt::mod_pow(&lang.h, &x, &lang.n);
+
+    (Inst{g}, Wit{x})
+}
+
+pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
+    let lang = sample_lang(params);
+    let (inst,wit) = sample_inst(params, &lang);
+    (lang,inst,wit)
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+// Protocol
+////////////////////////////////////////////////////////////////////////////
 
 
 /// Contains N-2^{λ+1} R
@@ -107,7 +136,7 @@ pub fn prove2(params: &ProofParams,
               cr: &ComRand) -> Response {
     let n: &BigInt = &lang.n;
     let resp_v: Vec<_> = (0..params.reps).map(|i| {
-        BigInt::mod_add(&cr.0[i], &BigInt::mod_mul(&wit.x,&ch.0[i], n), n)
+        &cr.0[i] + &wit.x * &ch.0[i]
     }).collect();
     return Response(resp_v);
 }
@@ -122,6 +151,7 @@ pub fn verify2(params: &ProofParams,
     let n = &lang.n;
 
     for i in 0..params.reps {
+        println!("Verifying...");
         let lhs = BigInt::mod_mul(&BigInt::mod_pow(&inst.g, &ch.0[i], n), &com.0[i], n);
         let rhs = BigInt::mod_pow(&lang.h, &resp.0[i], n);
 
@@ -185,10 +215,12 @@ pub fn fs_verify(params: &ProofParams,
 }
 
 
+
+
 #[cfg(test)]
 mod tests {
 
-    use crate::protocols::schnorr_paillier::*;
+    use crate::protocols::schnorr_exp::*;
 
     #[test]
     fn test_correctness() {
@@ -216,7 +248,4 @@ mod tests {
         let res = fs_verify(&params,&lang,&inst,&precomp,&proof);
         assert!(res);
     }
-
-
-
 }

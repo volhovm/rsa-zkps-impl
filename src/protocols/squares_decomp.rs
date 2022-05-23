@@ -67,7 +67,7 @@ pub fn two_squares_decompose_wip(p: &BigInt) -> (BigInt, BigInt) {
 
     let one_poly: Poly = From::from([to_coeff(&From::from(1))]);
     let hfinal: Poly = &h - &one_poly;
-    let gcd = alg::traits::GCD::gcd(&hfinal,&fb);
+    let _gcd = alg::traits::GCD::gcd(&hfinal,&fb);
 
 
     unimplemented!()
@@ -78,14 +78,13 @@ pub fn two_squares_decompose_wip(p: &BigInt) -> (BigInt, BigInt) {
 // Taken from https://math.stackexchange.com/questions/5877/efficiently-finding-two-squares-which-sum-to-a-prime
 
 pub fn mods(a: &BigInt, n: &BigInt) -> BigInt {
-    if n <= &BigInt::from(0) {
-        panic!("Mods: negative modulus");
-    }
-    let mut b = a % n;
-//    if &(&BigInt::from(2) * a) > n {
-//        b = b - n;
-//    }
-    b
+    if n <= &BigInt::from(0) { panic!("Mods: negative modulus"); }
+    a % n
+}
+
+pub fn quos(a: &BigInt, n: &BigInt) -> BigInt {
+    if n <= &BigInt::from(0) { panic!("Negative modulus"); }
+    a / n
 }
 
 pub fn powmods(a0: &BigInt, r0: &BigInt, n: &BigInt) -> BigInt {
@@ -103,12 +102,6 @@ pub fn powmods(a0: &BigInt, r0: &BigInt, n: &BigInt) -> BigInt {
     out
 }
 
-pub fn quos(a: &BigInt, n: &BigInt) -> BigInt {
-    if n <= &BigInt::from(0) {
-        panic!("Negative modulus");
-    }
-    a / n
-}
 
 // remainder in Gaussian integers when dividing w by z
 pub fn grem(w: &(BigInt,BigInt), z: &(BigInt,BigInt)) -> (BigInt, BigInt) {
@@ -213,7 +206,7 @@ pub fn three_squares_decompose_raw(n: &BigInt) -> Option<(BigInt, BigInt, BigInt
 // @volhovm: I will be properly ashamed of this code next time I work
 // on this project.
 pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
-    for i in 0..100 {
+    for _i in 0..100 {
         match three_squares_decompose_raw(n) {
             Some((a,b,c)) => { if &(&a * &a + &b * &b + &c * &c) == n { return (a,b,c) }; },
             None => { println!("I hate myself"); },
@@ -244,7 +237,7 @@ pub fn test_two_squares() {
 
 pub fn test_three_squares() {
     let mut n: BigInt;
-    for i in 0..100 {
+    for _i in 0..100 {
 //        loop {
 //            //if &n % BigInt::from(8) != BigInt::from(7) { break; }
 //        }
@@ -270,7 +263,6 @@ mod tests {
         let mut p: BigInt;
 
         for _i in 0..100 {
-
             loop {
                 p = BigInt::sample(1024);
                 if (&p % &BigInt::from(4)) == BigInt::from(1) &&
@@ -284,10 +276,13 @@ mod tests {
 
     #[test]
     fn test_three_squares() {
-        let n = BigInt::sample(128);
+        for _i in 0..100 {
+            let n0 = BigInt::sample(1024);
+            let n = &BigInt::from(4) * &n0 + &BigInt::from(1);
 
-        let (a,b,c) = three_squares_decompose(&n);
-        assert!(&a * &a + &b * &b + &c * &c == n);
+            let (a,b,c) = three_squares_decompose(&n);
+            assert!(&a * &a + &b * &b + &c * &c == n);
+        }
     }
 
 }
