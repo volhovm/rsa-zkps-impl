@@ -30,7 +30,7 @@ fn check_correct_ciphertext_proof() {
 
 fn test_dv_crs() {
     use rsazkps::protocols::designated as dv;
-    let params = dv::DVParams::new(2048, 128, 1, false);
+    let params = dv::DVParams::new(2048, 128, 1, false, false);
     let (vpk,_vsk) = dv::keygen(&params);
     assert!(dv::verify_vpk(&params,&vpk));
 }

@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn test_correctness_keygen() {
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams { dv_params: dv::DVParams::new(1024, 32, 5, false),
+        let params = DVRParams { dv_params: dv::DVParams::new(1024, 32, 5, false, false),
                                  range: range };
 
         let (vpk,_vsk) = keygen(&params);

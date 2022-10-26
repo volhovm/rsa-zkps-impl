@@ -68,7 +68,7 @@ pub fn sample_lang(params: &ProofParams) -> Lang {
     Lang{n: pk.n.clone(), h: h.clone()}
 }
 
-pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
+pub fn sample_inst(_params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let x = BigInt::sample_below(&lang.n);
     let g = BigInt::mod_pow(&lang.h, &x, &lang.n);
 
@@ -134,7 +134,7 @@ pub fn prove2(params: &ProofParams,
               wit: &Wit,
               ch: &Challenge,
               cr: &ComRand) -> Response {
-    let n: &BigInt = &lang.n;
+    //let n: &BigInt = &lang.n;
     let resp_v: Vec<_> = (0..params.reps).map(|i| {
         &cr.0[i] + &wit.x * &ch.0[i]
     }).collect();

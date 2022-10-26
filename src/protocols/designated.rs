@@ -23,12 +23,18 @@ pub struct DVParams {
     /// The number of CRS reuses
     pub crs_uses: u32,
     /// Whether malicious setup (that introduces VPK proofs) is enabled
-    pub malicious_setup: bool
+    pub malicious_setup: bool,
+    /// Whether the GGM mode is enabled, which omits certain proof parts
+    pub ggm_mode: bool,
 }
 
 impl DVParams {
-    pub fn new(n_bitlen: u32, lambda: u32, crs_uses: u32, malicious_setup: bool) -> DVParams {
-        DVParams{n_bitlen, lambda, crs_uses, malicious_setup}
+    pub fn new(n_bitlen: u32,
+               lambda: u32,
+               crs_uses: u32,
+               malicious_setup: bool,
+               ggm_mode: bool) -> DVParams {
+        DVParams{n_bitlen, lambda, crs_uses, malicious_setup, ggm_mode}
     }
 
     /// Range slack of the batched range proof.
@@ -185,8 +191,8 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let t_p2 = SystemTime::now();
     let mut nizks_ct: Vec<spb::FSProof> = vec![];
     let nizk_batches =
-        if params.crs_uses == 0
-    { 1 } else { 2 + (params.crs_uses - 1) / params.lambda };
+            if params.crs_uses == 0 { 1 }
+            else { 2 + (params.crs_uses - 1) / params.lambda };
 
     for i in 0..nizk_batches {
         let batch_from = (i*params.lambda) as usize;
@@ -332,12 +338,12 @@ pub struct DVComRand {
     pub rm_r: BigInt,
     pub rr_m: BigInt,
     pub rr_r: BigInt,
-    pub tm1: BigInt,
-    pub tm2: BigInt,
-    pub tm3: BigInt,
-    pub tr1: BigInt,
-    pub tr2: BigInt,
-    pub tr3: BigInt,
+    pub tm1: Option<BigInt>,
+    pub tm2: Option<BigInt>,
+    pub tm3: Option<BigInt>,
+    pub tr1: Option<BigInt>,
+    pub tr2: Option<BigInt>,
+    pub tr3: Option<BigInt>,
 }
 
 #[derive(Clone, Debug)]
@@ -346,15 +352,15 @@ pub struct DVChallenge1(Vec<usize>);
 pub struct DVChallenge2(BigInt);
 
 #[derive(Clone, Debug)]
-pub struct DVResp1{
+pub struct DVResp1 {
     pub sm: BigInt,
     pub sr: BigInt,
-    pub tm: BigInt,
-    pub tr: BigInt,
+    pub tm: Option<BigInt>,
+    pub tr: Option<BigInt>,
 }
 
 #[derive(Clone, Debug)]
-pub struct DVResp2{
+pub struct DVResp2 {
     pub um1: BigInt,
     pub um2: BigInt,
     pub um3: BigInt,
@@ -366,23 +372,33 @@ pub struct DVResp2{
 
 pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
     // TODO it's broken here
+    // TODO @volhovm 26/10 where? and how? :thinking:
     let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
     let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
 
     let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
     let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
 
-    let tm1 = BigInt::sample(params.vpk_n_bitlen() as usize);
-    let tm2 = BigInt::sample(params.vpk_n_bitlen() as usize);
-    let tm3 = BigInt::sample(params.vpk_n_bitlen() as usize);
-
-    let tr1 = BigInt::sample(params.vpk_n_bitlen() as usize);
-    let tr2 = BigInt::sample(params.vpk_n_bitlen() as usize);
-    let tr3 = BigInt::sample(params.vpk_n_bitlen() as usize);
-
     let a = pe::encrypt_with_randomness(&lang.pk,&rm_m,&rr_m);
 
-    (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r, tm1, tm2, tm3, tr1, tr2, tr3})
+    if params.ggm_mode {
+        (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r,
+                             tm1: None, tm2: None, tm3: None,
+                             tr1: None, tr2: None, tr3: None})
+    } else {
+        let tm1 = BigInt::sample(params.vpk_n_bitlen() as usize);
+        let tm2 = BigInt::sample(params.vpk_n_bitlen() as usize);
+        let tm3 = BigInt::sample(params.vpk_n_bitlen() as usize);
+
+        let tr1 = BigInt::sample(params.vpk_n_bitlen() as usize);
+        let tr2 = BigInt::sample(params.vpk_n_bitlen() as usize);
+        let tr3 = BigInt::sample(params.vpk_n_bitlen() as usize);
+
+
+        (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r,
+                             tm1: Some(tm1), tm2: Some(tm2), tm3: Some(tm3),
+                             tr1: Some(tr1), tr2: Some(tr2), tr3: Some(tr3)})
+    }
 }
 
 pub fn verify1(params: &DVParams) -> DVChallenge1 {
@@ -427,46 +443,76 @@ pub fn prove2(params: &DVParams,
                              &sr_ct,
                              n2);
 
-    let tm_ct = Paillier::encrypt_with_chosen_randomness(
-                  &vpk.pk,
-                  RawPlaintext::from(&cr.tm2),
-                  &Randomness::from(&cr.tm3)).0.into_owned();
-    let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &cr.tm1, n2),
-                             &tm_ct,
-                             n2);
+    if params.ggm_mode {
+        DVResp1{sm, sr, tm: None, tr: None}
+    } else {
+        let tm1 = cr.tm1.as_ref().expect("designated#prove2: tm1 must be Some");
+        let tm2 = cr.tm2.as_ref().expect("designated#prove2: tm2 must be Some");
+        let tm3 = cr.tm3.as_ref().expect("designated#prove2: tm3 must be Some");
+        let tr1 = cr.tr1.as_ref().expect("designated#prove2: tr1 must be Some");
+        let tr2 = cr.tr2.as_ref().expect("designated#prove2: tr2 must be Some");
+        let tr3 = cr.tr3.as_ref().expect("designated#prove2: tr3 must be Some");
 
-    let tr_ct = Paillier::encrypt_with_chosen_randomness(
-                  &vpk.pk,
-                  RawPlaintext::from(&cr.tr2),
-                  &Randomness::from(&cr.tr3)).0.into_owned();
-    let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &cr.tr1, n2),
-                             &tr_ct,
-                             n2);
+        let tm_ct = Paillier::encrypt_with_chosen_randomness(
+                      &vpk.pk,
+                      RawPlaintext::from(tm2),
+                      &Randomness::from(tm3)).0.into_owned();
+        let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tm1, n2),
+                                 &tm_ct,
+                                 n2);
 
-    DVResp1{sm, sr, tm, tr}
+        let tr_ct = Paillier::encrypt_with_chosen_randomness(
+                      &vpk.pk,
+                      RawPlaintext::from(tr2),
+                      &Randomness::from(tr3)).0.into_owned();
+        let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tr1, n2),
+                                 &tr_ct,
+                                 n2);
+
+        DVResp1{sm, sr, tm: Some(tm), tr: Some(tr)}
+    }
 }
 
-pub fn verify2(params: &DVParams) -> DVChallenge2 {
-    let d = BigInt::sample(params.lambda as usize);
-    DVChallenge2(d)
+pub fn verify2(params: &DVParams) -> Option<DVChallenge2> {
+    if params.ggm_mode {
+        None
+    } else{
+        let d = BigInt::sample(params.lambda as usize);
+        Some(DVChallenge2(d))
+    }
 }
 
-pub fn prove3(vpk: &VPK,
+pub fn prove3(params: &DVParams,
+              vpk: &VPK,
               cr: &DVComRand,
               wit: &DVWit,
-              ch: &DVChallenge2) -> DVResp2 {
-    let n2: &BigInt = &vpk.pk.nn;
-    let d: &BigInt = &ch.0;
+              ch2_opt: Option<&DVChallenge2>) -> Option<DVResp2> {
+    if params.ggm_mode {
+        None
+    } else {
 
-    let um1 = BigInt::mod_add(&BigInt::mod_mul(&wit.m, d, n2), &cr.tm1, n2);
-    let um2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rm_m, d, n2), &cr.tm2, n2);
-    let um3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rm_r, d, n2), &cr.tm3, n2);
+        let n2: &BigInt = &vpk.pk.nn;
 
-    let ur1 = BigInt::mod_add(&BigInt::mod_mul(&wit.r, d, n2), &cr.tr1, n2);
-    let ur2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rr_m, d, n2), &cr.tr2, n2);
-    let ur3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rr_r, d, n2), &cr.tr3, n2);
+        let ch2 = ch2_opt.expect("designated#prove3: ch2 must be Some");
+        let d: &BigInt = &ch2.0;
 
-    DVResp2{um1, um2, um3, ur1, ur2, ur3}
+        let tm1 = cr.tm1.as_ref().expect("designated#prove3: tm1 must be Some");
+        let tm2 = cr.tm2.as_ref().expect("designated#prove3: tm2 must be Some");
+        let tm3 = cr.tm3.as_ref().expect("designated#prove3: tm3 must be Some");
+        let tr1 = cr.tr1.as_ref().expect("designated#prove3: tr1 must be Some");
+        let tr2 = cr.tr2.as_ref().expect("designated#prove3: tr2 must be Some");
+        let tr3 = cr.tr3.as_ref().expect("designated#prove3: tr3 must be Some");
+
+        let um1 = BigInt::mod_add(&BigInt::mod_mul(&wit.m, d, n2), tm1, n2);
+        let um2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rm_m, d, n2), tm2, n2);
+        let um3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rm_r, d, n2), tm3, n2);
+
+        let ur1 = BigInt::mod_add(&BigInt::mod_mul(&wit.r, d, n2), tr1, n2);
+        let ur2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rr_m, d, n2), tr2, n2);
+        let ur3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rr_r, d, n2), tr3, n2);
+
+        Some(DVResp2{um1, um2, um3, ur1, ur2, ur3})
+    }
 }
 
 pub fn verify3(params: &DVParams,
@@ -476,16 +522,10 @@ pub fn verify3(params: &DVParams,
                inst: &DVInst,
                com: &DVCom,
                ch1: &DVChallenge1,
-               ch2: &DVChallenge2,
+               ch2_opt: Option<&DVChallenge2>,
                resp1: &DVResp1,
-               resp2: &DVResp2,
+               resp2_opt: Option<&DVResp2>,
                query_ix: usize) -> bool {
-    let ch1_ct =
-        BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
-                        &ch1.0.iter()
-                          .map(|&i| &vpk.cts[i])
-                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, &vpk.pk.nn)),
-                        &vpk.pk.nn);
 
     let ch1_raw: BigInt =
         &vsk.chs[(params.lambda as usize) + query_ix] +
@@ -516,24 +556,38 @@ pub fn verify3(params: &DVParams,
         if tmp2 != x2 { return false; }
     }
 
-    {
-        let ct = Paillier::encrypt_with_chosen_randomness(
-                &vpk.pk,
-                RawPlaintext::from(&resp2.um2),
-                &Randomness::from(&resp2.um3)).0.into_owned();
-        let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.um1, &vpk.pk.nn), &ct, &vpk.pk.nn);
-        let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sm, &ch2.0, &vpk.pk.nn), &resp1.tm, &vpk.pk.nn);
-        if lhs != rhs { return false; }
-    }
 
-    {
-        let ct = Paillier::encrypt_with_chosen_randomness(
-                &vpk.pk,
-                RawPlaintext::from(&resp2.ur2),
-                &Randomness::from(&resp2.ur3)).0.into_owned();
-        let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.ur1, &vpk.pk.nn), &ct, &vpk.pk.nn);
-        let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sr, &ch2.0, &vpk.pk.nn), &resp1.tr, &vpk.pk.nn);
-        if lhs != rhs { return false; }
+    if !params.ggm_mode {
+        let ch2: &DVChallenge2 = ch2_opt.expect("designated#verify3: ch2 must be Some");
+        let resp2: &DVResp2 = resp2_opt.expect("designated#verify3: resp2 must be Some");
+        let ch1_ct =
+            BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
+                            &ch1.0.iter()
+                              .map(|&i| &vpk.cts[i])
+                              .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, &vpk.pk.nn)),
+                            &vpk.pk.nn);
+
+        {
+            let ct = Paillier::encrypt_with_chosen_randomness(
+                    &vpk.pk,
+                    RawPlaintext::from(&resp2.um2),
+                    &Randomness::from(&resp2.um3)).0.into_owned();
+            let tm = resp1.tm.as_ref().expect("designated#verify3: tm must be Some");
+            let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.um1, &vpk.pk.nn), &ct, &vpk.pk.nn);
+            let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sm, &ch2.0, &vpk.pk.nn), tm, &vpk.pk.nn);
+            if lhs != rhs { return false; }
+        }
+
+        {
+            let ct = Paillier::encrypt_with_chosen_randomness(
+                    &vpk.pk,
+                    RawPlaintext::from(&resp2.ur2),
+                    &Randomness::from(&resp2.ur3)).0.into_owned();
+            let tr = resp1.tr.as_ref().expect("designated#verify3: tr must be Some");
+            let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.ur1, &vpk.pk.nn), &ct, &vpk.pk.nn);
+            let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sr, &ch2.0, &vpk.pk.nn), tr, &vpk.pk.nn);
+            if lhs != rhs { return false; }
+        }
     }
 
     true
@@ -547,7 +601,7 @@ mod tests {
 
     #[test]
     fn test_correctness_keygen() {
-        let params = DVParams::new(1024, 32, 5, false);
+        let params = DVParams::new(1024, 32, 5, false, false);
 
         let (vpk,_vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
@@ -555,9 +609,10 @@ mod tests {
 
     #[test]
     fn test_correctness() {
+        for ggm_mode in [false,true] {
         for _i in 0..10 {
             let queries:usize = 60;
-            let params = DVParams::new(256, 16, queries as u32, true);
+            let params = DVParams::new(256, 16, queries as u32, true, ggm_mode);
 
             let (vpk,vsk) = keygen(&params);
             assert!(verify_vpk(&params,&vpk));
@@ -570,11 +625,12 @@ mod tests {
 
                 let resp1 = prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
                 let ch2 = verify2(&params);
-                let resp2 = prove3(&vpk,&cr,&wit,&ch2);
+                let resp2 = prove3(&params,&vpk,&cr,&wit,ch2.as_ref());
 
                 assert!(verify3(&params,&vsk,&vpk,&lang,&inst,
-                                &com,&ch1,&ch2,&resp1,&resp2,query_ix));
+                                &com,&ch1,ch2.as_ref(),&resp1,resp2.as_ref(),query_ix));
             }
+        }
         }
     }
 }
