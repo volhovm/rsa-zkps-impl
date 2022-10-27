@@ -1,7 +1,12 @@
+#with import (builtins.fetchTarball {
+#    name = "nixos-22.05";
+#    url = "https://github.com/nixos/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz";
+#    sha256 = "0d643wp3l77hv2pmg2fi7vyxn4rwy0iyr8djcw1h5x72315ck9ik";
+#}) {};
 with import (builtins.fetchTarball {
-    name = "nixos-22.05";
-    url = "https://github.com/nixos/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz";
-    sha256 = "0d643wp3l77hv2pmg2fi7vyxn4rwy0iyr8djcw1h5x72315ck9ik";
+    name = "nixos-22.11-pre";
+    url = "https://github.com/nixos/nixpkgs/archive/104e8082de1b20f9d0e1f05b1028795ed0e0e4bc.tar.gz";
+    sha256 = "1y7j4bgk6wcipy9vmfmdgy8pv1wp3mq76sdjc4yib7xdn0bvgxvh";
 }) {};
 (pkgs.mkShell rec {
     buildInputs = with pkgs; [
@@ -12,6 +17,7 @@ with import (builtins.fetchTarball {
       xorriso
      # grub2
      #  qemu
+      m4
       llvmPackages_latest.lld
       python3
       gmp
