@@ -335,10 +335,8 @@ pub struct DVComRand {
     pub tr3: Option<BigInt>,
 }
 
-// @volhovm It should be a bit vector. Or a bigint.
-// Why waste so much space, every element is a bit.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct DVChallenge1(Vec<usize>);
+pub struct DVChallenge1(BigInt);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DVChallenge2(BigInt);
 
@@ -395,25 +393,30 @@ pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
 pub fn verify1(params: &DVParams) -> DVChallenge1 {
     let b = BigInt::sample(params.lambda as usize);
 
-    let mut ix: Vec<usize> = vec![];
-    for i in 0..(params.lambda as usize) {
-        if b.test_bit(i) { ix.push(i); }
-    }
+    //let mut ix: Vec<usize> = vec![];
+    //for i in 0..(params.lambda as usize) {
+    //    if b.test_bit(i) { ix.push(i); }
+    //}
 
-    DVChallenge1(ix)
+    DVChallenge1(b)
 }
 
 pub fn prove2(params: &DVParams,
               vpk: &VPK,
               cr: &DVComRand,
               wit: &DVWit,
-              ch: &DVChallenge1,
+              ch1: &DVChallenge1,
               query_ix: usize) -> DVResp1 {
     let n2: &BigInt = &vpk.pk.nn;
 
+    let mut ch1_active_bits: Vec<usize> = vec![];
+    for i in 0..(params.lambda as usize) {
+        if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
+    }
+
     let ch_ct =
         BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
-                        &ch.0.iter()
+                        &ch1_active_bits.iter()
                           .map(|&i| &vpk.cts[i])
                           .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2)),
                         n2);
@@ -518,9 +521,14 @@ pub fn verify3(params: &DVParams,
                resp2_opt: Option<&DVResp2>,
                query_ix: usize) -> bool {
 
+    let mut ch1_active_bits: Vec<usize> = vec![];
+    for i in 0..(params.lambda as usize) {
+        if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
+    }
+
     let ch1_raw: BigInt =
         &vsk.chs[(params.lambda as usize) + query_ix] +
-        ch1.0.iter()
+        ch1_active_bits.iter()
         .map(|&i| &vsk.chs[i])
         .fold(BigInt::from(0), |acc,x| acc + x );
 
@@ -553,7 +561,7 @@ pub fn verify3(params: &DVParams,
         let resp2: &DVResp2 = resp2_opt.expect("designated#verify3: resp2 must be Some");
         let ch1_ct =
             BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
-                            &ch1.0.iter()
+                            &ch1_active_bits.iter()
                               .map(|&i| &vpk.cts[i])
                               .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, &vpk.pk.nn)),
                             &vpk.pk.nn);
@@ -605,17 +613,12 @@ pub fn fs_compute_challenge_1(params: &DVParams,
                               fs_com: &DVCom) -> DVChallenge1 {
     use blake2::*;
     let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, inst, lang)).unwrap();
-    // Use Digest::digest, but it asks for a fixed-sized slice?
     let mut hasher: Blake2b = Digest::new();
     hasher.update(&x);
     let r0 = hasher.finalize(); // the result is u8 array of size 64
+    let ch1 = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8 - 1]);
 
-    let mut ix: Vec<usize> = vec![];
-    for i in 0..(params.lambda as usize) {
-        ix.push(((r0[i / 8] >> (i % 8)) & 1) as usize);
-    }
-
-    DVChallenge1(ix)
+    DVChallenge1(ch1)
 }
 
 pub fn fs_compute_challenge_2(params: &DVParams,
@@ -631,7 +634,6 @@ pub fn fs_compute_challenge_2(params: &DVParams,
 
         // @volhovm: maybe we need to hash less here
         let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, fs_ch1, fs_resp1, inst, lang)).unwrap();
-        // Use Digest::digest, but it asks for a fixed-sized slice?
         let mut hasher: Blake2b = Digest::new();
         hasher.update(&x);
         let r0 = hasher.finalize(); // the result is u8 array of size 64
