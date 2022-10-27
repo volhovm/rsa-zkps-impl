@@ -144,7 +144,7 @@ pub struct VPK {
     pub pk: EncryptionKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
-    /// Proof of N' having gcd(N,phi(N)) = 1.
+    /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
     pub nizk_gcd: n_gcd::Proof,
     /// Proofs of correctness+range of cts.
     pub nizks_ct: Vec<spb::FSProof>,
@@ -678,7 +678,6 @@ pub fn fs_verify(params: &DVParams,
     verify3(&params,&vsk,&vpk,&lang,&inst,
             &proof.com,&proof.ch1,proof.ch2.as_ref(),&proof.resp1,proof.resp2.as_ref(),query_ix)
 }
-
 
 
 
