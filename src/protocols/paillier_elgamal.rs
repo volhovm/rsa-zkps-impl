@@ -1,5 +1,6 @@
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, Integer};
 use curv::{BigInt};
+use serde::{Serialize};
 use paillier::{Paillier, EncryptionKey, DecryptionKey,
                KeyGeneration,
                Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
@@ -16,7 +17,7 @@ pub struct PESecretKey {
     pub q: BigInt
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct PEPublicKey {
     pub n: BigInt,
     pub n2: BigInt,
@@ -24,7 +25,7 @@ pub struct PEPublicKey {
     pub h: BigInt
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct PECiphertext {
     // g^r
     pub ct1: BigInt,

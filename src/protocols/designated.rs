@@ -1,11 +1,12 @@
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation};
-use curv::BigInt;
+use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation,Converter};
+use curv::{BigInt};
 use paillier::{Paillier, EncryptionKey, DecryptionKey,
                KeyGeneration, Encrypt, Decrypt, RawCiphertext,
                Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
 use std::fmt;
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
+use serde::{Serialize};
 use rand::distributions::{Distribution, Uniform};
 
 use super::utils as u;
@@ -285,25 +286,14 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
 // Interactive part
 ////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug)]
-pub struct Commitment(Vec<BigInt>);
 
-#[derive(Clone, Debug)]
-pub struct ComRand(Vec<(BigInt,BigInt)>);
-
-#[derive(Clone, Debug)]
-pub struct Challenge(Vec<BigInt>);
-
-#[derive(Clone, Debug)]
-pub struct Response(Vec<(BigInt,BigInt)>);
-
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DVLang { pub pk: pe::PEPublicKey }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DVInst { pub ct: pe::PECiphertext }
 #[derive(Clone, Debug)]
 pub struct DVWit { pub m: BigInt, pub r: BigInt }
+
 
 pub fn sample_lang(params: &DVParams) -> DVLang {
     let (pk,_sk) = pe::keygen(params.n_bitlen as usize);
@@ -328,11 +318,10 @@ pub fn sample_liw(params: &DVParams) -> (DVLang,DVInst,DVWit) {
 }
 
 
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DVCom{ pub a: pe::PECiphertext }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DVComRand {
     pub rm_m: BigInt,
     pub rm_r: BigInt,
@@ -346,12 +335,14 @@ pub struct DVComRand {
     pub tr3: Option<BigInt>,
 }
 
-#[derive(Clone, Debug)]
+// @volhovm It should be a bit vector. Or a bigint.
+// Why waste so much space, every element is a bit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVChallenge1(Vec<usize>);
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DVChallenge2(BigInt);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DVResp1 {
     pub sm: BigInt,
     pub sr: BigInt,
@@ -594,6 +585,100 @@ pub fn verify3(params: &DVParams,
 }
 
 
+////////////////////////////////////////////////////////////////////////////
+// Non-interactive variant
+////////////////////////////////////////////////////////////////////////////
+
+
+#[derive(Clone, Debug)]
+pub struct FSDVProof {
+    com : DVCom,
+    ch1 : DVChallenge1,
+    resp1 : DVResp1,
+    ch2 : Option<DVChallenge2>,
+    resp2 : Option<DVResp2>,
+}
+
+pub fn fs_compute_challenge_1(params: &DVParams,
+                              lang: &DVLang,
+                              inst: &DVInst,
+                              fs_com: &DVCom) -> DVChallenge1 {
+    use blake2::*;
+    let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, inst, lang)).unwrap();
+    // Use Digest::digest, but it asks for a fixed-sized slice?
+    let mut hasher: Blake2b = Digest::new();
+    hasher.update(&x);
+    let r0 = hasher.finalize(); // the result is u8 array of size 64
+
+    let mut ix: Vec<usize> = vec![];
+    for i in 0..(params.lambda as usize) {
+        ix.push(((r0[i / 8] >> (i % 8)) & 1) as usize);
+    }
+
+    DVChallenge1(ix)
+}
+
+pub fn fs_compute_challenge_2(params: &DVParams,
+                              lang: &DVLang,
+                              inst: &DVInst,
+                              fs_com: &DVCom,
+                              fs_ch1: &DVChallenge1,
+                              fs_resp1: &DVResp1) -> Option<DVChallenge2> {
+    if params.ggm_mode {
+        None
+    } else{
+        use blake2::*;
+
+        // @volhovm: maybe we need to hash less here
+        let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, fs_ch1, fs_resp1, inst, lang)).unwrap();
+        // Use Digest::digest, but it asks for a fixed-sized slice?
+        let mut hasher: Blake2b = Digest::new();
+        hasher.update(&x);
+        let r0 = hasher.finalize(); // the result is u8 array of size 64
+
+        let ch2 = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8 - 1]);
+
+        Some(DVChallenge2(ch2))
+    }
+}
+
+
+pub fn fs_prove(params: &DVParams,
+                vpk: &VPK,
+                lang: &DVLang,
+                inst: &DVInst,
+                wit: &DVWit,
+                query_ix: usize) -> FSDVProof {
+    let (com,cr) = prove1(&params,&lang);
+    let ch1 = fs_compute_challenge_1(&params,lang,inst,&com);
+    // @volhovm what is query_ix here?
+    let resp1 = prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
+    let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
+    let resp2 = prove3(&params,&vpk,&cr,&wit,ch2.as_ref());
+
+    FSDVProof{ com, ch1, resp1, ch2, resp2 }
+}
+
+pub fn fs_verify(params: &DVParams,
+                 vsk: &VSK,
+                 vpk: &VPK,
+                 lang: &DVLang,
+                 inst: &DVInst,
+                 query_ix: usize,
+                 proof: &FSDVProof) -> bool {
+
+    let ch1_own = fs_compute_challenge_1(&params,lang,inst,&proof.com);
+    if ch1_own != proof.ch1 { return false; }
+    let ch2_own = fs_compute_challenge_2(&params,lang,inst,&proof.com,&proof.ch1,&proof.resp1);
+    if ch2_own != proof.ch2 { return false; }
+
+    verify3(&params,&vsk,&vpk,&lang,&inst,
+            &proof.com,&proof.ch1,proof.ch2.as_ref(),&proof.resp1,proof.resp2.as_ref(),query_ix)
+}
+
+
+
+
 #[cfg(test)]
 mod tests {
 
@@ -633,4 +718,26 @@ mod tests {
         }
         }
     }
+
+
+    #[test]
+    fn test_correctness_fs() {
+        for ggm_mode in [false,true] {
+        for _i in 0..10 {
+            let queries:usize = 60;
+            let params = DVParams::new(256, 16, queries as u32, true, ggm_mode);
+
+            let (vpk,vsk) = keygen(&params);
+            assert!(verify_vpk(&params,&vpk));
+
+            for query_ix in 0..queries {
+                let (lang,inst,wit) = sample_liw(&params);
+
+                let proof = fs_prove(&params,&vpk,&lang,&inst,&wit,query_ix);
+                assert!(fs_verify(&params,&vsk,&vpk,&lang,&inst,query_ix,&proof));
+            }
+        }
+        }
+    }
+
 }
