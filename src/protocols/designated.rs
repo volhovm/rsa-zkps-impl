@@ -392,12 +392,6 @@ pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
 
 pub fn verify1(params: &DVParams) -> DVChallenge1 {
     let b = BigInt::sample(params.lambda as usize);
-
-    //let mut ix: Vec<usize> = vec![];
-    //for i in 0..(params.lambda as usize) {
-    //    if b.test_bit(i) { ix.push(i); }
-    //}
-
     DVChallenge1(b)
 }
 

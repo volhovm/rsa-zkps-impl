@@ -1,4 +1,4 @@
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation};
+use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Roots};
 use curv::BigInt;
 use paillier::{Paillier, EncryptionKey, DecryptionKey,
                KeyGeneration, Encrypt, Decrypt, RawCiphertext,
@@ -6,6 +6,7 @@ use paillier::{Paillier, EncryptionKey, DecryptionKey,
 use std::fmt;
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
+use serde::{Serialize};
 use rand::distributions::{Distribution, Uniform};
 
 use super::designated as dv;
@@ -81,7 +82,6 @@ pub struct VPK {
 }
 
 impl VPK {
-    pub fn n(&self) -> &BigInt { &self.dv_vpk.pk.n }
     pub fn pk(&self) -> &EncryptionKey { &self.dv_vpk.pk }
     pub fn cts(&self) -> &Vec<BigInt> { &self.dv_vpk.cts }
     pub fn nizk_gcd(&self) -> &n_gcd::Proof { &self.dv_vpk.nizk_gcd }
@@ -135,49 +135,215 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
 // Interactive part
 ////////////////////////////////////////////////////////////////////////////
 
-pub struct DVRCom { }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct DVRCom {
+    com_m: BigInt,
+    com1_m: BigInt,
+    com2_m: BigInt,
+    com3_m: BigInt,
+    beta_m: BigInt,
+    beta1_m: BigInt,
+    beta2_m: BigInt,
+    beta3_m: BigInt,
+    beta4_m: BigInt,
 
-pub struct DVRComRand { }
+    com_r: BigInt,
+    com1_r: BigInt,
+    com2_r: BigInt,
+    com3_r: BigInt,
+    beta_r: BigInt,
+    beta1_r: BigInt,
+    beta2_r: BigInt,
+    beta3_r: BigInt,
+    beta4_r: BigInt,
+
+    alpha1: BigInt,
+    alpha2: BigInt,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct DVRComRand {
+    r_m: BigInt,
+    r1_m: BigInt,
+    r2_m: BigInt,
+    r3_m: BigInt,
+    t_m: BigInt,
+    t1_m: BigInt,
+    t2_m: BigInt,
+    t3_m: BigInt,
+    x1_m: BigInt,
+    x2_m: BigInt,
+    x3_m: BigInt,
+    sigma_m: BigInt,
+    sigma1_m: BigInt,
+    sigma2_m: BigInt,
+    sigma3_m: BigInt,
+    tau_m: BigInt,
+
+    r_r: BigInt,
+    r1_r: BigInt,
+    r2_r: BigInt,
+    r3_r: BigInt,
+    t_r: BigInt,
+    t1_r: BigInt,
+    t2_r: BigInt,
+    t3_r: BigInt,
+    x1_r: BigInt,
+    x2_r: BigInt,
+    x3_r: BigInt,
+    sigma_r: BigInt,
+    sigma1_r: BigInt,
+    sigma2_r: BigInt,
+    sigma3_r: BigInt,
+    tau_r: BigInt,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct DVRChallenge1(BigInt);
+
 
 pub fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
     // FIXME over Z_N, right? Or Z_N^2?
     BigInt::mod_mul(
-        &BigInt::mod_pow(&vpk.g, msg, vpk.n()),
-        &BigInt::mod_pow(&vpk.h, r, vpk.n()),
-        vpk.n())
+        &BigInt::mod_pow(&vpk.g, msg, &vpk.n),
+        &BigInt::mod_pow(&vpk.h, r, &vpk.n),
+        &vpk.n)
 }
 
 
 pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit) -> (DVRCom,DVRComRand) {
-    // For the message first
-    {
-        // 2^{λ-1}N
-        let t_m = u::bigint_sample_below_sym(
-            &(&BigInt::pow(&BigInt::from(2),params.dv_params.lambda - 1) * vpk.n()));
-        // FIXME over Z_N, right? Or Z_N^2?
-        let com_m = pedersen_commit(&vpk, &wit.m, &t_m);
+    // 2^{λ-1}N
+    let t_range = &BigInt::pow(&BigInt::from(2),params.dv_params.lambda - 1) * &vpk.n;
+    // λ 2^{4λ+Q} R
+    let r_range = &BigInt::from(params.lambda()) *
+                  &BigInt::pow(&BigInt::from(2),4 * params.lambda() + params.dv_params.crs_uses) *
+                  &params.range;
+    // λ 2^{5λ+Q - 1} N
+    let sigma_range = &BigInt::from(params.lambda()) *
+                      &BigInt::pow(&BigInt::from(2),5 * params.lambda() + params.dv_params.crs_uses - 1) *
+                      &vpk.n;
+    // λ 2^{5λ+Q - 1} N (3 sqrt(R) + 4 R)
+    // TODO: this sqrt is floored, should we ceil?
+    let tau_range = &sigma_range * (&BigInt::from(3) * &Roots::sqrt(&params.range) +
+                                    &BigInt::from(4) * &params.range);
 
-        // λ 2^{4λ+Q} R
-        let r_m = u::bigint_sample_below_sym(
-            &(&BigInt::from(params.lambda()) *
-              &BigInt::pow(&BigInt::from(2),4 * params.lambda() + params.dv_params.crs_uses) *
-              &params.range));
-        // λ 2^{5λ+Q - 1} N
-        let sigma_m = u::bigint_sample_below_sym(
-            &(&BigInt::from(params.lambda()) *
-              &BigInt::pow(&BigInt::from(2),5 * params.lambda() + params.dv_params.crs_uses - 1) *
-              vpk.n()));
-        let beta_m = pedersen_commit(&vpk, &r_m, &sigma_m);
+    ////// For the message, wit.m first
 
-    }
+    // Compute com
+    let t_m = u::bigint_sample_below_sym(&t_range);
+    let com_m = pedersen_commit(&vpk, &wit.m, &t_m);
 
-    let t_r = u::bigint_sample_below_sym(
-        &(&BigInt::pow(&BigInt::from(2),params.dv_params.lambda - 1) * vpk.n()));
-    // FIXME over Z_N, right? Or Z_N^2?
+    // Compute beta
+    let r_m = u::bigint_sample_below_sym(&r_range);
+    let sigma_m = u::bigint_sample_below_sym(&sigma_range);
+    let beta_m = pedersen_commit(&vpk, &r_m, &sigma_m);
+
+    // Decompose 4 m (R - m) + 1
+    let decomp_target = &BigInt::from(4) * &wit.m * (&params.range - &wit.m) + &BigInt::from(1);
+    let (x1_m,x2_m,x3_m) = super::squares_decomp::three_squares_decompose(&decomp_target);
+
+    // Compute commitments to xi
+    let t1_m = u::bigint_sample_below_sym(&t_range);
+    let com1_m = pedersen_commit(&vpk, &x1_m, &t1_m);
+    let t2_m = u::bigint_sample_below_sym(&t_range);
+    let com2_m = pedersen_commit(&vpk, &x2_m, &t2_m);
+    let t3_m = u::bigint_sample_below_sym(&t_range);
+    let com3_m = pedersen_commit(&vpk, &x3_m, &t3_m);
+
+    // Compute beta_i
+    let r1_m = u::bigint_sample_below_sym(&r_range);
+    let sigma1_m = u::bigint_sample_below_sym(&sigma_range);
+    let beta1_m = pedersen_commit(&vpk, &r1_m, &sigma1_m);
+    let r2_m = u::bigint_sample_below_sym(&r_range);
+    let sigma2_m = u::bigint_sample_below_sym(&sigma_range);
+    let beta2_m = pedersen_commit(&vpk, &r2_m, &sigma2_m);
+    let r3_m = u::bigint_sample_below_sym(&r_range);
+    let sigma3_m = u::bigint_sample_below_sym(&sigma_range);
+    let beta3_m = pedersen_commit(&vpk, &r3_m, &sigma3_m);
+
+    // Compute tau/beta_4
+    let tau_m = u::bigint_sample_below_sym(&tau_range);
+    let beta4_m_args: [&BigInt;5] =
+        [&BigInt::mod_pow(&vpk.h,&tau_m,&vpk.n),
+         &BigInt::mod_pow(&com_m,&(&BigInt::from(4)*&r_m),&vpk.n),
+         &BigInt::mod_pow(&com1_m,&-&r1_m,&vpk.n),
+         &BigInt::mod_pow(&com2_m,&-&r2_m,&vpk.n),
+         &BigInt::mod_pow(&com3_m,&-&r3_m,&vpk.n)
+        ];
+    let beta4_m: BigInt =
+        beta4_m_args.iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n));
+
+
+    ////// For the randomness, wit.r
+
+    // Compute com
+    let t_r = u::bigint_sample_below_sym(&t_range);
     let com_r = pedersen_commit(&vpk, &wit.r, &t_r);
 
+    // Compute beta
+    let r_r = u::bigint_sample_below_sym(&r_range);
+    let sigma_r = u::bigint_sample_below_sym(&sigma_range);
+    let beta_r = pedersen_commit(&vpk, &r_r, &sigma_r);
 
-    unimplemented!()
+    // Decompose 4 m (R - m) + 1
+    let decomp_target = &BigInt::from(4) * &wit.r * (&params.range - &wit.r) + &BigInt::from(1);
+    let (x1_r,x2_r,x3_r) = super::squares_decomp::three_squares_decompose(&decomp_target);
+
+    // Compute commitments to xi
+    let t1_r = u::bigint_sample_below_sym(&t_range);
+    let com1_r = pedersen_commit(&vpk, &x1_r, &t1_r);
+    let t2_r = u::bigint_sample_below_sym(&t_range);
+    let com2_r = pedersen_commit(&vpk, &x2_r, &t2_r);
+    let t3_r = u::bigint_sample_below_sym(&t_range);
+    let com3_r = pedersen_commit(&vpk, &x3_r, &t3_r);
+
+    // Compute beta_i
+    let r1_r = u::bigint_sample_below_sym(&r_range);
+    let sigma1_r = u::bigint_sample_below_sym(&sigma_range);
+    let beta1_r = pedersen_commit(&vpk, &r1_r, &sigma1_r);
+    let r2_r = u::bigint_sample_below_sym(&r_range);
+    let sigma2_r = u::bigint_sample_below_sym(&sigma_range);
+    let beta2_r = pedersen_commit(&vpk, &r2_r, &sigma2_r);
+    let r3_r = u::bigint_sample_below_sym(&r_range);
+    let sigma3_r = u::bigint_sample_below_sym(&sigma_range);
+    let beta3_r = pedersen_commit(&vpk, &r3_r, &sigma3_r);
+
+    // Compute tau/beta_4
+    let tau_r = u::bigint_sample_below_sym(&tau_range);
+    let beta4_r_args: [&BigInt;5] =
+        [&BigInt::mod_pow(&vpk.h,&tau_r,&vpk.n),
+         &BigInt::mod_pow(&com_r,&(&BigInt::from(4)*&r_r),&vpk.n),
+         &BigInt::mod_pow(&com1_r,&-&r1_r,&vpk.n),
+         &BigInt::mod_pow(&com2_r,&-&r2_r,&vpk.n),
+         &BigInt::mod_pow(&com3_r,&-&r3_r,&vpk.n)
+        ];
+    let beta4_r: BigInt =
+            beta4_r_args.iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n));
+
+
+    // alpha1 and alpha_2
+    let pe::PECiphertext{ct1:alpha1,ct2:alpha2} =
+            pe::encrypt_with_randomness(&lang.pk, &r_m, &r_r);
+
+    // Commitment and commitment randomness
+    let com = DVRCom {
+        com_m, com1_m, com2_m, com3_m, beta_m, beta1_m, beta2_m, beta3_m, beta4_m,
+        com_r, com1_r, com2_r, com3_r, beta_r, beta1_r, beta2_r, beta3_r, beta4_r,
+        alpha1, alpha2,
+    };
+    let comrand = DVRComRand {
+        r_m, r1_m, r2_m, r3_m, t_m, t1_m, t2_m, t3_m, x1_m, x2_m, x3_m,
+        sigma_m, sigma1_m, sigma2_m, sigma3_m, tau_m,
+        r_r, r1_r, r2_r, r3_r, t_r, t1_r, t2_r, t3_r, x1_r, x2_r, x3_r,
+        sigma_r, sigma1_r, sigma2_r, sigma3_r, tau_r,
+    };
+
+    (com, comrand)
+}
+
+pub fn verify1(params: &DVRParams) -> DVRChallenge1 {
+    let b = BigInt::sample(params.lambda() as usize);
+    DVRChallenge1(b)
 }
 
 ////////////////////////////////////////////////////////////////////////////
