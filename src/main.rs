@@ -42,7 +42,7 @@ fn test_dv() {
     let (vpk,vsk) = dv::keygen(&params);
     let (lang,inst,wit) = dv::sample_liw(&params);
     let (com,cr) = dv::prove1(&params,&lang);
-    let ch = dv::fs_compute_challenge_1(&params,&lang,&inst,&com);
+    //let ch = dv::fs_compute_challenge_1(&params,&lang,&inst,&com);
 }
 
 fn main() {
@@ -52,5 +52,5 @@ fn main() {
     //rsazkps::protocols::squares_decomp::test_three_squares();
     //rsazkps::protocols::schnorr_exp::test_correctness();
     //    rsazkps::protocols::n_gcd::test();
-    test_dv();
+    //test_dv();
 }

@@ -607,39 +607,40 @@ pub struct FSDVProof {
     resp2 : Option<DVResp2>,
 }
 
-pub fn fs_compute_challenge_1(params: &DVParams,
-                              lang: &DVLang,
-                              inst: &DVInst,
-                              fs_com: &DVCom) -> DVChallenge1 {
-    use blake2::*;
-    let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, inst, lang)).unwrap();
-    let mut hasher: Blake2b = Digest::new();
-    hasher.update(&x);
-    let r0 = hasher.finalize(); // the result is u8 array of size 64
-    let ch1 = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8 - 1]);
+// Returns a lambda-bit bigint equal to the first bits of Blake2b(hash_input)
+fn fs_to_bigint(params: &DVParams,
+                hash_input: &Vec<u8>) -> BigInt {
 
+    use blake2::*;
+    let mut hasher: Blake2b = Digest::new();
+    hasher.update(hash_input);
+    let r0 = hasher.finalize(); // the result is u8 array of size 64
+    let bigint = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8 - 1]);
+
+    bigint
+}
+
+fn fs_compute_challenge_1(params: &DVParams,
+                          lang: &DVLang,
+                          inst: &DVInst,
+                          fs_com: &DVCom) -> DVChallenge1 {
+    let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, inst, lang)).unwrap();
+    let ch1 = fs_to_bigint(params, &x);
     DVChallenge1(ch1)
 }
 
-pub fn fs_compute_challenge_2(params: &DVParams,
-                              lang: &DVLang,
-                              inst: &DVInst,
-                              fs_com: &DVCom,
-                              fs_ch1: &DVChallenge1,
-                              fs_resp1: &DVResp1) -> Option<DVChallenge2> {
+fn fs_compute_challenge_2(params: &DVParams,
+                          lang: &DVLang,
+                          inst: &DVInst,
+                          fs_com: &DVCom,
+                          fs_ch1: &DVChallenge1,
+                          fs_resp1: &DVResp1) -> Option<DVChallenge2> {
     if params.ggm_mode {
         None
     } else{
-        use blake2::*;
-
         // @volhovm: maybe we need to hash less here
         let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, fs_ch1, fs_resp1, inst, lang)).unwrap();
-        let mut hasher: Blake2b = Digest::new();
-        hasher.update(&x);
-        let r0 = hasher.finalize(); // the result is u8 array of size 64
-
-        let ch2 = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8 - 1]);
-
+        let ch2 = fs_to_bigint(params, &x);
         Some(DVChallenge2(ch2))
     }
 }
