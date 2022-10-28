@@ -201,8 +201,51 @@ pub struct DVRComRand {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRChallenge1(BigInt);
 
-pub struct DVRResponse1 {
+pub struct DVRResp1 {
+    u_m: BigInt,
+    v_m: BigInt,
+    u1_m: BigInt,
+    v1_m: BigInt,
+    u2_m: BigInt,
+    v2_m: BigInt,
+    u3_m: BigInt,
+    v3_m: BigInt,
+    u4_m: BigInt,
+
+    u_r: BigInt,
+    v_r: BigInt,
+    u1_r: BigInt,
+    v1_r: BigInt,
+    u2_r: BigInt,
+    v2_r: BigInt,
+    u3_r: BigInt,
+    v3_r: BigInt,
+    u4_r: BigInt,
 }
+
+pub struct DVRRespRand1 {
+    u_r_m: BigInt,
+    v_r_m: BigInt,
+    u1_r_m: BigInt,
+    v1_r_m: BigInt,
+    u2_r_m: BigInt,
+    v2_r_m: BigInt,
+    u3_r_m: BigInt,
+    v3_r_m: BigInt,
+    u4_r_m: BigInt,
+
+    u_r_r: BigInt,
+    v_r_r: BigInt,
+    u1_r_r: BigInt,
+    v1_r_r: BigInt,
+    u2_r_r: BigInt,
+    v2_r_r: BigInt,
+    u3_r_r: BigInt,
+    v3_r_r: BigInt,
+    u4_r_r: BigInt,
+}
+
+
 
 pub fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
     // FIXME over Z_N, right? Or Z_N^2?
@@ -357,7 +400,7 @@ pub fn prove2(params: &DVRParams,
               wit: &dv::DVWit,
               ch1: &DVRChallenge1,
               cr: &DVRComRand,
-              query_ix: usize) -> DVRResponse1 {
+              query_ix: usize) -> (DVRResp1,DVRRespRand1) {
 
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda() as usize) {
@@ -372,101 +415,96 @@ pub fn prove2(params: &DVRParams,
                           .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_n2)),
                         vpk_n2);
 
+    // Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
+    let p2_generic = |rand: &BigInt,enc_arg: &BigInt,ct_exp: &BigInt|
+            BigInt::mod_mul(
+                &Paillier::encrypt_with_chosen_randomness(
+                    vpk.pk(),
+                    RawPlaintext::from(enc_arg),
+                    &Randomness::from(rand)).0.into_owned(),
+                &BigInt::mod_pow(&ch_ct, ct_exp, vpk_n2),
+                vpk_n2);
+
+
+    ////// For wit.m
+
     // u, v
     let u_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
-    let u_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.r_m),
-                &Randomness::from(&u_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct, &(&params.range - &wit.m), vpk_n2),
-            vpk_n2);
+    let u_m = p2_generic(&u_r_m, &cr.r_m, &(&params.range - &wit.m));
     let v_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
-    let v_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.sigma_m),
-                &Randomness::from(&v_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct, &-&cr.t_m, vpk_n2),
-            vpk_n2);
+    let v_m = p2_generic(&v_r_m, &cr.sigma_m, &-&cr.t_m);
 
     // u_i, v_i, i = 1, 2, 3
     let u1_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
-    let u1_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.r1_m),
-                &Randomness::from(&u1_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct, &cr.x1_m, vpk_n2),
-            vpk_n2);
+    let u1_m = p2_generic(&u1_r_m, &cr.r1_m, &cr.x1_m);
     let v1_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
-    let v1_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.sigma1_m),
-                &Randomness::from(&v1_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct, &cr.t1_m, vpk_n2),
-            vpk_n2);
+    let v1_m = p2_generic(&v1_r_m, &cr.sigma1_m, &cr.t1_m);
+
     let u2_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
-    let u2_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.r2_m),
-                &Randomness::from(&u2_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct, &cr.x2_m, vpk_n2),
-            vpk_n2);
+    let u2_m = p2_generic(&u2_r_m, &cr.r2_m, &cr.x2_m);
     let v2_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
-    let v2_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.sigma2_m),
-                &Randomness::from(&v2_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct, &cr.t2_m, vpk_n2),
-            vpk_n2);
+    let v2_m = p2_generic(&v2_r_m, &cr.sigma2_m, &cr.t2_m);
+
     let u3_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
-    let u3_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.r3_m),
-                &Randomness::from(&u3_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct, &cr.x3_m, vpk_n2),
-            vpk_n2);
+    let u3_m = p2_generic(&u3_r_m, &cr.r3_m, &cr.x3_m);
     let v3_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
-    let v3_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.sigma3_m),
-                &Randomness::from(&v3_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct, &cr.t3_m, vpk_n2),
-            vpk_n2);
+    let v3_m = p2_generic(&v3_r_m, &cr.sigma3_m, &cr.t3_m);
 
     // u4
     let u4_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
     let u4_m =
-        BigInt::mod_mul(
-            &Paillier::encrypt_with_chosen_randomness(
-                vpk.pk(),
-                RawPlaintext::from(&cr.tau_m),
-                &Randomness::from(&u4_r_m)).0.into_owned(),
-            &BigInt::mod_pow(&ch_ct,
-                             &(&cr.x1_m * &cr.t1_m +
-                               &cr.x2_m * &cr.t2_m +
-                               &cr.x3_m * &cr.t3_m -
-                               &BigInt::from(4) * (&params.range - &wit.m) * &cr.t_m),
-                             vpk_n2),
-            vpk_n2);
+        p2_generic(&u4_r_m, &cr.tau_m,
+                   &(&cr.x1_m * &cr.t1_m +
+                     &cr.x2_m * &cr.t2_m +
+                     &cr.x3_m * &cr.t3_m -
+                     &BigInt::from(4) * (&params.range - &wit.m) * &cr.t_m));
 
 
+    ////// For wit.r
 
-    unimplemented!()
+    // u, v
+    let u_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u_r = p2_generic(&u_r_r, &cr.r_r, &(&params.range - &wit.r));
+    let v_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v_r = p2_generic(&v_r_r, &cr.sigma_r, &-&cr.t_r);
+
+    // u_i, v_i, i = 1, 2, 3
+    let u1_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u1_r = p2_generic(&u1_r_r, &cr.r1_r, &cr.x1_r);
+    let v1_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v1_r = p2_generic(&v1_r_r, &cr.sigma1_r, &cr.t1_r);
+
+    let u2_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u2_r = p2_generic(&u2_r_r, &cr.r2_r, &cr.x2_r);
+    let v2_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v2_r = p2_generic(&v2_r_r, &cr.sigma2_r, &cr.t2_r);
+
+    let u3_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u3_r = p2_generic(&u3_r_r, &cr.r3_r, &cr.x3_r);
+    let v3_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v3_r = p2_generic(&v3_r_r, &cr.sigma3_r, &cr.t3_r);
+
+    // u4
+    let u4_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u4_r =
+        p2_generic(&u4_r_r, &cr.tau_r,
+                   &(&cr.x1_r * &cr.t1_r +
+                     &cr.x2_r * &cr.t2_r +
+                     &cr.x3_r * &cr.t3_r -
+                     &BigInt::from(4) * (&params.range - &wit.r) * &cr.t_r));
+
+    let resp1 =
+        DVRResp1 {
+            u_m, v_m, u1_m, v1_m, u2_m, v2_m, u3_m, v3_m, u4_m,
+            u_r, v_r, u1_r, v1_r, u2_r, v2_r, u3_r, v3_r, u4_r,
+        };
+    let resp1_rand =
+        DVRRespRand1 {
+            u_r_m, v_r_m, u1_r_m, v1_r_m, u2_r_m, v2_r_m, u3_r_m, v3_r_m, u4_r_m,
+            u_r_r, v_r_r, u1_r_r, v1_r_r, u2_r_r, v2_r_r, u3_r_r, v3_r_r, u4_r_r,
+        };
+    
+    (resp1,resp1_rand)
 }
 
 ////////////////////////////////////////////////////////////////////////////
