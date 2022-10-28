@@ -199,9 +199,9 @@ pub struct DVRComRand {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct DVRChallenge1(BigInt);
+pub struct DVRChallenge(BigInt);
 
-pub struct DVRResp1 {
+pub struct DVRResp {
     u_m: BigInt,
     v_m: BigInt,
     u1_m: BigInt,
@@ -223,7 +223,7 @@ pub struct DVRResp1 {
     u4_r: BigInt,
 }
 
-pub struct DVRRespRand1 {
+pub struct DVRRespRand {
     u_r_m: BigInt,
     v_r_m: BigInt,
     u1_r_m: BigInt,
@@ -389,18 +389,18 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit)
     (com, comrand)
 }
 
-pub fn verify1(params: &DVRParams) -> DVRChallenge1 {
+pub fn verify1(params: &DVRParams) -> DVRChallenge {
     let b = BigInt::sample(params.lambda() as usize);
-    DVRChallenge1(b)
+    DVRChallenge(b)
 }
 
 pub fn prove2(params: &DVRParams,
               vpk: &VPK,
               lang: &dv::DVLang,
               wit: &dv::DVWit,
-              ch1: &DVRChallenge1,
+              ch1: &DVRChallenge,
               cr: &DVRComRand,
-              query_ix: usize) -> (DVRResp1,DVRRespRand1) {
+              query_ix: usize) -> (DVRResp,DVRRespRand) {
 
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda() as usize) {
@@ -494,18 +494,172 @@ pub fn prove2(params: &DVRParams,
                      &BigInt::from(4) * (&params.range - &wit.r) * &cr.t_r));
 
     let resp1 =
-        DVRResp1 {
+        DVRResp {
             u_m, v_m, u1_m, v1_m, u2_m, v2_m, u3_m, v3_m, u4_m,
             u_r, v_r, u1_r, v1_r, u2_r, v2_r, u3_r, v3_r, u4_r,
         };
     let resp1_rand =
-        DVRRespRand1 {
+        DVRRespRand {
             u_r_m, v_r_m, u1_r_m, v1_r_m, u2_r_m, v2_r_m, u3_r_m, v3_r_m, u4_r_m,
             u_r_r, v_r_r, u1_r_r, v1_r_r, u2_r_r, v2_r_r, u3_r_r, v3_r_r, u4_r_r,
         };
-    
+
     (resp1,resp1_rand)
 }
+
+
+pub fn verify3(params: &DVRParams,
+               vsk: &VSK,
+               vpk: &VPK,
+               lang: &dv::DVLang,
+               inst: &dv::DVInst,
+               com: &DVRCom,
+               ch: &DVRChallenge,
+               resp: &DVRResp,
+               query_ix: usize) -> bool {
+
+    let mut ch_active_bits: Vec<usize> = vec![];
+    for i in 0..(params.lambda() as usize) {
+        if ch.0.test_bit(i) { ch_active_bits.push(i); }
+    }
+
+    let ch_raw: BigInt =
+        &vsk.chs()[(params.lambda() as usize) + query_ix] +
+        ch_active_bits.iter()
+        .map(|&i| &vsk.chs()[i])
+        .fold(BigInt::from(0), |acc,x| acc + x );
+
+    // λ 2^{4λ+Q} R + λ 2^{3λ+Q} R = λ 2^{3λ+Q} R (2^λ + 1)
+    let ui_range = &BigInt::from(params.lambda()) *
+                   &BigInt::pow(&BigInt::from(2),3 * params.lambda() + params.dv_params.crs_uses) *
+                   &params.range *
+                   &(&BigInt::pow(&BigInt::from(2),params.lambda()) + &BigInt::from(1));
+
+    let u_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u_m)).0.into_owned();
+    // Perform the _m checks
+    {
+        let v_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v_m)).0.into_owned();
+        let u1_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u1_m)).0.into_owned();
+        let v1_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v1_m)).0.into_owned();
+        let u2_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u2_m)).0.into_owned();
+        let v2_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v2_m)).0.into_owned();
+        let u3_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u3_m)).0.into_owned();
+        let v3_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v3_m)).0.into_owned();
+        let u4_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u4_m)).0.into_owned();
+
+        let eq1_lhs =
+            BigInt::mod_mul(
+                &com.beta_m,
+                &BigInt::mod_pow(
+                    &(&BigInt::mod_pow(&com.com_m,&BigInt::from(-1),&vpk.n) *
+                      &BigInt::mod_pow(&vpk.g,&params.range,&vpk.n)),
+                    &ch_raw,
+                    &vpk.n),
+                &vpk.n);
+        let eq1_rhs = pedersen_commit(&vpk, &u_m_plain, &v_m_plain);
+        if eq1_lhs != eq1_rhs { return false; }
+
+        let eq21_lhs = BigInt::mod_mul(&com.beta1_m,
+                                       &BigInt::mod_pow(&com.com_m,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq21_rhs = pedersen_commit(&vpk, &u1_m_plain, &v1_m_plain);
+        if eq21_lhs != eq21_rhs { return false; }
+
+        let eq22_lhs = BigInt::mod_mul(&com.beta2_m,
+                                       &BigInt::mod_pow(&com.com_m,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq22_rhs = pedersen_commit(&vpk, &u2_m_plain, &v2_m_plain);
+        if eq22_lhs != eq22_rhs { return false; }
+
+        let eq23_lhs = BigInt::mod_mul(&com.beta3_m,
+                                       &BigInt::mod_pow(&com.com_m,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq23_rhs = pedersen_commit(&vpk, &u3_m_plain, &v3_m_plain);
+        if eq23_lhs != eq23_rhs { return false; }
+
+        let eq3_lhs =
+            BigInt::mod_mul(
+                &com.beta4_m,
+                &([&BigInt::mod_pow(&com.com1_m,&u1_m_plain,&vpk.n),
+                   &BigInt::mod_pow(&com.com2_m,&u2_m_plain,&vpk.n),
+                   &BigInt::mod_pow(&com.com3_m,&u3_m_plain,&vpk.n),
+                ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n))),
+                &vpk.n);
+        let eq3_rhs = pedersen_commit(&vpk, &ch_raw, &u4_m_plain);
+        if eq3_lhs != eq3_rhs { return false; }
+
+        if !u::bigint_in_range_sym(&ui_range,&u1_m_plain) ||
+            !u::bigint_in_range_sym(&ui_range,&u2_m_plain) ||
+            !u::bigint_in_range_sym(&ui_range,&u3_m_plain) {
+                return false;
+            }
+    }
+
+    // Perform the _r checks
+    let u_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u_r)).0.into_owned();
+    {
+        let v_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v_r)).0.into_owned();
+        let u1_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u1_r)).0.into_owned();
+        let v1_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v1_r)).0.into_owned();
+        let u2_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u2_r)).0.into_owned();
+        let v2_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v2_r)).0.into_owned();
+        let u3_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u3_r)).0.into_owned();
+        let v3_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v3_r)).0.into_owned();
+        let u4_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u4_r)).0.into_owned();
+
+        let eq1_lhs =
+            BigInt::mod_mul(
+                &com.beta_r,
+                &BigInt::mod_pow(
+                    &(&BigInt::mod_pow(&com.com_r,&BigInt::from(-1),&vpk.n) *
+                      &BigInt::mod_pow(&vpk.g,&params.range,&vpk.n)),
+                    &ch_raw,
+                    &vpk.n),
+                &vpk.n);
+        let eq1_rhs = pedersen_commit(&vpk, &u_r_plain, &v_r_plain);
+        if eq1_lhs != eq1_rhs { return false; }
+
+        let eq21_lhs = BigInt::mod_mul(&com.beta1_r,
+                                       &BigInt::mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq21_rhs = pedersen_commit(&vpk, &u1_r_plain, &v1_r_plain);
+        if eq21_lhs != eq21_rhs { return false; }
+
+        let eq22_lhs = BigInt::mod_mul(&com.beta2_r,
+                                       &BigInt::mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq22_rhs = pedersen_commit(&vpk, &u2_r_plain, &v2_r_plain);
+        if eq22_lhs != eq22_rhs { return false; }
+
+        let eq23_lhs = BigInt::mod_mul(&com.beta3_r,
+                                       &BigInt::mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq23_rhs = pedersen_commit(&vpk, &u3_r_plain, &v3_r_plain);
+        if eq23_lhs != eq23_rhs { return false; }
+
+        let eq3_lhs =
+            BigInt::mod_mul(
+                &com.beta4_r,
+                &([&BigInt::mod_pow(&com.com1_r,&u1_r_plain,&vpk.n),
+                   &BigInt::mod_pow(&com.com2_r,&u2_r_plain,&vpk.n),
+                   &BigInt::mod_pow(&com.com3_r,&u3_r_plain,&vpk.n),
+                ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n))),
+                &vpk.n);
+        let eq3_rhs = pedersen_commit(&vpk, &ch_raw, &u4_r_plain);
+        if eq3_lhs != eq3_rhs { return false; }
+
+        if !u::bigint_in_range_sym(&ui_range,&u1_r_plain) ||
+            !u::bigint_in_range_sym(&ui_range,&u2_r_plain) ||
+            !u::bigint_in_range_sym(&ui_range,&u3_r_plain) {
+                return false;
+            }
+    }
+
+    // perform the alpha check
+
+    true
+}
+
 
 ////////////////////////////////////////////////////////////////////////////
 // Tests

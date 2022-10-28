@@ -14,8 +14,14 @@ pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
     return true;
 }
 
-pub fn bigint_sample_below_sym(b: &BigInt) -> BigInt {
-    BigInt::sample_below(b) - b / 2
+pub fn bigint_sample_below_sym(r: &BigInt) -> BigInt {
+    BigInt::sample_below(r) - r / 2
+}
+
+pub fn bigint_in_range_sym(r: &BigInt, x: &BigInt) -> bool {
+    let r2 = r / BigInt::from(2);
+    if x >= &r2 || x < &-&r2 { return false; }
+    true
 }
 
 /// Mod_pow but allowing exponents to be negative.
