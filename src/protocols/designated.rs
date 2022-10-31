@@ -300,12 +300,13 @@ pub fn sample_lang(params: &DVParams) -> DVLang {
     DVLang{pk}
 }
 
-pub fn sample_inst(lang: &DVLang) -> (DVInst,DVWit) {
+pub fn sample_inst(lang: &DVLang, range: Option<&BigInt>) -> (DVInst,DVWit) {
     // FIXME the bug is here! Even with fixed m/r being small,
     // the proof does not always verify. Sometimes.
     //let m = BigInt::from(5);
     //let r = BigInt::from(10);
-    let m = BigInt::sample_below(&lang.pk.n);
+    let m_range = range.unwrap_or(&lang.pk.n);
+    let m = BigInt::sample_below(m_range);
     let r = BigInt::sample_below(&lang.pk.n);
     let ct = pe::encrypt_with_randomness(&lang.pk,&m,&r);
     (DVInst{ct}, DVWit{m, r})
@@ -313,7 +314,7 @@ pub fn sample_inst(lang: &DVLang) -> (DVInst,DVWit) {
 
 pub fn sample_liw(params: &DVParams) -> (DVLang,DVInst,DVWit) {
     let lang = sample_lang(params);
-    let (inst,wit) = sample_inst(&lang);
+    let (inst,wit) = sample_inst(&lang,None);
     (lang,inst,wit)
 }
 

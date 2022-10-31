@@ -43,6 +43,13 @@ impl DVRParams {
     }
 }
 
+
+pub fn sample_liw(params: &DVRParams) -> (dv::DVLang,dv::DVInst,dv::DVWit) {
+    let lang = dv::sample_lang(&params.dv_params);
+    let (inst,wit) = dv::sample_inst(&lang,Some(&params.range));
+    (lang,inst,wit)
+}
+
 ////////////////////////////////////////////////////////////////////////////
 // Keygen
 ////////////////////////////////////////////////////////////////////////////
@@ -508,7 +515,7 @@ pub fn prove2(params: &DVRParams,
 }
 
 
-pub fn verify3(params: &DVRParams,
+pub fn verify2(params: &DVRParams,
                vsk: &VSK,
                vpk: &VPK,
                lang: &dv::DVLang,
@@ -716,6 +723,29 @@ mod tests {
                                  range: range };
 
         let (vpk,_vsk) = keygen(&params);
-        //assert!(verify_vpk(&params,&vpk));
+        assert!(verify_vpk(&params,&vpk));
     }
+
+    #[test]
+    fn test_correctness() {
+        let queries:usize = 5;
+        let range = BigInt::pow(&BigInt::from(2), 256);
+        let params = DVRParams { dv_params: dv::DVParams::new(256, 16, queries as u32, false, false),
+                                 range: range };
+
+        let (vpk,vsk) = keygen(&params);
+        assert!(verify_vpk(&params,&vpk));
+
+        for query_ix in 0..queries {
+            let (lang,inst,wit) = sample_liw(&params);
+
+            let (com,cr) = prove1(&params,&vpk,&lang,&wit);
+            let ch1 = verify1(&params);
+
+            let (resp1,resp1rand) = prove2(&params,&vpk,&lang,&wit,&ch1,&cr,query_ix);
+            assert!(verify2(&params,&vsk,&vpk,&lang,&inst,
+                            &com,&ch1,&resp1,query_ix));
+        }
+    }
+
 }
