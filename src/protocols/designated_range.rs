@@ -657,6 +657,43 @@ pub fn verify3(params: &DVRParams,
 
     // perform the alpha check
 
+    {
+        let pe::PECiphertext{ct1:rhs_1,ct2:rhs_2} =
+            pe::encrypt_with_randomness(&lang.pk, &u_m_plain, &u_r_plain);
+
+        // FIXME: what should be R for the randomness?...
+        // Currently it's 0 but it probably won't work
+        let pe::PECiphertext{ct1:psi_range_1,ct2:psi_range_2} =
+            pe::encrypt_with_randomness(&lang.pk, &params.range, &BigInt::from(0));
+
+        let lhs_1 =
+            BigInt::mod_mul(&com.alpha1,
+                            &BigInt::mod_pow(
+                                &BigInt::mod_mul(
+                                    &BigInt::mod_pow(&inst.ct.ct1,&BigInt::from(-1),&lang.pk.n2),
+                                    &psi_range_1,
+                                    &lang.pk.n2),
+                                &ch_raw,
+                                &lang.pk.n2),
+                            &lang.pk.n2);
+
+        if lhs_1 != rhs_1 { return false; }
+
+        let lhs_2 =
+            BigInt::mod_mul(&com.alpha2,
+                            &BigInt::mod_pow(
+                                &BigInt::mod_mul(
+                                    &BigInt::mod_pow(&inst.ct.ct2,&BigInt::from(-1),&lang.pk.n2),
+                                    &psi_range_2,
+                                    &lang.pk.n2),
+                                &ch_raw,
+                                &lang.pk.n2),
+                            &lang.pk.n2);
+
+        if lhs_2 != rhs_2 { return false; }
+
+    }
+
     true
 }
 
