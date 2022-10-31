@@ -170,7 +170,7 @@ pub fn three_squares_decompose_raw(n: &BigInt) -> Option<(BigInt, BigInt, BigInt
         return None;
     }
 
-    let d = BigInt::sqrt(n);
+    let d = BigInt::sqrt(n); // This fails sometimes? with "self.mpz._mp_size >= 0"
     if n_mod8 == BigInt::from(3) {
         let mut x: BigInt;
         let mut p: BigInt;

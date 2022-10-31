@@ -44,7 +44,6 @@ impl DVRParams {
         DVRParams{psi_n_bitlen, lambda, range, crs_uses, malicious_setup, ggm_mode}
     }
 
-
     /// Parameters for the Gen g/h NIZK proof.
     pub fn nizk_se_params(&self) -> se::ProofParams {
         let repbits = 15;
@@ -152,6 +151,13 @@ impl DVRParams {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DVRLang { pub pk: pe::PEPublicKey }
+
+impl DVRLang {
+    pub fn range_rand(&self) -> &BigInt {
+        &self.pk.n
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct DVRInst { pub ct: pe::PECiphertext }
 #[derive(Clone, Debug)]
@@ -315,13 +321,11 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
 
 pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
 
-    println!("tag 1");
     let res1 = n_gcd::verify(
         &params.nizk_gcd_params(),
         &n_gcd::Inst{ n: vpk.pk.n.clone() },
         &vpk.nizk_gcd);
     if !res1 { return false; }
-    println!("tag 2");
 
     for i in 0..(vpk.nizks_ct.len() as u32) {
         let batch_from = (i*params.lambda) as usize;
@@ -348,10 +352,8 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
 
         let res2 = spb::fs_verify(&params, &inst, &wit, &vpk.nizks_ct[i as usize]);
         if !res2 { return false; }
-        println!("tag 3");
     }
 
-    println!("tag 4");
     if !se::fs_verify(&params.nizk_se_params(),
                       &se::Lang{n: vpk.n.clone(), h: vpk.h.clone()},
                       &se::Inst{g: vpk.g.clone()},
@@ -517,7 +519,7 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     let sigma_m = u::bigint_sample_below_sym(&sigma_range);
     let beta_m = pedersen_commit(&vpk, &r_m, &sigma_m);
 
-    // Decompose 4 m (R - m) + 1
+    // Decompose 4 m (R - wit.m) + 1
     let decomp_target = &BigInt::from(4) * &wit.m * (&params.range - &wit.m) + &BigInt::from(1);
     let (x1_m,x2_m,x3_m) = super::squares_decomp::three_squares_decompose(&decomp_target);
 
@@ -564,8 +566,9 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     let sigma_r = u::bigint_sample_below_sym(&sigma_range);
     let beta_r = pedersen_commit(&vpk, &r_r, &sigma_r);
 
-    // Decompose 4 m (R - m) + 1
-    let decomp_target = &BigInt::from(4) * &wit.r * (&params.range - &wit.r) + &BigInt::from(1);
+    // Decompose 4 m (R_r - wit.r) + 1
+    let decomp_target = &BigInt::from(4) * &wit.r * (lang.range_rand() - &wit.r) + &BigInt::from(1);
+    println!("decomp target: {:?}", decomp_target);
     let (x1_r,x2_r,x3_r) = super::squares_decomp::three_squares_decompose(&decomp_target);
 
     // Compute commitments to xi
@@ -924,9 +927,9 @@ pub fn verify2(params: &DVRParams,
             pe::encrypt_with_randomness(&lang.pk, &u_m_plain, &u_r_plain);
 
         // FIXME: what should be R for the randomness?...
-        // Currently it's 0 but it probably won't work
+        // Currently it's N but it probably won't work
         let pe::PECiphertext{ct1:psi_range_1,ct2:psi_range_2} =
-            pe::encrypt_with_randomness(&lang.pk, &params.range, &BigInt::from(0));
+            pe::encrypt_with_randomness(&lang.pk, &params.range, lang.range_rand());
 
         let lhs_1 =
             BigInt::mod_mul(&com.alpha1,

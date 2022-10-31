@@ -151,7 +151,6 @@ pub fn verify2(params: &ProofParams,
     let n = &lang.n;
 
     for i in 0..params.reps {
-        println!("Verifying...");
         let lhs = BigInt::mod_mul(&BigInt::mod_pow(&inst.g, &ch.0[i], n), &com.0[i], n);
         let rhs = BigInt::mod_pow(&lang.h, &resp.0[i], n);
 
