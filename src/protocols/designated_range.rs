@@ -9,7 +9,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize};
 use rand::distributions::{Distribution, Uniform};
 
-use super::designated as dv;
 use super::utils as u;
 use super::schnorr_paillier_batched as spb;
 use super::n_gcd as n_gcd;
@@ -19,36 +18,164 @@ use super::schnorr_exp as se;
 
 #[derive(Clone, Debug)]
 pub struct DVRParams {
-    /// Internal DV Params
-    pub dv_params: dv::DVParams,
+    /// N of the prover (of the homomorphism psi), bit length
+    pub psi_n_bitlen: u32,
+    /// Security parameter
+    pub lambda: u32,
     /// Range we're proving
     pub range: BigInt,
+    /// The number of CRS reuses
+    pub crs_uses: u32,
+    /// Whether malicious setup (that introduces VPK proofs) is enabled
+    pub malicious_setup: bool,
+    /// Whether the GGM mode is enabled, which omits certain proof parts
+    pub ggm_mode: bool,
 }
 
 impl DVRParams {
+
+    pub fn new(psi_n_bitlen: u32,
+               lambda: u32,
+               range: BigInt,
+               crs_uses: u32,
+               malicious_setup: bool,
+               ggm_mode: bool
+               ) -> DVRParams {
+        DVRParams{psi_n_bitlen, lambda, range, crs_uses, malicious_setup, ggm_mode}
+    }
+
+
     /// Parameters for the Gen g/h NIZK proof.
     pub fn nizk_se_params(&self) -> se::ProofParams {
         let repbits = 15;
-        se::ProofParams::new(self.dv_params.n_bitlen,
-                             self.dv_params.lambda,
+        se::ProofParams::new(self.psi_n_bitlen,
+                             self.lambda,
                              repbits)
     }
-
-    pub fn lambda(&self) -> u32 { self.dv_params.lambda }
 
     /// Bit length of the third N, wrt which VPK.n is constructed.
     pub fn n_bitlen(&self) -> u32 {
         // @volhovm FIXME I don't know the real value. This is a stub.
-        self.dv_params.n_bitlen
+        self.psi_n_bitlen
     }
+
+
+    /// The size of honestly generated challenges (first λ).
+    fn ch_small_bitlen(&self) -> u32 { self.lambda }
+
+    /// The size of honestly generated challenges (λ+1 ... λ+Q) for Q number of queries.
+    fn ch_big_bitlen(&self) -> u32 { 2 * self.lambda + u::log2ceil(self.lambda) }
+
+    /// Maximum size of the summed-up challenge, real.
+    pub fn max_ch_bitlen(&self) -> u32 {
+        if self.crs_uses == 0 {
+            self.lambda + u::log2ceil(self.lambda)
+        } else {
+            2 * self.lambda + u::log2ceil(self.lambda) // FIXME, shouldn't it be a bit more?
+        }
+    }
+
+    /// Maximum size of the summed-up challenge
+    pub fn max_ch_proven_bitlen(&self) -> u32 {
+        let slack = if self.malicious_setup { self.range_slack_bitlen() } else { 0 };
+        if self.crs_uses == 0 {
+            // sum of lambda (small challenges with slack)
+            (self.ch_small_bitlen() + slack)
+                + u::log2ceil(self.lambda)
+        } else {
+            // a single big challenge with slack
+            self.ch_big_bitlen() + slack + 1
+        }
+    }
+
+    pub fn rand_m_bitlen(&self) -> u32 {
+        // r should be lambda bits more than c * w, where c is maximum
+        // sum-challenge according to what is known (in the trusted
+        // case) or proven by the batched protocol (in the malicious
+        // setup case).
+        self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+    }
+
+    pub fn rand_r_bitlen(&self) -> u32 {
+        // @volhovm FIXME: which randomness we use here depends on
+        // what randomness is used for Paillier on Prover's side. It
+        // can either be randomness from N or from N^2.
+
+        self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+        //2 * self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+    }
+
+    // M should be bigger than r + cw, but r should hide cw perfectly;
+    // so cw is always negligibly smaller than r. We could just take M
+    // to be n and achieve statistical completeness in this respect,
+    // but adding one extra bit will give us perfect completeness,
+    // because now r + cw < 2 r.
+    pub fn vpk_n_bitlen(&self) -> u32 {
+        // TODO: According to my calculations, it should be max(x,y)
+        // + 1, not +2. Maybe this has to do with the symmetric range.
+        // But the difference does not affect the performance anyway.
+        std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 2
+    }
+
+    /// Params for the first batch, for challenges of lambda bits.
+    pub fn nizk_ct_params_1(&self) -> spb::ProofParams {
+        spb::ProofParams::new(self.vpk_n_bitlen(),
+                              self.lambda,
+                              self.lambda,
+                              self.lambda)
+    }
+
+    /// Params for the second+ batches, for challenges of 2 * lambda +
+    /// log lambda bits.
+    pub fn nizk_ct_params_2(&self) -> spb::ProofParams {
+        spb::ProofParams::new(self.vpk_n_bitlen(),
+                              self.lambda,
+                              self.lambda,
+                              2 * self.lambda + u::log2ceil(self.lambda))
+    }
+
+    /// Parameters for the GCD NIZK proof.
+    pub fn nizk_gcd_params(&self) -> n_gcd::ProofParams {
+        n_gcd::ProofParams{ n_bitlen: self.psi_n_bitlen as usize,
+                            lambda: self.lambda,
+                            pmax: 10000 }
+    }
+
+    /// Range slack of the batched range proof.
+    pub fn range_slack_bitlen(&self) -> u32 {
+        2 * self.lambda + u::log2ceil(self.lambda) - 1
+    }
+
+
 }
 
 
-pub fn sample_liw(params: &DVRParams) -> (dv::DVLang,dv::DVInst,dv::DVWit) {
-    let lang = dv::sample_lang(&params.dv_params);
-    let (inst,wit) = dv::sample_inst(&lang,Some(&params.range));
+#[derive(Clone, Debug, Serialize)]
+pub struct DVRLang { pub pk: pe::PEPublicKey }
+#[derive(Clone, Debug, Serialize)]
+pub struct DVRInst { pub ct: pe::PECiphertext }
+#[derive(Clone, Debug)]
+pub struct DVRWit { pub m: BigInt, pub r: BigInt }
+
+
+pub fn sample_lang(params: &DVRParams) -> DVRLang {
+    let (pk,_sk) = pe::keygen(params.psi_n_bitlen as usize);
+    DVRLang{pk}
+}
+
+pub fn sample_inst(params: &DVRParams, lang: &DVRLang) -> (DVRInst,DVRWit) {
+    let m = BigInt::sample_below(&params.range);
+    let r = BigInt::sample_below(&lang.pk.n);
+    let ct = pe::encrypt_with_randomness(&lang.pk,&m,&r);
+    (DVRInst{ct}, DVRWit{m, r})
+}
+
+pub fn sample_liw(params: &DVRParams) -> (DVRLang,DVRInst,DVRWit) {
+    let lang = sample_lang(params);
+    let (inst,wit) = sample_inst(params,&lang);
     (lang,inst,wit)
 }
+
 
 ////////////////////////////////////////////////////////////////////////////
 // Keygen
@@ -57,8 +184,11 @@ pub fn sample_liw(params: &DVRParams) -> (dv::DVLang,dv::DVInst,dv::DVWit) {
 
 #[derive(Clone, Debug)]
 pub struct VSK {
-    /// Internal DV VSK
-    pub dv_vsk: dv::VSK,
+    /// Verifier's Paillier secret key
+    pub sk: DecryptionKey,
+    /// Original challenge values
+    pub chs: Vec<BigInt>,
+
 
     /// First factor of the VPK.n
     pub p: BigInt,
@@ -68,15 +198,13 @@ pub struct VSK {
     pub f: BigInt,
 }
 
-impl VSK {
-    pub fn sk(&self) -> &DecryptionKey { &self.dv_vsk.sk }
-    pub fn chs(&self) -> &Vec<BigInt> { &self.dv_vsk.chs }
-}
 
 #[derive(Clone, Debug)]
 pub struct VPK {
-    /// Internal DV VPK
-    pub dv_vpk: dv::VPK,
+    /// Verifier's Paillier public key
+    pub pk: EncryptionKey,
+    /// Challenges, encrypted under Verifier's key
+    pub cts: Vec<BigInt>,
 
     /// An RSA modulus used for h/g
     pub n: BigInt,
@@ -84,56 +212,152 @@ pub struct VPK {
     pub g: BigInt,
     /// Second generator w.r.t. N, h = g^f mod N, where f is secret.
     pub h: BigInt,
+
+    /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
+    pub nizk_gcd: n_gcd::Proof,
+    /// Proofs of correctness+range of cts.
+    pub nizks_ct: Vec<spb::FSProof>,
     /// Schnorr proof of g/h
     pub nizk_gen: se::FSProof,
 }
 
-impl VPK {
-    pub fn pk(&self) -> &EncryptionKey { &self.dv_vpk.pk }
-    pub fn cts(&self) -> &Vec<BigInt> { &self.dv_vpk.cts }
-    pub fn nizk_gcd(&self) -> &n_gcd::Proof { &self.dv_vpk.nizk_gcd }
-    pub fn nizks_ct(&self) -> &Vec<spb::FSProof> { &self.dv_vpk.nizks_ct }
-}
-
 
 pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
-    let (dv_vpk, dv_vsk) = dv::keygen(&params.dv_params);
-
     let (pk,sk) =
-        Paillier::keypair_with_modulus_size(params.n_bitlen() as usize).keys();
+        Paillier::keypair_with_modulus_size(params.vpk_n_bitlen() as usize).keys();
 
-    let n = pk.n;
-    let p = sk.p;
-    let q = sk.q;
+    let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen());
+    let ch_range_2 = BigInt::pow(&BigInt::from(2), params.ch_big_bitlen());
+    let mut chs: Vec<BigInt> = vec![];
+    for _i in 0..params.lambda {
+        chs.push(u::bigint_sample_below_sym(&ch_range_1)); }
+    for _i in 0..params.crs_uses {
+        chs.push(u::bigint_sample_below_sym(&ch_range_2)); }
+
+    let rs: Vec<BigInt> =
+        (0..(params.lambda + params.crs_uses))
+        .map(|_| BigInt::sample_below(&pk.n))
+        .collect();
+
+    let cts: Vec<BigInt> =
+        chs.iter().zip(rs.iter()).map(|(ch,r)|
+            Paillier::encrypt_with_chosen_randomness(
+                &pk,
+                RawPlaintext::from(ch),
+                &Randomness::from(r)).0.into_owned())
+        .collect();
+
+    let lang = spb::Lang{pk:pk.clone()};
+
+    let nizk_gcd: n_gcd::Proof =
+        n_gcd::prove(
+            &params.nizk_gcd_params(),
+            &n_gcd::Inst{ n: pk.n.clone() },
+            &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
+            );
+
+    let mut nizks_ct: Vec<spb::FSProof> = vec![];
+    let nizk_batches =
+            if params.crs_uses == 0 { 1 }
+            else { 2 + (params.crs_uses - 1) / params.lambda };
+
+    for i in 0..nizk_batches {
+        let batch_from = (i*params.lambda) as usize;
+        let batch_to = std::cmp::min((i+1)*params.lambda,
+                                     params.lambda + params.crs_uses) as usize;
+        let mut cts_inst = (&cts[batch_from..batch_to]).to_vec();
+        let mut ms_wit = (&chs[batch_from..batch_to]).to_vec();
+        let mut rs_wit = (&rs[batch_from..batch_to]).to_vec();
+
+        let pad_last_batch = params.crs_uses > 0 && i == nizk_batches - 1;
+        if pad_last_batch {
+            for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
+                ms_wit.push(BigInt::from(0));
+                rs_wit.push(BigInt::from(1));
+                cts_inst.push(Paillier::encrypt_with_chosen_randomness(
+                    &pk,
+                    RawPlaintext::from(BigInt::from(0)),
+                    &Randomness::from(BigInt::from(1))).0.into_owned());
+            }
+        }
+
+        let params = if i == 0 { params.nizk_ct_params_1() }
+                     else { params.nizk_ct_params_2() };
+        let inst = spb::Inst{cts: cts_inst};
+        let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
+
+        nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
+    }
+
+
+    let (pk_,sk_) =
+        Paillier::keypair_with_modulus_size(params.n_bitlen() as usize).keys();
+    let n = pk_.n.clone();
+    let p = sk_.p.clone();
+    let q = sk_.q.clone();
+
     // FIXME: not sure g in Z_N or in Z_{N^2}
     let h = BigInt::sample_below(&n);
     let phi = (&p-1) * (&q-1);
     let f = BigInt::sample_below(&phi);
-    let g = BigInt::mod_pow(&h, &f, &n);
+    let g = u::bigint_mod_pow(&h, &f, &n);
     let nizk_gen = se::fs_prove(
         &params.nizk_se_params(),
         &se::Lang{n: n.clone(), h: h.clone()},
         &se::Inst{g: g.clone()},
         &se::Wit{x: f.clone()});
 
-    //if !se::fs_verify(&params.nizk_se_params(),
-    //                  &se::Lang{n: n.clone(), h: h.clone()},
-    //                  &se::Inst{g: g.clone()},
-    //                  &se::VerifierPrecomp(None),
-    //                  &nizk_gen) { panic!("DVRange keygen"); }
-
-    let vsk = VSK{dv_vsk, f, p, q};
-    let vpk = VPK{dv_vpk, n, g, h, nizk_gen};
+    let vsk = VSK{f, p, q, sk, chs};
+    let vpk = VPK{n, g, h, nizk_gen, pk, cts, nizk_gcd, nizks_ct};
     (vpk,vsk)
 }
 
+
 pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
-    if !dv::verify_vpk(&params.dv_params, &vpk.dv_vpk) { return false; }
+
+    println!("tag 1");
+    let res1 = n_gcd::verify(
+        &params.nizk_gcd_params(),
+        &n_gcd::Inst{ n: vpk.pk.n.clone() },
+        &vpk.nizk_gcd);
+    if !res1 { return false; }
+    println!("tag 2");
+
+    for i in 0..(vpk.nizks_ct.len() as u32) {
+        let batch_from = (i*params.lambda) as usize;
+        let batch_to = std::cmp::min((i+1)*params.lambda,
+                                     params.lambda + params.crs_uses) as usize;
+
+        let mut cts_w = (&vpk.cts[batch_from..batch_to]).to_vec();
+
+        let pad_last_batch = params.crs_uses > 0 && i == (vpk.nizks_ct.len() as u32) - 1;
+        if pad_last_batch {
+            for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
+                cts_w.push(Paillier::encrypt_with_chosen_randomness(
+                    &vpk.pk,
+                    RawPlaintext::from(BigInt::from(0)),
+                    &Randomness::from(BigInt::from(1))).0.into_owned());
+            }
+        }
+
+        let params =
+            if i == 0 { params.nizk_ct_params_1() }
+            else { params.nizk_ct_params_2() };
+        let inst = spb::Lang{ pk: vpk.pk.clone() };
+        let wit = spb::Inst{ cts: cts_w };
+
+        let res2 = spb::fs_verify(&params, &inst, &wit, &vpk.nizks_ct[i as usize]);
+        if !res2 { return false; }
+        println!("tag 3");
+    }
+
+    println!("tag 4");
     if !se::fs_verify(&params.nizk_se_params(),
                       &se::Lang{n: vpk.n.clone(), h: vpk.h.clone()},
                       &se::Inst{g: vpk.g.clone()},
                       &se::VerifierPrecomp(None),
                       &vpk.nizk_gen) { return false; }
+
     true
 }
 
@@ -254,28 +478,28 @@ pub struct DVRRespRand {
 
 
 
-pub fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
+fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
     // FIXME over Z_N, right? Or Z_N^2?
     BigInt::mod_mul(
-        &BigInt::mod_pow(&vpk.g, msg, &vpk.n),
-        &BigInt::mod_pow(&vpk.h, r, &vpk.n),
+        &u::bigint_mod_pow(&vpk.g, msg, &vpk.n),
+        &u::bigint_mod_pow(&vpk.h, r, &vpk.n),
         &vpk.n)
 }
 
 
-pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit) -> (DVRCom,DVRComRand) {
+pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (DVRCom,DVRComRand) {
     // FIXME: these ranges are taken from the basic protocol, figure 3,
     // that does not consider reusable CRS. With reusable CRS the ranges will become bigger.
 
     // 2^{λ-1}N
-    let t_range = &BigInt::pow(&BigInt::from(2),params.dv_params.lambda - 1) * &vpk.n;
+    let t_range = &BigInt::pow(&BigInt::from(2),params.lambda - 1) * &vpk.n;
     // λ 2^{4λ+Q} R
-    let r_range = &BigInt::from(params.lambda()) *
-                  &BigInt::pow(&BigInt::from(2),4 * params.lambda() + params.dv_params.crs_uses) *
+    let r_range = &BigInt::from(params.lambda) *
+                  &BigInt::pow(&BigInt::from(2),4 * params.lambda + params.crs_uses) *
                   &params.range;
     // λ 2^{5λ+Q - 1} N
-    let sigma_range = &BigInt::from(params.lambda()) *
-                      &BigInt::pow(&BigInt::from(2),5 * params.lambda() + params.dv_params.crs_uses - 1) *
+    let sigma_range = &BigInt::from(params.lambda) *
+                      &BigInt::pow(&BigInt::from(2),5 * params.lambda + params.crs_uses - 1) *
                       &vpk.n;
     // λ 2^{5λ+Q - 1} N (3 sqrt(R) + 4 R)
     // TODO: this sqrt is floored, should we ceil?
@@ -319,11 +543,11 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit)
     // Compute tau/beta_4
     let tau_m = u::bigint_sample_below_sym(&tau_range);
     let beta4_m_args: [&BigInt;5] =
-        [&BigInt::mod_pow(&vpk.h,&tau_m,&vpk.n),
-         &BigInt::mod_pow(&com_m,&(&BigInt::from(4)*&r_m),&vpk.n),
-         &BigInt::mod_pow(&com1_m,&-&r1_m,&vpk.n),
-         &BigInt::mod_pow(&com2_m,&-&r2_m,&vpk.n),
-         &BigInt::mod_pow(&com3_m,&-&r3_m,&vpk.n)
+        [&u::bigint_mod_pow(&vpk.h,&tau_m,&vpk.n),
+         &u::bigint_mod_pow(&com_m,&(&BigInt::from(4)*&r_m),&vpk.n),
+         &u::bigint_mod_pow(&com1_m,&-&r1_m,&vpk.n),
+         &u::bigint_mod_pow(&com2_m,&-&r2_m,&vpk.n),
+         &u::bigint_mod_pow(&com3_m,&-&r3_m,&vpk.n)
         ];
     let beta4_m: BigInt =
         beta4_m_args.iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n));
@@ -366,11 +590,11 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit)
     // Compute tau/beta_4
     let tau_r = u::bigint_sample_below_sym(&tau_range);
     let beta4_r_args: [&BigInt;5] =
-        [&BigInt::mod_pow(&vpk.h,&tau_r,&vpk.n),
-         &BigInt::mod_pow(&com_r,&(&BigInt::from(4)*&r_r),&vpk.n),
-         &BigInt::mod_pow(&com1_r,&-&r1_r,&vpk.n),
-         &BigInt::mod_pow(&com2_r,&-&r2_r,&vpk.n),
-         &BigInt::mod_pow(&com3_r,&-&r3_r,&vpk.n)
+        [&u::bigint_mod_pow(&vpk.h,&tau_r,&vpk.n),
+         &u::bigint_mod_pow(&com_r,&(&BigInt::from(4)*&r_r),&vpk.n),
+         &u::bigint_mod_pow(&com1_r,&-&r1_r,&vpk.n),
+         &u::bigint_mod_pow(&com2_r,&-&r2_r,&vpk.n),
+         &u::bigint_mod_pow(&com3_r,&-&r3_r,&vpk.n)
         ];
     let beta4_r: BigInt =
             beta4_r_args.iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n));
@@ -397,28 +621,28 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &dv::DVLang, wit: &dv::DVWit)
 }
 
 pub fn verify1(params: &DVRParams) -> DVRChallenge {
-    let b = BigInt::sample(params.lambda() as usize);
+    let b = BigInt::sample(params.lambda as usize);
     DVRChallenge(b)
 }
 
 pub fn prove2(params: &DVRParams,
               vpk: &VPK,
-              lang: &dv::DVLang,
-              wit: &dv::DVWit,
+              lang: &DVRLang,
+              wit: &DVRWit,
               ch1: &DVRChallenge,
               cr: &DVRComRand,
               query_ix: usize) -> (DVRResp,DVRRespRand) {
 
     let mut ch1_active_bits: Vec<usize> = vec![];
-    for i in 0..(params.lambda() as usize) {
+    for i in 0..(params.lambda as usize) {
         if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
     }
 
-    let vpk_n2: &BigInt = &vpk.pk().nn;
+    let vpk_n2: &BigInt = &vpk.pk.nn;
     let ch_ct =
-        BigInt::mod_mul(&vpk.cts()[(params.lambda() as usize) + query_ix],
+        BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
                         &ch1_active_bits.iter()
-                          .map(|&i| &vpk.cts()[i])
+                          .map(|&i| &vpk.cts[i])
                           .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_n2)),
                         vpk_n2);
 
@@ -426,39 +650,39 @@ pub fn prove2(params: &DVRParams,
     let p2_generic = |rand: &BigInt,enc_arg: &BigInt,ct_exp: &BigInt|
             BigInt::mod_mul(
                 &Paillier::encrypt_with_chosen_randomness(
-                    vpk.pk(),
+                    &vpk.pk,
                     RawPlaintext::from(enc_arg),
                     &Randomness::from(rand)).0.into_owned(),
-                &BigInt::mod_pow(&ch_ct, ct_exp, vpk_n2),
+                &u::bigint_mod_pow(&ch_ct, ct_exp, vpk_n2),
                 vpk_n2);
 
 
     ////// For wit.m
 
     // u, v
-    let u_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u_m = p2_generic(&u_r_m, &cr.r_m, &(&params.range - &wit.m));
-    let v_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let v_m = p2_generic(&v_r_m, &cr.sigma_m, &-&cr.t_m);
 
     // u_i, v_i, i = 1, 2, 3
-    let u1_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u1_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u1_m = p2_generic(&u1_r_m, &cr.r1_m, &cr.x1_m);
-    let v1_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v1_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let v1_m = p2_generic(&v1_r_m, &cr.sigma1_m, &cr.t1_m);
 
-    let u2_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u2_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u2_m = p2_generic(&u2_r_m, &cr.r2_m, &cr.x2_m);
-    let v2_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v2_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let v2_m = p2_generic(&v2_r_m, &cr.sigma2_m, &cr.t2_m);
 
-    let u3_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u3_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u3_m = p2_generic(&u3_r_m, &cr.r3_m, &cr.x3_m);
-    let v3_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v3_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let v3_m = p2_generic(&v3_r_m, &cr.sigma3_m, &cr.t3_m);
 
     // u4
-    let u4_r_m = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u4_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u4_m =
         p2_generic(&u4_r_m, &cr.tau_m,
                    &(&cr.x1_m * &cr.t1_m +
@@ -470,29 +694,29 @@ pub fn prove2(params: &DVRParams,
     ////// For wit.r
 
     // u, v
-    let u_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u_r = p2_generic(&u_r_r, &cr.r_r, &(&params.range - &wit.r));
-    let v_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let v_r = p2_generic(&v_r_r, &cr.sigma_r, &-&cr.t_r);
 
     // u_i, v_i, i = 1, 2, 3
-    let u1_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u1_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u1_r = p2_generic(&u1_r_r, &cr.r1_r, &cr.x1_r);
-    let v1_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v1_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let v1_r = p2_generic(&v1_r_r, &cr.sigma1_r, &cr.t1_r);
 
-    let u2_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u2_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u2_r = p2_generic(&u2_r_r, &cr.r2_r, &cr.x2_r);
-    let v2_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v2_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let v2_r = p2_generic(&v2_r_r, &cr.sigma2_r, &cr.t2_r);
 
-    let u3_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u3_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u3_r = p2_generic(&u3_r_r, &cr.r3_r, &cr.x3_r);
-    let v3_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let v3_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let v3_r = p2_generic(&v3_r_r, &cr.sigma3_r, &cr.t3_r);
 
     // u4
-    let u4_r_r = BigInt::sample(params.dv_params.vpk_n_bitlen() as usize);
+    let u4_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u4_r =
         p2_generic(&u4_r_r, &cr.tau_r,
                    &(&cr.x1_r * &cr.t1_r +
@@ -518,148 +742,179 @@ pub fn prove2(params: &DVRParams,
 pub fn verify2(params: &DVRParams,
                vsk: &VSK,
                vpk: &VPK,
-               lang: &dv::DVLang,
-               inst: &dv::DVInst,
+               lang: &DVRLang,
+               inst: &DVRInst,
                com: &DVRCom,
                ch: &DVRChallenge,
                resp: &DVRResp,
                query_ix: usize) -> bool {
 
     let mut ch_active_bits: Vec<usize> = vec![];
-    for i in 0..(params.lambda() as usize) {
+    for i in 0..(params.lambda as usize) {
         if ch.0.test_bit(i) { ch_active_bits.push(i); }
     }
 
     let ch_raw: BigInt =
-        &vsk.chs()[(params.lambda() as usize) + query_ix] +
+        &vsk.chs[(params.lambda as usize) + query_ix] +
         ch_active_bits.iter()
-        .map(|&i| &vsk.chs()[i])
+        .map(|&i| &vsk.chs[i])
         .fold(BigInt::from(0), |acc,x| acc + x );
 
     // λ 2^{4λ+Q} R + λ 2^{3λ+Q} R = λ 2^{3λ+Q} R (2^λ + 1)
-    let ui_range = &BigInt::from(params.lambda()) *
-                   &BigInt::pow(&BigInt::from(2),3 * params.lambda() + params.dv_params.crs_uses) *
+    let ui_range = &BigInt::from(params.lambda) *
+                   &BigInt::pow(&BigInt::from(2),3 * params.lambda + params.crs_uses) *
                    &params.range *
-                   &(&BigInt::pow(&BigInt::from(2),params.lambda()) + &BigInt::from(1));
+                   &(&BigInt::pow(&BigInt::from(2),params.lambda) + &BigInt::from(1));
 
-    let u_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u_m)).0.into_owned();
+    let u_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u_m)).0.into_owned();
+
     // Perform the _m checks
     {
-        let v_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v_m)).0.into_owned();
-        let u1_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u1_m)).0.into_owned();
-        let v1_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v1_m)).0.into_owned();
-        let u2_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u2_m)).0.into_owned();
-        let v2_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v2_m)).0.into_owned();
-        let u3_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u3_m)).0.into_owned();
-        let v3_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v3_m)).0.into_owned();
-        let u4_m_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u4_m)).0.into_owned();
-
-        let eq1_lhs =
-            BigInt::mod_mul(
-                &com.beta_m,
-                &BigInt::mod_pow(
-                    &(&BigInt::mod_pow(&com.com_m,&BigInt::from(-1),&vpk.n) *
-                      &BigInt::mod_pow(&vpk.g,&params.range,&vpk.n)),
-                    &ch_raw,
-                    &vpk.n),
-                &vpk.n);
-        let eq1_rhs = pedersen_commit(&vpk, &u_m_plain, &v_m_plain);
-        if eq1_lhs != eq1_rhs { return false; }
-
-        let eq21_lhs = BigInt::mod_mul(&com.beta1_m,
-                                       &BigInt::mod_pow(&com.com_m,&ch_raw,&vpk.n),
-                                       &vpk.n);
-        let eq21_rhs = pedersen_commit(&vpk, &u1_m_plain, &v1_m_plain);
-        if eq21_lhs != eq21_rhs { return false; }
-
-        let eq22_lhs = BigInt::mod_mul(&com.beta2_m,
-                                       &BigInt::mod_pow(&com.com_m,&ch_raw,&vpk.n),
-                                       &vpk.n);
-        let eq22_rhs = pedersen_commit(&vpk, &u2_m_plain, &v2_m_plain);
-        if eq22_lhs != eq22_rhs { return false; }
-
-        let eq23_lhs = BigInt::mod_mul(&com.beta3_m,
-                                       &BigInt::mod_pow(&com.com_m,&ch_raw,&vpk.n),
-                                       &vpk.n);
-        let eq23_rhs = pedersen_commit(&vpk, &u3_m_plain, &v3_m_plain);
-        if eq23_lhs != eq23_rhs { return false; }
-
-        let eq3_lhs =
-            BigInt::mod_mul(
-                &com.beta4_m,
-                &([&BigInt::mod_pow(&com.com1_m,&u1_m_plain,&vpk.n),
-                   &BigInt::mod_pow(&com.com2_m,&u2_m_plain,&vpk.n),
-                   &BigInt::mod_pow(&com.com3_m,&u3_m_plain,&vpk.n),
-                ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n))),
-                &vpk.n);
-        let eq3_rhs = pedersen_commit(&vpk, &ch_raw, &u4_m_plain);
-        if eq3_lhs != eq3_rhs { return false; }
+        let v_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v_m)).0.into_owned();
+        let u1_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u1_m)).0.into_owned();
+        let v1_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v1_m)).0.into_owned();
+        let u2_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u2_m)).0.into_owned();
+        let v2_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v2_m)).0.into_owned();
+        let u3_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u3_m)).0.into_owned();
+        let v3_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v3_m)).0.into_owned();
+        let u4_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u4_m)).0.into_owned();
 
         if !u::bigint_in_range_sym(&ui_range,&u1_m_plain) ||
             !u::bigint_in_range_sym(&ui_range,&u2_m_plain) ||
             !u::bigint_in_range_sym(&ui_range,&u3_m_plain) {
+                println!("DVRange#verify2: range check 1 failed");
                 return false;
             }
-    }
-
-    // Perform the _r checks
-    let u_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u_r)).0.into_owned();
-    {
-        let v_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v_r)).0.into_owned();
-        let u1_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u1_r)).0.into_owned();
-        let v1_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v1_r)).0.into_owned();
-        let u2_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u2_r)).0.into_owned();
-        let v2_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v2_r)).0.into_owned();
-        let u3_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u3_r)).0.into_owned();
-        let v3_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.v3_r)).0.into_owned();
-        let u4_r_plain = Paillier::decrypt(vsk.sk(),RawCiphertext::from(&resp.u4_r)).0.into_owned();
 
         let eq1_lhs =
             BigInt::mod_mul(
-                &com.beta_r,
-                &BigInt::mod_pow(
-                    &(&BigInt::mod_pow(&com.com_r,&BigInt::from(-1),&vpk.n) *
-                      &BigInt::mod_pow(&vpk.g,&params.range,&vpk.n)),
+                &com.beta_m,
+                &u::bigint_mod_pow(
+                    &(&BigInt::mod_inv(&com.com_m,&vpk.n).unwrap() *
+                      &u::bigint_mod_pow(&vpk.g,&params.range,&vpk.n)),
                     &ch_raw,
                     &vpk.n),
                 &vpk.n);
-        let eq1_rhs = pedersen_commit(&vpk, &u_r_plain, &v_r_plain);
-        if eq1_lhs != eq1_rhs { return false; }
+        let eq1_rhs = pedersen_commit(&vpk, &u_m_plain, &v_m_plain);
+        if eq1_lhs != eq1_rhs {
+            println!("DVRange#verify2: 1 eq1");
+            return false;
+        }
 
-        let eq21_lhs = BigInt::mod_mul(&com.beta1_r,
-                                       &BigInt::mod_pow(&com.com_r,&ch_raw,&vpk.n),
+        let eq21_lhs = BigInt::mod_mul(&com.beta1_m,
+                                       &u::bigint_mod_pow(&com.com_m,&ch_raw,&vpk.n),
                                        &vpk.n);
-        let eq21_rhs = pedersen_commit(&vpk, &u1_r_plain, &v1_r_plain);
-        if eq21_lhs != eq21_rhs { return false; }
+        let eq21_rhs = pedersen_commit(&vpk, &u1_m_plain, &v1_m_plain);
+        if eq21_lhs != eq21_rhs {
+            println!("DVRange#verify2: 1 eq21");
+            return false;
+        }
 
-        let eq22_lhs = BigInt::mod_mul(&com.beta2_r,
-                                       &BigInt::mod_pow(&com.com_r,&ch_raw,&vpk.n),
+        let eq22_lhs = BigInt::mod_mul(&com.beta2_m,
+                                       &u::bigint_mod_pow(&com.com_m,&ch_raw,&vpk.n),
                                        &vpk.n);
-        let eq22_rhs = pedersen_commit(&vpk, &u2_r_plain, &v2_r_plain);
-        if eq22_lhs != eq22_rhs { return false; }
+        let eq22_rhs = pedersen_commit(&vpk, &u2_m_plain, &v2_m_plain);
+        if eq22_lhs != eq22_rhs {
+            println!("DVRange#verify2: 1 eq22");
+            return false;
+        }
 
-        let eq23_lhs = BigInt::mod_mul(&com.beta3_r,
-                                       &BigInt::mod_pow(&com.com_r,&ch_raw,&vpk.n),
+        let eq23_lhs = BigInt::mod_mul(&com.beta3_m,
+                                       &u::bigint_mod_pow(&com.com_m,&ch_raw,&vpk.n),
                                        &vpk.n);
-        let eq23_rhs = pedersen_commit(&vpk, &u3_r_plain, &v3_r_plain);
-        if eq23_lhs != eq23_rhs { return false; }
+        let eq23_rhs = pedersen_commit(&vpk, &u3_m_plain, &v3_m_plain);
+        if eq23_lhs != eq23_rhs {
+            println!("DVRange#verify2: 1 eq23");
+            return false;
+        }
 
         let eq3_lhs =
             BigInt::mod_mul(
-                &com.beta4_r,
-                &([&BigInt::mod_pow(&com.com1_r,&u1_r_plain,&vpk.n),
-                   &BigInt::mod_pow(&com.com2_r,&u2_r_plain,&vpk.n),
-                   &BigInt::mod_pow(&com.com3_r,&u3_r_plain,&vpk.n),
+                &com.beta4_m,
+                &([&u::bigint_mod_pow(&com.com1_m,&u1_m_plain,&vpk.n),
+                   &u::bigint_mod_pow(&com.com2_m,&u2_m_plain,&vpk.n),
+                   &u::bigint_mod_pow(&com.com3_m,&u3_m_plain,&vpk.n),
                 ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n))),
                 &vpk.n);
-        let eq3_rhs = pedersen_commit(&vpk, &ch_raw, &u4_r_plain);
-        if eq3_lhs != eq3_rhs { return false; }
+        let eq3_rhs = pedersen_commit(&vpk, &ch_raw, &u4_m_plain);
+        if eq3_lhs != eq3_rhs {
+            println!("DVRange#verify2: 1 eq3");
+            return false;
+        }
+
+    }
+
+    // Perform the _r checks
+    let u_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u_r)).0.into_owned();
+    {
+        let v_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v_r)).0.into_owned();
+        let u1_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u1_r)).0.into_owned();
+        let v1_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v1_r)).0.into_owned();
+        let u2_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u2_r)).0.into_owned();
+        let v2_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v2_r)).0.into_owned();
+        let u3_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u3_r)).0.into_owned();
+        let v3_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v3_r)).0.into_owned();
+        let u4_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u4_r)).0.into_owned();
+
 
         if !u::bigint_in_range_sym(&ui_range,&u1_r_plain) ||
             !u::bigint_in_range_sym(&ui_range,&u2_r_plain) ||
             !u::bigint_in_range_sym(&ui_range,&u3_r_plain) {
+                println!("DVRange#verify2: range check 2 failed");
                 return false;
             }
+
+        let eq1_lhs =
+            BigInt::mod_mul(
+                &com.beta_r,
+                &u::bigint_mod_pow(
+                    &(&BigInt::mod_inv(&com.com_r,&vpk.n).unwrap() *
+                      &u::bigint_mod_pow(&vpk.g,&params.range,&vpk.n)),
+                    &ch_raw,
+                    &vpk.n),
+                &vpk.n);
+        let eq1_rhs = pedersen_commit(&vpk, &u_r_plain, &v_r_plain);
+        if eq1_lhs != eq1_rhs {
+            println!("DVRange#verify2: 2 eq1");
+            return false; }
+
+        let eq21_lhs = BigInt::mod_mul(&com.beta1_r,
+                                       &u::bigint_mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq21_rhs = pedersen_commit(&vpk, &u1_r_plain, &v1_r_plain);
+        if eq21_lhs != eq21_rhs {
+            println!("DVRange#verify2: 2 eq21");
+            return false; }
+
+        let eq22_lhs = BigInt::mod_mul(&com.beta2_r,
+                                       &u::bigint_mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq22_rhs = pedersen_commit(&vpk, &u2_r_plain, &v2_r_plain);
+        if eq22_lhs != eq22_rhs {
+            println!("DVRange#verify2: 2 eq22");
+            return false; }
+
+        let eq23_lhs = BigInt::mod_mul(&com.beta3_r,
+                                       &u::bigint_mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &vpk.n);
+        let eq23_rhs = pedersen_commit(&vpk, &u3_r_plain, &v3_r_plain);
+        if eq23_lhs != eq23_rhs {
+            println!("DVRange#verify2: 2 eq23");
+            return false; }
+
+        let eq3_lhs =
+            BigInt::mod_mul(
+                &com.beta4_r,
+                &([&u::bigint_mod_pow(&com.com1_r,&u1_r_plain,&vpk.n),
+                   &u::bigint_mod_pow(&com.com2_r,&u2_r_plain,&vpk.n),
+                   &u::bigint_mod_pow(&com.com3_r,&u3_r_plain,&vpk.n),
+                ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n))),
+                &vpk.n);
+        let eq3_rhs = pedersen_commit(&vpk, &ch_raw, &u4_r_plain);
+        if eq3_lhs != eq3_rhs {
+            println!("DVRange#verify2: 2 eq3");
+            return false; }
+
     }
 
     // perform the alpha check
@@ -675,30 +930,33 @@ pub fn verify2(params: &DVRParams,
 
         let lhs_1 =
             BigInt::mod_mul(&com.alpha1,
-                            &BigInt::mod_pow(
+                            &u::bigint_mod_pow(
                                 &BigInt::mod_mul(
-                                    &BigInt::mod_pow(&inst.ct.ct1,&BigInt::from(-1),&lang.pk.n2),
+                                    &BigInt::mod_inv(&inst.ct.ct1,&lang.pk.n2).unwrap(),
                                     &psi_range_1,
                                     &lang.pk.n2),
                                 &ch_raw,
                                 &lang.pk.n2),
                             &lang.pk.n2);
 
-        if lhs_1 != rhs_1 { return false; }
+        if lhs_1 != rhs_1 {
+            println!("DVRange#verify2: alpha 1");
+            return false; }
 
         let lhs_2 =
             BigInt::mod_mul(&com.alpha2,
-                            &BigInt::mod_pow(
+                            &u::bigint_mod_pow(
                                 &BigInt::mod_mul(
-                                    &BigInt::mod_pow(&inst.ct.ct2,&BigInt::from(-1),&lang.pk.n2),
+                                    &BigInt::mod_inv(&inst.ct.ct2,&lang.pk.n2).unwrap(),
                                     &psi_range_2,
                                     &lang.pk.n2),
                                 &ch_raw,
                                 &lang.pk.n2),
                             &lang.pk.n2);
 
-        if lhs_2 != rhs_2 { return false; }
-
+        if lhs_2 != rhs_2 {
+            println!("DVRange#verify2: alpha 2");
+            return false; }
     }
 
     true
@@ -717,10 +975,9 @@ mod tests {
     use curv::BigInt;
 
     #[test]
-    fn test_correctness_keygen() {
+    fn test_keygen_correctness() {
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams { dv_params: dv::DVParams::new(1024, 32, 5, false, false),
-                                 range: range };
+        let params = DVRParams::new(1024, 32, range, 5, false, false);
 
         let (vpk,_vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
@@ -728,10 +985,9 @@ mod tests {
 
     #[test]
     fn test_correctness() {
-        let queries:usize = 5;
+        let queries:usize = 32;
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams { dv_params: dv::DVParams::new(256, 16, queries as u32, false, false),
-                                 range: range };
+        let params = DVRParams::new(1024, 32, range, 5, false, false);
 
         let (vpk,vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));

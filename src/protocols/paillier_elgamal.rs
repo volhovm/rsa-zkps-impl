@@ -53,10 +53,10 @@ pub fn keygen(n_bitlen: usize) -> (PEPublicKey,PESecretKey) {
 pub fn encrypt_with_randomness(pk: &PEPublicKey,
                                m: &BigInt,
                                r: &BigInt) -> PECiphertext{
-    let ct1 = BigInt::mod_pow(&pk.g, &r, &pk.n2);
+    let ct1 = super::utils::bigint_mod_pow(&pk.g, &r, &pk.n2);
     let ct2 =
         BigInt::mod_mul(
-            &BigInt::mod_pow(&pk.h, &r, &pk.n2),
+            &super::utils::bigint_mod_pow(&pk.h, &r, &pk.n2),
             &(1 + m * &pk.n),
             &pk.n2);
 

@@ -17,8 +17,8 @@ use super::paillier_elgamal as pe;
 
 #[derive(Clone, Debug)]
 pub struct DVParams {
-    /// N of the prover, bit length
-    pub n_bitlen: u32,
+    /// N of the prover (of the homomorphism psi), bit length
+    pub psi_n_bitlen: u32,
     /// Security parameter
     pub lambda: u32,
     /// The number of CRS reuses
@@ -30,12 +30,12 @@ pub struct DVParams {
 }
 
 impl DVParams {
-    pub fn new(n_bitlen: u32,
+    pub fn new(psi_n_bitlen: u32,
                lambda: u32,
                crs_uses: u32,
                malicious_setup: bool,
                ggm_mode: bool) -> DVParams {
-        DVParams{n_bitlen, lambda, crs_uses, malicious_setup, ggm_mode}
+        DVParams{psi_n_bitlen, lambda, crs_uses, malicious_setup, ggm_mode}
     }
 
     /// Range slack of the batched range proof.
@@ -76,7 +76,7 @@ impl DVParams {
         // sum-challenge according to what is known (in the trusted
         // case) or proven by the batched protocol (in the malicious
         // setup case).
-        self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+        self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
     }
 
     pub fn rand_r_bitlen(&self) -> u32 {
@@ -84,8 +84,8 @@ impl DVParams {
         // what randomness is used for Paillier on Prover's side. It
         // can either be randomness from N or from N^2.
 
-        self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
-        //2 * self.n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+        self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+        //2 * self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
     }
 
     // M should be bigger than r + cw, but r should hide cw perfectly;
@@ -119,7 +119,7 @@ impl DVParams {
 
     /// Parameters for the GCD NIZK proof.
     pub fn nizk_gcd_params(&self) -> n_gcd::ProofParams {
-        n_gcd::ProofParams{ n_bitlen: self.n_bitlen as usize,
+        n_gcd::ProofParams{ n_bitlen: self.psi_n_bitlen as usize,
                             lambda: self.lambda,
                             pmax: 10000 }
     }
@@ -296,7 +296,7 @@ pub struct DVWit { pub m: BigInt, pub r: BigInt }
 
 
 pub fn sample_lang(params: &DVParams) -> DVLang {
-    let (pk,_sk) = pe::keygen(params.n_bitlen as usize);
+    let (pk,_sk) = pe::keygen(params.psi_n_bitlen as usize);
     DVLang{pk}
 }
 
