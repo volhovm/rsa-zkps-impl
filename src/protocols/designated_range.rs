@@ -107,11 +107,13 @@ impl DVRParams {
     // but adding one extra bit will give us perfect completeness,
     // because now r + cw < 2 r.
     pub fn vpk_n_bitlen(&self) -> u32 {
-        // This crazily big value needs to be justified probably.
-        u::log2ceil(self.lambda) + 5 * self.lambda + self.crs_uses - 1 + 
-            self.n_bitlen() + 
-            (BigInt::bit_length(&(&BigInt::from(3) * &Roots::sqrt(&self.range) +
-                                 &BigInt::from(4) * &self.range)) as u32)
+        // It basically needs to hide tau
+        self.max_ch_proven_bitlen() + 2*self.lambda + self.n_bitlen() +
+            (BigInt::bit_length(&(BigInt::from(7) * &self.range)) as u32)
+        //u::log2ceil(self.lambda) + 5 * self.lambda + self.crs_uses - 1 + 
+        //    self.n_bitlen() + 
+        //    (BigInt::bit_length(&(&BigInt::from(3) * &Roots::sqrt(&self.range) +
+        //                         &BigInt::from(4) * &self.range)) as u32)
 
         //std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 2
     }
@@ -514,9 +516,15 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     let t_m = u::bigint_sample_below_sym(&t_range);
     let com_m = pedersen_commit(&vpk, &wit.m, &t_m);
 
+    println!("t_m: {:?}", &t_m);
+    println!("wit_m: {:?}", &wit.m);
+
     // Compute beta
     let r_m = u::bigint_sample_below_sym(&r_range);
     let sigma_m = u::bigint_sample_below_sym(&sigma_range);
+
+    println!("r_m: {:?}", &r_m);
+    println!("sigma_m: {:?}", &sigma_m);
     let beta_m = pedersen_commit(&vpk, &r_m, &sigma_m);
 
     // Decompose 4 m (R - wit.m) + 1
@@ -669,8 +677,6 @@ pub fn prove2(params: &DVRParams,
     let v_m = p2_generic(&v_r_m, &cr.sigma_m, &-&cr.t_m);
 
     // u_i, v_i, i = 1, 2, 3
-    println!("r1_m: {:?}", &cr.r1_m);
-    println!("x1_m: {:?}", &cr.x1_m);
     let u1_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u1_m = p2_generic(&u1_r_m, &cr.r1_m, &cr.x1_m);
     let v1_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
@@ -771,25 +777,29 @@ pub fn verify2(params: &DVRParams,
                    &params.range *
                    &(&BigInt::pow(&BigInt::from(2),params.lambda) + &BigInt::from(1));
 
-    let u_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u_m)).0.into_owned();
+    let paillier_decrypt = |target: &BigInt| {
+        let res = Paillier::decrypt(&vsk.sk,RawCiphertext::from(target)).0.into_owned();
+        if &res >= &(&vpk.pk.n / BigInt::from(2)) { &res - &vpk.pk.n } else { res }
+    };
+
+    let u_m_plain = paillier_decrypt(&resp.u_m);
 
     // Perform the _m checks
     {
-        let v_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v_m)).0.into_owned();
-        let u1_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u1_m)).0.into_owned();
-        let v1_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v1_m)).0.into_owned();
-        let u2_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u2_m)).0.into_owned();
-        let v2_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v2_m)).0.into_owned();
-        let u3_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u3_m)).0.into_owned();
-        let v3_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v3_m)).0.into_owned();
-        let u4_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u4_m)).0.into_owned();
+        let v_m_plain  = paillier_decrypt(&resp.v_m);
+        let u1_m_plain = paillier_decrypt(&resp.u1_m);
+        let v1_m_plain = paillier_decrypt(&resp.v1_m);
+        let u2_m_plain = paillier_decrypt(&resp.u2_m);
+        let v2_m_plain = paillier_decrypt(&resp.v2_m);
+        let u3_m_plain = paillier_decrypt(&resp.u3_m);
+        let v3_m_plain = paillier_decrypt(&resp.v3_m);
+        let u4_m_plain = paillier_decrypt(&resp.u4_m);
 
-        println!("ch_raw    : {:?}", &ch_raw);
-        println!("vpk_n     : {:?}", &vpk.pk.n);
-        println!("range     : {:?}", &ui_range);
-        println!("u1_m      : {:?}", &u1_m_plain);
-        println!("vpk_n-u1_m: {:?}", &(&vpk.pk.n - &u1_m_plain));
-        println!("u1 is in range?: {:?}", u::bigint_in_range_sym(&ui_range,&u1_m_plain,&vpk.pk.n));
+
+        println!("ch_raw   : {:?}", &ch_raw);
+        println!("range    : {:?}", &ui_range);
+        println!("u_m      : {:?}", &u_m_plain);
+        println!("v_m      : {:?}", &v_m_plain);
 
         if !u::bigint_in_range_sym(&ui_range,&u1_m_plain,&vpk.pk.n) ||
             !u::bigint_in_range_sym(&ui_range,&u2_m_plain,&vpk.pk.n) ||
@@ -812,6 +822,10 @@ pub fn verify2(params: &DVRParams,
             println!("DVRange#verify2: 1 eq1");
             return false;
         }
+
+        println!("beta1_m   : {:?}", &com.beta1_m);
+        println!("u1_m      : {:?}", &u1_m_plain);
+        println!("v1_m      : {:?}", &v1_m_plain);
 
         let eq21_lhs = BigInt::mod_mul(&com.beta1_m,
                                        &u::bigint_mod_pow(&com.com_m,&ch_raw,&vpk.n),
@@ -856,17 +870,18 @@ pub fn verify2(params: &DVRParams,
 
     }
 
+    let u_r_plain = paillier_decrypt(&resp.u_r);
+
     // Perform the _r checks
-    let u_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u_r)).0.into_owned();
     {
-        let v_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v_r)).0.into_owned();
-        let u1_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u1_r)).0.into_owned();
-        let v1_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v1_r)).0.into_owned();
-        let u2_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u2_r)).0.into_owned();
-        let v2_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v2_r)).0.into_owned();
-        let u3_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u3_r)).0.into_owned();
-        let v3_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v3_r)).0.into_owned();
-        let u4_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u4_r)).0.into_owned();
+        let v_r_plain  = paillier_decrypt(&resp.v_r);
+        let u1_r_plain = paillier_decrypt(&resp.u1_r);
+        let v1_r_plain = paillier_decrypt(&resp.v1_r);
+        let u2_r_plain = paillier_decrypt(&resp.u2_r);
+        let v2_r_plain = paillier_decrypt(&resp.v2_r);
+        let u3_r_plain = paillier_decrypt(&resp.u3_r);
+        let v3_r_plain = paillier_decrypt(&resp.v3_r);
+        let u4_r_plain = paillier_decrypt(&resp.u4_r);
 
 
         if !u::bigint_in_range_sym(&ui_range,&u1_r_plain,&vpk.pk.n) ||
