@@ -862,7 +862,11 @@ pub fn verify2(params: &DVRParams,
                    &u::bigint_mod_pow(&com.com3_m,&u3_m_plain,&vpk.n),
                 ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n))),
                 &vpk.n);
-        let eq3_rhs = pedersen_commit(&vpk, &ch_raw, &u4_m_plain);
+        let eq3_rhs = BigInt::mod_mul(
+            &pedersen_commit(&vpk, &ch_raw, &u4_m_plain),
+            &u::bigint_mod_pow(&com.com_m,&(BigInt::from(4) * &u_m_plain),&vpk.n),
+            &vpk.n
+        );
         if eq3_lhs != eq3_rhs {
             println!("DVRange#verify2: 1 eq3");
             return false;
