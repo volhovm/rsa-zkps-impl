@@ -828,7 +828,7 @@ pub fn verify2(params: &DVRParams,
         println!("v1_m      : {:?}", &v1_m_plain);
 
         let eq21_lhs = BigInt::mod_mul(&com.beta1_m,
-                                       &u::bigint_mod_pow(&com.com_m,&ch_raw,&vpk.n),
+                                       &u::bigint_mod_pow(&com.com1_m,&ch_raw,&vpk.n),
                                        &vpk.n);
         let eq21_rhs = pedersen_commit(&vpk, &u1_m_plain, &v1_m_plain);
         if eq21_lhs != eq21_rhs {
@@ -837,7 +837,7 @@ pub fn verify2(params: &DVRParams,
         }
 
         let eq22_lhs = BigInt::mod_mul(&com.beta2_m,
-                                       &u::bigint_mod_pow(&com.com_m,&ch_raw,&vpk.n),
+                                       &u::bigint_mod_pow(&com.com2_m,&ch_raw,&vpk.n),
                                        &vpk.n);
         let eq22_rhs = pedersen_commit(&vpk, &u2_m_plain, &v2_m_plain);
         if eq22_lhs != eq22_rhs {
@@ -846,7 +846,7 @@ pub fn verify2(params: &DVRParams,
         }
 
         let eq23_lhs = BigInt::mod_mul(&com.beta3_m,
-                                       &u::bigint_mod_pow(&com.com_m,&ch_raw,&vpk.n),
+                                       &u::bigint_mod_pow(&com.com3_m,&ch_raw,&vpk.n),
                                        &vpk.n);
         let eq23_rhs = pedersen_commit(&vpk, &u3_m_plain, &v3_m_plain);
         if eq23_lhs != eq23_rhs {
@@ -906,7 +906,7 @@ pub fn verify2(params: &DVRParams,
             return false; }
 
         let eq21_lhs = BigInt::mod_mul(&com.beta1_r,
-                                       &u::bigint_mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &u::bigint_mod_pow(&com.com1_r,&ch_raw,&vpk.n),
                                        &vpk.n);
         let eq21_rhs = pedersen_commit(&vpk, &u1_r_plain, &v1_r_plain);
         if eq21_lhs != eq21_rhs {
@@ -914,7 +914,7 @@ pub fn verify2(params: &DVRParams,
             return false; }
 
         let eq22_lhs = BigInt::mod_mul(&com.beta2_r,
-                                       &u::bigint_mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &u::bigint_mod_pow(&com.com2_r,&ch_raw,&vpk.n),
                                        &vpk.n);
         let eq22_rhs = pedersen_commit(&vpk, &u2_r_plain, &v2_r_plain);
         if eq22_lhs != eq22_rhs {
@@ -922,7 +922,7 @@ pub fn verify2(params: &DVRParams,
             return false; }
 
         let eq23_lhs = BigInt::mod_mul(&com.beta3_r,
-                                       &u::bigint_mod_pow(&com.com_r,&ch_raw,&vpk.n),
+                                       &u::bigint_mod_pow(&com.com3_r,&ch_raw,&vpk.n),
                                        &vpk.n);
         let eq23_rhs = pedersen_commit(&vpk, &u3_r_plain, &v3_r_plain);
         if eq23_lhs != eq23_rhs {
