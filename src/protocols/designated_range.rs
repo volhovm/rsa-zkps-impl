@@ -493,20 +493,20 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     // FIXME: these ranges are taken from the basic protocol, figure 3,
     // that does not consider reusable CRS. With reusable CRS the ranges will become bigger.
 
+    // maximum challenge possible, c
+    let max_ch = BigInt::pow(&BigInt::from(2),params.max_ch_proven_bitlen());
     // 2^{λ-1}N
     let t_range = &BigInt::pow(&BigInt::from(2),params.lambda - 1) * &vpk.n;
-    // λ 2^{4λ+Q} R
-    let r_range = &BigInt::from(params.lambda) *
-                  &BigInt::pow(&BigInt::from(2),4 * params.lambda + params.crs_uses) *
-                  &params.range;
-    // λ 2^{5λ+Q - 1} N
-    let sigma_range = &BigInt::from(params.lambda) *
-                      &BigInt::pow(&BigInt::from(2),5 * params.lambda + params.crs_uses - 1) *
-                      &vpk.n;
-    // λ 2^{5λ+Q - 1} N (3 sqrt(R) + 4 R)
-    // TODO: this sqrt is floored, should we ceil?
-    let tau_range = &sigma_range * (&BigInt::from(3) * &Roots::sqrt(&params.range) +
-                                    &BigInt::from(4) * &params.range);
+    // must blind c*(R-m)
+    let r_range = &max_ch * &params.range;
+    // must blind c*t
+    let sigma_range = &max_ch * &t_range;
+    // must blind c*x_i, where each x_i is at most R. So it's same as r_range
+    let ri_range = &r_range;
+    // must blind c*t_i, but t_i is same as t
+    let sigmai_range = &sigma_range;
+    // must blind c*(3*xi*ti-4Rt) <= c * 7 R t
+    let tau_range = &max_ch * &BigInt::from(7) * &t_range * &params.range;
 
     ////// For the message, wit.m first
 
@@ -532,14 +532,14 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     let com3_m = pedersen_commit(&vpk, &x3_m, &t3_m);
 
     // Compute beta_i
-    let r1_m = u::bigint_sample_below_sym(&r_range);
-    let sigma1_m = u::bigint_sample_below_sym(&sigma_range);
+    let r1_m = u::bigint_sample_below_sym(&ri_range);
+    let sigma1_m = u::bigint_sample_below_sym(&sigmai_range);
     let beta1_m = pedersen_commit(&vpk, &r1_m, &sigma1_m);
-    let r2_m = u::bigint_sample_below_sym(&r_range);
-    let sigma2_m = u::bigint_sample_below_sym(&sigma_range);
+    let r2_m = u::bigint_sample_below_sym(&ri_range);
+    let sigma2_m = u::bigint_sample_below_sym(&sigmai_range);
     let beta2_m = pedersen_commit(&vpk, &r2_m, &sigma2_m);
-    let r3_m = u::bigint_sample_below_sym(&r_range);
-    let sigma3_m = u::bigint_sample_below_sym(&sigma_range);
+    let r3_m = u::bigint_sample_below_sym(&ri_range);
+    let sigma3_m = u::bigint_sample_below_sym(&sigmai_range);
     let beta3_m = pedersen_commit(&vpk, &r3_m, &sigma3_m);
 
     // Compute tau/beta_4
