@@ -659,14 +659,7 @@ pub fn prove2(params: &DVRParams,
 
     // Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
     let p2_generic = |rand: &BigInt,enc_arg: &BigInt,ct_exp: &BigInt|
-            BigInt::mod_mul(
-                &Paillier::encrypt_with_chosen_randomness(
-                    &vpk.pk,
-                    RawPlaintext::from(enc_arg),
-                    &Randomness::from(rand)).0.into_owned(),
-                &u::bigint_mod_pow(&ch_ct, ct_exp, vpk_n2),
-                vpk_n2);
-
+            super::schnorr_paillier_plus::compute_si(&vpk.pk,&ch_ct,enc_arg,rand,ct_exp);
 
     ////// For wit.m
 
