@@ -18,10 +18,10 @@ pub fn bigint_sample_below_sym(r: &BigInt) -> BigInt {
     BigInt::sample_below(r) - r / 2
 }
 
-pub fn bigint_in_range_sym(r: &BigInt, x: &BigInt) -> bool {
+pub fn bigint_in_range_sym(r: &BigInt, x: &BigInt, n: &BigInt) -> bool {
     let r2 = r / BigInt::from(2);
-    if x >= &r2 || x < &-&r2 { return false; }
-    true
+    if x < &r2 || x >= &(n-&r2) { return true; }
+    false
 }
 
 /// Mod_pow but allowing exponents to be negative.

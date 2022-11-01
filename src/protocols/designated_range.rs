@@ -55,7 +55,7 @@ impl DVRParams {
     /// Bit length of the third N, wrt which VPK.n is constructed.
     pub fn n_bitlen(&self) -> u32 {
         // @volhovm FIXME I don't know the real value. This is a stub.
-        self.psi_n_bitlen
+        self.psi_n_bitlen * 3
     }
 
 
@@ -63,36 +63,33 @@ impl DVRParams {
     fn ch_small_bitlen(&self) -> u32 { self.lambda }
 
     /// The size of honestly generated challenges (λ+1 ... λ+Q) for Q number of queries.
-    fn ch_big_bitlen(&self) -> u32 { 2 * self.lambda + u::log2ceil(self.lambda) }
+    fn ch_big_bitlen(&self) -> u32 {
+        // lambda bits more than sum of lambda small challenges
+        self.lambda + self.ch_small_bitlen() + u::log2ceil(self.lambda)
+    }
 
     /// Maximum size of the summed-up challenge, real.
     pub fn max_ch_bitlen(&self) -> u32 {
         if self.crs_uses == 0 {
-            self.lambda + u::log2ceil(self.lambda)
+            // because we sum ch_small_bitlen lambda times
+            self.ch_small_bitlen() + u::log2ceil(self.lambda)
         } else {
-            2 * self.lambda + u::log2ceil(self.lambda) // FIXME, shouldn't it be a bit more?
+            // Just ch_big_bitlen, because it masks ch_small_bitlen fully.
+            self.ch_big_bitlen() // FIXME, shouldn't it be a bit more?
         }
     }
 
-    /// Maximum size of the summed-up challenge
+    /// Maximum size of the summed-up challenge, after considering VPK proof slack.
     pub fn max_ch_proven_bitlen(&self) -> u32 {
         let slack = if self.malicious_setup { self.range_slack_bitlen() } else { 0 };
-        if self.crs_uses == 0 {
-            // sum of lambda (small challenges with slack)
-            (self.ch_small_bitlen() + slack)
-                + u::log2ceil(self.lambda)
-        } else {
-            // a single big challenge with slack
-            self.ch_big_bitlen() + slack + 1
-        }
+        // Plus one just in case. TODO maybe not necessary to add 1.
+        self.max_ch_bitlen() + slack + 1
     }
 
     pub fn rand_m_bitlen(&self) -> u32 {
-        // r should be lambda bits more than c * w, where c is maximum
-        // sum-challenge according to what is known (in the trusted
-        // case) or proven by the batched protocol (in the malicious
-        // setup case).
+        // r should be lambda bits more than c * w, where c is maximum sum-challenge proven.
         self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
+        // TODO: maybe we can use range bits instead of psi_n_bitlen here. To optimise.
     }
 
     pub fn rand_r_bitlen(&self) -> u32 {
@@ -110,10 +107,13 @@ impl DVRParams {
     // but adding one extra bit will give us perfect completeness,
     // because now r + cw < 2 r.
     pub fn vpk_n_bitlen(&self) -> u32 {
-        // TODO: According to my calculations, it should be max(x,y)
-        // + 1, not +2. Maybe this has to do with the symmetric range.
-        // But the difference does not affect the performance anyway.
-        std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 2
+        // This crazily big value needs to be justified probably.
+        u::log2ceil(self.lambda) + 5 * self.lambda + self.crs_uses - 1 + 
+            self.n_bitlen() + 
+            (BigInt::bit_length(&(&BigInt::from(3) * &Roots::sqrt(&self.range) +
+                                 &BigInt::from(4) * &self.range)) as u32)
+
+        //std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 2
     }
 
     /// Params for the first batch, for challenges of lambda bits.
@@ -669,6 +669,8 @@ pub fn prove2(params: &DVRParams,
     let v_m = p2_generic(&v_r_m, &cr.sigma_m, &-&cr.t_m);
 
     // u_i, v_i, i = 1, 2, 3
+    println!("r1_m: {:?}", &cr.r1_m);
+    println!("x1_m: {:?}", &cr.x1_m);
     let u1_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
     let u1_m = p2_generic(&u1_r_m, &cr.r1_m, &cr.x1_m);
     let v1_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
@@ -782,9 +784,16 @@ pub fn verify2(params: &DVRParams,
         let v3_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.v3_m)).0.into_owned();
         let u4_m_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u4_m)).0.into_owned();
 
-        if !u::bigint_in_range_sym(&ui_range,&u1_m_plain) ||
-            !u::bigint_in_range_sym(&ui_range,&u2_m_plain) ||
-            !u::bigint_in_range_sym(&ui_range,&u3_m_plain) {
+        println!("ch_raw    : {:?}", &ch_raw);
+        println!("vpk_n     : {:?}", &vpk.pk.n);
+        println!("range     : {:?}", &ui_range);
+        println!("u1_m      : {:?}", &u1_m_plain);
+        println!("vpk_n-u1_m: {:?}", &(&vpk.pk.n - &u1_m_plain));
+        println!("u1 is in range?: {:?}", u::bigint_in_range_sym(&ui_range,&u1_m_plain,&vpk.pk.n));
+
+        if !u::bigint_in_range_sym(&ui_range,&u1_m_plain,&vpk.pk.n) ||
+            !u::bigint_in_range_sym(&ui_range,&u2_m_plain,&vpk.pk.n) ||
+            !u::bigint_in_range_sym(&ui_range,&u3_m_plain,&vpk.pk.n) {
                 println!("DVRange#verify2: range check 1 failed");
                 return false;
             }
@@ -860,9 +869,9 @@ pub fn verify2(params: &DVRParams,
         let u4_r_plain = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp.u4_r)).0.into_owned();
 
 
-        if !u::bigint_in_range_sym(&ui_range,&u1_r_plain) ||
-            !u::bigint_in_range_sym(&ui_range,&u2_r_plain) ||
-            !u::bigint_in_range_sym(&ui_range,&u3_r_plain) {
+        if !u::bigint_in_range_sym(&ui_range,&u1_r_plain,&vpk.pk.n) ||
+            !u::bigint_in_range_sym(&ui_range,&u2_r_plain,&vpk.pk.n) ||
+            !u::bigint_in_range_sym(&ui_range,&u3_r_plain,&vpk.pk.n) {
                 println!("DVRange#verify2: range check 2 failed");
                 return false;
             }
@@ -928,6 +937,7 @@ pub fn verify2(params: &DVRParams,
 
         // FIXME: what should be R for the randomness?...
         // Currently it's N but it probably won't work
+        // @dimitris both (R,0) and (R,R) should work
         let pe::PECiphertext{ct1:psi_range_1,ct2:psi_range_2} =
             pe::encrypt_with_randomness(&lang.pk, &params.range, lang.range_rand());
 
@@ -990,7 +1000,7 @@ mod tests {
     fn test_correctness() {
         let queries:usize = 32;
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams::new(1024, 32, range, 5, false, false);
+        let params = DVRParams::new(256, 32, range, 5, false, false);
 
         let (vpk,vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
