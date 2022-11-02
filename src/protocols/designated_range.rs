@@ -1063,64 +1063,65 @@ pub fn verify3(params: &DVRParams,
                              &resp1.com_u_m,
                              &ch2.ch_u_m,
                              &resp2.resp_u_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 1"); return false; }
+
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.v_m.clone()},
                              &resp1.com_v_m,
                              &ch2.ch_v_m,
                              &resp2.resp_v_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 2");  return false; }
 
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u1_m.clone()},
                              &resp1.com_u1_m,
                              &ch2.ch_u1_m,
                              &resp2.resp_u1_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 3");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.v1_m.clone()},
                              &resp1.com_v1_m,
                              &ch2.ch_v1_m,
                              &resp2.resp_v1_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 4");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u2_m.clone()},
                              &resp1.com_u2_m,
                              &ch2.ch_u2_m,
                              &resp2.resp_u2_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 5");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.v2_m.clone()},
                              &resp1.com_v2_m,
                              &ch2.ch_v2_m,
                              &resp2.resp_v2_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 6");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u3_m.clone()},
                              &resp1.com_u3_m,
                              &ch2.ch_u3_m,
                              &resp2.resp_u3_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 7");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.v3_m.clone()},
                              &resp1.com_v3_m,
                              &ch2.ch_v3_m,
                              &resp2.resp_v3_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 8");  return false; }
 
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u4_m.clone()},
                              &resp1.com_u4_m,
                              &ch2.ch_u4_m,
                              &resp2.resp_u4_m)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 9");  return false; }
 
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u_r.clone()},
                              &resp1.com_u_r,
                              &ch2.ch_u_r,
                              &resp2.resp_u_r)
-        { return false; }
+        { println!("DVRange#verify3: sp_plus 10");  return false; }
 
     }
 
