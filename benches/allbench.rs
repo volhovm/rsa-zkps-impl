@@ -144,11 +144,13 @@ fn bench_designated_vpk(c: &mut Criterion, params: &dv::DVParams) {
     grp.bench_function("keygen", |b| b.iter(|| dv::keygen(params)));
 
 
+    if params.malicious_setup {
     grp.bench_function("verify_vpk", |b| {
         b.iter_batched(|| dv::keygen(params).0,
                        |vpk| dv::verify_vpk(params,&vpk),
                        BatchSize::LargeInput);
     });
+    }
 }
 
 
@@ -252,7 +254,7 @@ fn bench_designated_fs(c: &mut Criterion, params: &dv::DVParams) {
 
 fn bench_designated_range_vpk(c: &mut Criterion, params: &dvr::DVRParams) {
 //    let mut grp = c.benchmark_group(format!("Group 3: Batched Schnorr Paillier for {}", params));
-    let mut grp = c.benchmark_group(format!("DVR VPK malicious {:?}", params.malicious_setup));
+    let mut grp = c.benchmark_group(format!("DVR VPK malicious {:?}, GGM {:?}", params.malicious_setup, params.ggm_mode));
 
     //grp.measurement_time(Duration::from_secs(30));
     grp.sample_size(10);
@@ -260,11 +262,13 @@ fn bench_designated_range_vpk(c: &mut Criterion, params: &dvr::DVRParams) {
     grp.bench_function("keygen", |b| b.iter(|| dvr::keygen(params)));
 
 
+    if params.malicious_setup {
     grp.bench_function("verify_vpk", |b| {
         b.iter_batched(|| dvr::keygen(params).0,
                        |vpk| dvr::verify_vpk(params,&vpk),
                        BatchSize::LargeInput);
     });
+    }
 }
 
 
@@ -344,12 +348,12 @@ fn bench_designated_range_all(c: &mut Criterion) {
     let queries = 32;
     let range = BigInt::pow(&BigInt::from(2), 256);
 
-    //bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
-    //bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
-    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
-    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
-    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
-    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
+    bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
+    bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
+    //bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
+    //bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
+    //bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
+    //bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
 
    // bench_designated_range_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
    // bench_designated_range_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));

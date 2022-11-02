@@ -232,71 +232,34 @@ Found 2 outliers among 10 measurements (20.00%)
 #+DATE: [2022-11-02 Wed 10:03]
 
 
-Benchmarking DVRange FS malicious false, GGM true/fs_prove: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 75.1s, or reduce sample count to 10.
 DVRange FS malicious false, GGM true/fs_prove
                         time:   [703.54 ms 769.22 ms 845.79 ms]
-Found 15 outliers among 100 measurements (15.00%)
-  4 (4.00%) high mild
-  11 (11.00%) high severe
-Benchmarking DVRange FS malicious false, GGM true/fs_verify: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 255.9s, or reduce sample count to 10.
 DVRange FS malicious false, GGM true/fs_verify
                         time:   [229.45 ms 255.31 ms 283.90 ms]
-Found 19 outliers among 100 measurements (19.00%)
-  2 (2.00%) high mild
-  17 (17.00%) high severe
 
-Benchmarking DVRange FS malicious false, GGM false/fs_prove: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 156.0s, or reduce sample count to 10.
 DVRange FS malicious false, GGM false/fs_prove
                         time:   [1.5655 s 1.7190 s 1.8979 s]
-                        change: [+12.151% +24.958% +39.871%] (p = 0.00 < 0.05)
-                        Performance has regressed.
-Found 15 outliers among 100 measurements (15.00%)
-  1 (1.00%) high mild
-  14 (14.00%) high severe
-Benchmarking DVRange FS malicious false, GGM false/fs_verify: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 236.7s, or reduce sample count to 10.
 DVRange FS malicious false, GGM false/fs_verify
                         time:   [947.28 ms 974.68 ms 1.0102 s]
-                        change: [+4.0979% +7.1271% +11.804%] (p = 0.00 < 0.05)
-                        Performance has regressed.
-Found 3 outliers among 100 measurements (3.00%)
-  1 (1.00%) high mild
-  2 (2.00%) high severe
 
-
-Benchmarking DVRange FS malicious true, GGM true/fs_prove: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 100.7s, or reduce sample count to 10.
 DVRange FS malicious true, GGM true/fs_prove
                         time:   [905.09 ms 920.16 ms 938.79 ms]
-Found 14 outliers among 100 measurements (14.00%)
-  5 (5.00%) high mild
-  9 (9.00%) high severe
-Benchmarking DVRange FS malicious true, GGM true/fs_verify: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 119.8s, or reduce sample count to 10.
 DVRange FS malicious true, GGM true/fs_verify
                         time:   [229.43 ms 234.16 ms 239.30 ms]
-Found 5 outliers among 100 measurements (5.00%)
-  4 (4.00%) high mild
-  1 (1.00%) high severe
 
-Benchmarking DVRange FS malicious true, GGM false/fs_prove: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 202.3s, or reduce sample count to 10.
 DVRange FS malicious true, GGM false/fs_prove
                         time:   [1.9533 s 1.9671 s 1.9841 s]
-                        change: [-0.9195% +0.0830% +1.1578%] (p = 0.88 > 0.05)
-                        No change in performance detected.
-Found 10 outliers among 100 measurements (10.00%)
-  3 (3.00%) high mild
-  7 (7.00%) high severe
-Benchmarking DVRange FS malicious true, GGM false/fs_verify: Warming up for 3.0000 s
-Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 335.5s, or reduce sample count to 10.
 DVRange FS malicious true, GGM false/fs_verify
                         time:   [1.3320 s 1.3989 s 1.4852 s]
-                        change: [+1.9419% +7.5224% +14.183%] (p = 0.00 < 0.05)
-                        Performance has regressed.
-Found 10 outliers among 100 measurements (10.00%)
-  3 (3.00%) high mild
-  7 (7.00%) high severe
+
+* DVRange VPK
+DVR VPK malicious false, GGM false/keygen
+                        time:   [31.571 s 36.941 s 43.598 s]
+DVR VPK malicious false, GGM false/verify_vpk
+                        time:   [22.892 s 25.221 s 28.301 s]
+
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 431.9s.
+DVR VPK malicious true, GGM false/keygen
+                        time:   [41.222 s 42.162 s 43.188 s]
+DVR VPK malicious true, GGM false/verify_vpk
+                        time:   [31.593 s 31.769 s 31.941 s]
