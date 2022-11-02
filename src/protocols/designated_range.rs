@@ -679,7 +679,7 @@ pub fn prove2(params: &DVRParams,
 
     // u, v
     let u_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
-    let u_r = p2_generic(&u_r_r, &cr.r_r, &wit.r);
+    let u_r = p2_generic(&u_r_r, &cr.r_r, &-&wit.r);
 
 
     //// Running the sub-proof
@@ -854,7 +854,7 @@ pub fn prove3(params: &DVRParams,
 
     let resp_u_r = sp_plus_reply(&cr.r_r,
                                  &resp1rand.u_r_r,
-                                 &wit.r,
+                                 &-&wit.r,
                                  &ch2.ch_u_r,
                                  &resp1rand.comrand_u_r);
 
@@ -1018,7 +1018,7 @@ pub fn verify3(params: &DVRParams,
         // Currently it's N but it probably won't work
         // @dimitris both (R,0) and (R,R) should work
         let pe::PECiphertext{ct1:psi_range_1,ct2:psi_range_2} =
-            pe::encrypt_with_randomness(&lang.pk, &params.range, &params.range);
+            pe::encrypt_with_randomness(&lang.pk, &params.range, &BigInt::from(0));
             //pe::encrypt_with_randomness(&lang.pk, &params.range, lang.range_rand());
 
         let lhs_1 =
