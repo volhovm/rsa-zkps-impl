@@ -1237,15 +1237,10 @@ pub fn fs_prove(params: &DVRParams,
                 inst: &DVRInst,
                 wit: &DVRWit,
                 query_ix: usize) -> FSDVRProof {
-    println!("prove1...");
     let (com,cr) = prove1(params,vpk,lang,wit);
-    println!("compute ch1...");
     let ch1 = fs_compute_challenge_1(params,lang,inst,&com);
-    println!("prove2...");
     let (resp1,resp1rand) = prove2(&params,&vpk,&lang,&wit,&ch1,&cr,query_ix);
-    println!("compute ch2...");
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
-    println!("prove3...");
     let resp2 = prove3(params,vpk,wit,&ch1,&cr,&resp1,&resp1rand,ch2.as_ref(),query_ix);
 
     FSDVRProof{ com, resp1, resp2 }
@@ -1260,11 +1255,9 @@ pub fn fs_verify(params: &DVRParams,
                  query_ix: usize,
                  proof: &FSDVRProof) -> bool {
 
-    println!("verify computing challenges...");
     let ch1 = fs_compute_challenge_1(params,lang,inst,&proof.com);
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&proof.com,&ch1,&proof.resp1);
 
-    println!("verify...");
     verify3(&params,&vsk,&vpk,&lang,&inst,
             &proof.com,&ch1,&proof.resp1,ch2.as_ref(),proof.resp2.as_ref(),query_ix)
 }
