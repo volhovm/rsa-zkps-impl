@@ -403,6 +403,22 @@ pub struct DVRComRand {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRChallenge1(BigInt);
 
+/// Commitment for the pe+ protocol
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct PlusCom {
+    com_u_m: sp_plus::Commitment,
+    com_v_m: sp_plus::Commitment,
+    com_u1_m: sp_plus::Commitment,
+    com_v1_m: sp_plus::Commitment,
+    com_u2_m: sp_plus::Commitment,
+    com_v2_m: sp_plus::Commitment,
+    com_u3_m: sp_plus::Commitment,
+    com_v3_m: sp_plus::Commitment,
+    com_u4_m: sp_plus::Commitment,
+
+    com_u_r: sp_plus::Commitment,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRResp1 {
     u_m: BigInt,
@@ -417,17 +433,22 @@ pub struct DVRResp1 {
 
     u_r: BigInt,
 
-    com_u_m: sp_plus::Commitment,
-    com_v_m: sp_plus::Commitment,
-    com_u1_m: sp_plus::Commitment,
-    com_v1_m: sp_plus::Commitment,
-    com_u2_m: sp_plus::Commitment,
-    com_v2_m: sp_plus::Commitment,
-    com_u3_m: sp_plus::Commitment,
-    com_v3_m: sp_plus::Commitment,
-    com_u4_m: sp_plus::Commitment,
+    plus_com: Option<PlusCom>
+}
 
-    com_u_r: sp_plus::Commitment,
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct PlusComRand {
+    comrand_u_m: sp_plus::ComRand,
+    comrand_v_m: sp_plus::ComRand,
+    comrand_u1_m: sp_plus::ComRand,
+    comrand_v1_m: sp_plus::ComRand,
+    comrand_u2_m: sp_plus::ComRand,
+    comrand_v2_m: sp_plus::ComRand,
+    comrand_u3_m: sp_plus::ComRand,
+    comrand_v3_m: sp_plus::ComRand,
+    comrand_u4_m: sp_plus::ComRand,
+
+    comrand_u_r: sp_plus::ComRand,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -444,17 +465,7 @@ pub struct DVRResp1Rand {
 
     u_r_r: BigInt,
 
-    comrand_u_m: sp_plus::ComRand,
-    comrand_v_m: sp_plus::ComRand,
-    comrand_u1_m: sp_plus::ComRand,
-    comrand_v1_m: sp_plus::ComRand,
-    comrand_u2_m: sp_plus::ComRand,
-    comrand_v2_m: sp_plus::ComRand,
-    comrand_u3_m: sp_plus::ComRand,
-    comrand_v3_m: sp_plus::ComRand,
-    comrand_u4_m: sp_plus::ComRand,
-
-    comrand_u_r: sp_plus::ComRand,
+    plus_comrand: Option<PlusComRand>
 }
 
 
@@ -670,26 +681,24 @@ pub fn prove2(params: &DVRParams,
     let u_r = p2_generic(&u_r_r, &cr.r_r, &-&wit.r);
 
 
-    //// Running the sub-proof
-    let sp_plus_params = params.sp_plus_params();
-    let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), ch_ct: ch_ct.clone() };
+    let (plus_com,plus_comrand) = if params.ggm_mode { (None,None) } else {
+        //// Running the sub-proof
+        let sp_plus_params = params.sp_plus_params();
+        let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), ch_ct: ch_ct.clone() };
 
-    let (com_u_m ,comrand_u_m ) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-    let (com_v_m ,comrand_v_m ) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-    let (com_u1_m,comrand_u1_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-    let (com_v1_m,comrand_v1_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-    let (com_u2_m,comrand_u2_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-    let (com_v2_m,comrand_v2_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-    let (com_u3_m,comrand_u3_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-    let (com_v3_m,comrand_v3_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-    let (com_u4_m,comrand_u4_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_u_m ,comrand_u_m ) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_v_m ,comrand_v_m ) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_u1_m,comrand_u1_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_v1_m,comrand_v1_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_u2_m,comrand_u2_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_v2_m,comrand_v2_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_u3_m,comrand_u3_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_v3_m,comrand_v3_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_u4_m,comrand_u4_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
 
-    let (com_u_r ,comrand_u_r) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_u_r ,comrand_u_r) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
 
-    let resp1 =
-        DVRResp1 {
-            u_m, v_m, u1_m, v1_m, u2_m, v2_m, u3_m, v3_m, u4_m,
-            u_r,
+        (Some(PlusCom {
             com_u_m ,
             com_v_m ,
             com_u1_m,
@@ -700,13 +709,9 @@ pub fn prove2(params: &DVRParams,
             com_v3_m,
             com_u4_m,
 
-            com_u_r ,
-        };
-    let resp1_rand =
-        DVRResp1Rand {
-            u_r_m, v_r_m, u1_r_m, v1_r_m, u2_r_m, v2_r_m, u3_r_m, v3_r_m, u4_r_m,
-            u_r_r,
-            comrand_u_m,
+            com_u_r }),
+         Some(PlusComRand {
+             comrand_u_m,
             comrand_v_m,
             comrand_u1_m,
             comrand_v1_m,
@@ -715,13 +720,27 @@ pub fn prove2(params: &DVRParams,
             comrand_u3_m,
             comrand_v3_m,
             comrand_u4_m,
-            comrand_u_r
+             comrand_u_r}))
+    };
+
+    let resp1 =
+        DVRResp1 {
+            u_m, v_m, u1_m, v1_m, u2_m, v2_m, u3_m, v3_m, u4_m,
+            u_r,
+            plus_com,
         };
+    let resp1_rand =
+        DVRResp1Rand {
+            u_r_m, v_r_m, u1_r_m, v1_r_m, u2_r_m, v2_r_m, u3_r_m, v3_r_m, u4_r_m,
+            u_r_r,
+            plus_comrand,
+                };
 
     (resp1,resp1_rand)
 }
 
-pub fn verify2(params: &DVRParams) -> DVRChallenge2 {
+pub fn verify2(params: &DVRParams) -> Option<DVRChallenge2> {
+    if params.ggm_mode { None } else {
     let sp_plus_params = params.sp_plus_params();
 
     let ch_u_m = sp_plus::verify1(&sp_plus_params);
@@ -736,7 +755,7 @@ pub fn verify2(params: &DVRParams) -> DVRChallenge2 {
 
     let ch_u_r = sp_plus::verify1(&sp_plus_params);
 
-    DVRChallenge2 {
+    Some(DVRChallenge2 {
         ch_u_m,
         ch_v_m,
         ch_u1_m,
@@ -747,7 +766,8 @@ pub fn verify2(params: &DVRParams) -> DVRChallenge2 {
         ch_v3_m,
         ch_u4_m,
 
-        ch_u_r }
+        ch_u_r })
+    }
 }
 
 pub fn prove3(params: &DVRParams,
@@ -757,8 +777,10 @@ pub fn prove3(params: &DVRParams,
               cr: &DVRComRand,
               resp1: &DVRResp1,
               resp1rand: &DVRResp1Rand,
-              ch2: &DVRChallenge2,
-              query_ix: usize) -> DVRResp2 {
+              ch2: Option<&DVRChallenge2>,
+              query_ix: usize) -> Option<DVRResp2> {
+    if params.ggm_mode { None } else {
+
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
         if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
@@ -783,52 +805,56 @@ pub fn prove3(params: &DVRParams,
                                           cexp: witcexp.clone()},
                             ch,
                             comrand)
-        };
+    };
+
+    let ch2_unwrap = ch2.expect("DVRange#prove3: ch2 must be Some");
+    let plus_comrand = resp1rand.plus_comrand.clone().expect("DVRange#prove3: plus_comrand must be Some");
+
 
     let resp_u_m = sp_plus_reply(&cr.r_m,
                                  &resp1rand.u_r_m,
                                  &(&params.range - &wit.m),
-                                 &ch2.ch_u_m,
-                                 &resp1rand.comrand_u_m);
+                                 &ch2_unwrap.ch_u_m,
+                                 &plus_comrand.comrand_u_m);
 
     let resp_v_m = sp_plus_reply(&cr.sigma_m,
                                  &resp1rand.v_r_m,
                                  &-&cr.t_m,
-                                 &ch2.ch_v_m,
-                                 &resp1rand.comrand_v_m);
+                                 &ch2_unwrap.ch_v_m,
+                                 &plus_comrand.comrand_v_m);
 
     let resp_u1_m = sp_plus_reply(&cr.r1_m,
                                   &resp1rand.u1_r_m,
                                   &cr.x1_m,
-                                  &ch2.ch_u1_m,
-                                  &resp1rand.comrand_u1_m);
+                                  &ch2_unwrap.ch_u1_m,
+                                  &plus_comrand.comrand_u1_m);
     let resp_v1_m = sp_plus_reply(&cr.sigma1_m,
                                   &resp1rand.v1_r_m,
                                   &cr.t1_m,
-                                  &ch2.ch_v1_m,
-                                  &resp1rand.comrand_v1_m);
+                                  &ch2_unwrap.ch_v1_m,
+                                  &plus_comrand.comrand_v1_m);
 
     let resp_u2_m = sp_plus_reply(&cr.r2_m,
                                   &resp1rand.u2_r_m,
                                   &cr.x2_m,
-                                  &ch2.ch_u2_m,
-                                  &resp1rand.comrand_u2_m);
+                                  &ch2_unwrap.ch_u2_m,
+                                  &plus_comrand.comrand_u2_m);
     let resp_v2_m = sp_plus_reply(&cr.sigma2_m,
                                   &resp1rand.v2_r_m,
                                   &cr.t2_m,
-                                  &ch2.ch_v2_m,
-                                  &resp1rand.comrand_v2_m);
+                                  &ch2_unwrap.ch_v2_m,
+                                  &plus_comrand.comrand_v2_m);
 
     let resp_u3_m = sp_plus_reply(&cr.r3_m,
                                   &resp1rand.u3_r_m,
                                   &cr.x3_m,
-                                  &ch2.ch_u3_m,
-                                  &resp1rand.comrand_u3_m);
+                                  &ch2_unwrap.ch_u3_m,
+                                  &plus_comrand.comrand_u3_m);
     let resp_v3_m = sp_plus_reply(&cr.sigma3_m,
                                   &resp1rand.v3_r_m,
                                   &cr.t3_m,
-                                  &ch2.ch_v3_m,
-                                  &resp1rand.comrand_v3_m);
+                                  &ch2_unwrap.ch_v3_m,
+                                  &plus_comrand.comrand_v3_m);
 
     let resp_u4_m = sp_plus_reply(&cr.tau_m,
                                   &resp1rand.u4_r_m,
@@ -836,17 +862,17 @@ pub fn prove3(params: &DVRParams,
                                     &cr.x2_m * &cr.t2_m +
                                     &cr.x3_m * &cr.t3_m -
                                     &BigInt::from(4) * (&params.range - &wit.m) * &cr.t_m),
-                                  &ch2.ch_u4_m,
-                                  &resp1rand.comrand_u4_m);
+                                  &ch2_unwrap.ch_u4_m,
+                                  &plus_comrand.comrand_u4_m);
 
 
     let resp_u_r = sp_plus_reply(&cr.r_r,
                                  &resp1rand.u_r_r,
                                  &-&wit.r,
-                                 &ch2.ch_u_r,
-                                 &resp1rand.comrand_u_r);
+                                 &ch2_unwrap.ch_u_r,
+                                 &plus_comrand.comrand_u_r);
 
-    DVRResp2 {
+    Some(DVRResp2 {
         resp_u_m,
         resp_v_m,
         resp_u1_m,
@@ -858,6 +884,7 @@ pub fn prove3(params: &DVRParams,
         resp_u4_m,
 
         resp_u_r,
+    })
     }
 }
 
@@ -869,8 +896,8 @@ pub fn verify3(params: &DVRParams,
                com: &DVRCom,
                ch1: &DVRChallenge1,
                resp1: &DVRResp1,
-               ch2: &DVRChallenge2,
-               resp2: &DVRResp2,
+               ch2: Option<&DVRChallenge2>,
+               resp2: Option<&DVRResp2>,
                query_ix: usize) -> bool {
 
     let mut ch1_active_bits: Vec<usize> = vec![];
@@ -1040,73 +1067,76 @@ pub fn verify3(params: &DVRParams,
 
 
     // Check the sub-protocol replies, for the schnorr-paillier plus
-    {
+    if !params.ggm_mode {
         let sp_plus_params = params.sp_plus_params();
         let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), ch_ct: ch_ct.clone() };
+        let plus_com = resp1.plus_com.clone().expect("DVRange#verify3 plus_com must be Some");
+        let plus_ch = ch2.expect("DVRange#verify3 ch2 must be Some");
+        let plus_resp = resp2.expect("DVRange#verify3 resp2 must be Some");
 
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u_m.clone()},
-                             &resp1.com_u_m,
-                             &ch2.ch_u_m,
-                             &resp2.resp_u_m)
+                             &plus_com.com_u_m,
+                             &plus_ch.ch_u_m,
+                             &plus_resp.resp_u_m)
         { println!("DVRange#verify3: sp_plus 1"); return false; }
 
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.v_m.clone()},
-                             &resp1.com_v_m,
-                             &ch2.ch_v_m,
-                             &resp2.resp_v_m)
+                             &plus_com.com_v_m,
+                             &plus_ch.ch_v_m,
+                             &plus_resp.resp_v_m)
         { println!("DVRange#verify3: sp_plus 2");  return false; }
 
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u1_m.clone()},
-                             &resp1.com_u1_m,
-                             &ch2.ch_u1_m,
-                             &resp2.resp_u1_m)
+                             &plus_com.com_u1_m,
+                             &plus_ch.ch_u1_m,
+                             &plus_resp.resp_u1_m)
         { println!("DVRange#verify3: sp_plus 3");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.v1_m.clone()},
-                             &resp1.com_v1_m,
-                             &ch2.ch_v1_m,
-                             &resp2.resp_v1_m)
+                             &plus_com.com_v1_m,
+                             &plus_ch.ch_v1_m,
+                             &plus_resp.resp_v1_m)
         { println!("DVRange#verify3: sp_plus 4");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u2_m.clone()},
-                             &resp1.com_u2_m,
-                             &ch2.ch_u2_m,
-                             &resp2.resp_u2_m)
+                             &plus_com.com_u2_m,
+                             &plus_ch.ch_u2_m,
+                             &plus_resp.resp_u2_m)
         { println!("DVRange#verify3: sp_plus 5");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.v2_m.clone()},
-                             &resp1.com_v2_m,
-                             &ch2.ch_v2_m,
-                             &resp2.resp_v2_m)
+                             &plus_com.com_v2_m,
+                             &plus_ch.ch_v2_m,
+                             &plus_resp.resp_v2_m)
         { println!("DVRange#verify3: sp_plus 6");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u3_m.clone()},
-                             &resp1.com_u3_m,
-                             &ch2.ch_u3_m,
-                             &resp2.resp_u3_m)
+                             &plus_com.com_u3_m,
+                             &plus_ch.ch_u3_m,
+                             &plus_resp.resp_u3_m)
         { println!("DVRange#verify3: sp_plus 7");  return false; }
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.v3_m.clone()},
-                             &resp1.com_v3_m,
-                             &ch2.ch_v3_m,
-                             &resp2.resp_v3_m)
+                             &plus_com.com_v3_m,
+                             &plus_ch.ch_v3_m,
+                             &plus_resp.resp_v3_m)
         { println!("DVRange#verify3: sp_plus 8");  return false; }
 
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u4_m.clone()},
-                             &resp1.com_u4_m,
-                             &ch2.ch_u4_m,
-                             &resp2.resp_u4_m)
+                             &plus_com.com_u4_m,
+                             &plus_ch.ch_u4_m,
+                             &plus_resp.resp_u4_m)
         { println!("DVRange#verify3: sp_plus 9");  return false; }
 
         if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
                              &sp_plus::Inst{si:resp1.u_r.clone()},
-                             &resp1.com_u_r,
-                             &ch2.ch_u_r,
-                             &resp2.resp_u_r)
+                             &plus_com.com_u_r,
+                             &plus_ch.ch_u_r,
+                             &plus_resp.resp_u_r)
         { println!("DVRange#verify3: sp_plus 10");  return false; }
 
     }
@@ -1124,7 +1154,7 @@ pub fn verify3(params: &DVRParams,
 pub struct FSDVRProof {
     com : DVRCom,
     resp1 : DVRResp1,
-    resp2 : DVRResp2,
+    resp2 : Option<DVRResp2>,
 }
 
 // Returns a lambda-bit bigint equal to the first bits of Blake2b(hash_input)
@@ -1154,7 +1184,8 @@ fn fs_compute_challenge_2(params: &DVRParams,
                           inst: &DVRInst,
                           com: &DVRCom,
                           ch1: &DVRChallenge1,
-                          resp1: &DVRResp1) -> DVRChallenge2 {
+                          resp1: &DVRResp1) -> Option<DVRChallenge2> {
+    if params.ggm_mode { None } else {
     // TODO: maybe we need to hash less here
     let common_prefix: Vec<u8> = rmp_serde::to_vec(
             &(params, lang, inst, com, ch1,
@@ -1173,17 +1204,19 @@ fn fs_compute_challenge_2(params: &DVRParams,
         let x: Vec<u8> = rmp_serde::to_vec(&(com, ch1, resp1, inst, lang, resp)).unwrap();
         fs_to_bigint(params, &([common_prefix.clone(),x].concat()))
     };
-    let ch_u_m  = sp_plus::Challenge(vec![get_ch(&resp1.com_u_m)]);
-    let ch_v_m  = sp_plus::Challenge(vec![get_ch(&resp1.com_v_m)]);
-    let ch_u1_m = sp_plus::Challenge(vec![get_ch(&resp1.com_u1_m)]);
-    let ch_v1_m = sp_plus::Challenge(vec![get_ch(&resp1.com_v1_m)]);
-    let ch_u2_m = sp_plus::Challenge(vec![get_ch(&resp1.com_u2_m)]);
-    let ch_v2_m = sp_plus::Challenge(vec![get_ch(&resp1.com_v2_m)]);
-    let ch_u3_m = sp_plus::Challenge(vec![get_ch(&resp1.com_u3_m)]);
-    let ch_v3_m = sp_plus::Challenge(vec![get_ch(&resp1.com_v3_m)]);
-    let ch_u4_m = sp_plus::Challenge(vec![get_ch(&resp1.com_u4_m)]);
-    let ch_u_r  = sp_plus::Challenge(vec![get_ch(&resp1.com_u_r)]);
-    DVRChallenge2 {
+    let plus_com = resp1.plus_com.clone().expect("DVRange#verify3 plus_com must be Some");
+    let ch_u_m  = sp_plus::Challenge(vec![get_ch(&plus_com.com_u_m)]);
+    let ch_v_m  = sp_plus::Challenge(vec![get_ch(&plus_com.com_v_m)]);
+    let ch_u1_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_u1_m)]);
+    let ch_v1_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_v1_m)]);
+    let ch_u2_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_u2_m)]);
+    let ch_v2_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_v2_m)]);
+    let ch_u3_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_u3_m)]);
+    let ch_v3_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_v3_m)]);
+    let ch_u4_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_u4_m)]);
+    let ch_u_r  = sp_plus::Challenge(vec![get_ch(&plus_com.com_u_r)]);
+
+    Some(DVRChallenge2 {
         ch_u_m,
         ch_v_m,
         ch_u1_m,
@@ -1194,7 +1227,8 @@ fn fs_compute_challenge_2(params: &DVRParams,
         ch_v3_m,
         ch_u4_m,
 
-        ch_u_r }
+        ch_u_r })}
+
 }
 
 pub fn fs_prove(params: &DVRParams,
@@ -1212,7 +1246,7 @@ pub fn fs_prove(params: &DVRParams,
     println!("compute ch2...");
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
     println!("prove3...");
-    let resp2 = prove3(params,vpk,wit,&ch1,&cr,&resp1,&resp1rand,&ch2,query_ix);
+    let resp2 = prove3(params,vpk,wit,&ch1,&cr,&resp1,&resp1rand,ch2.as_ref(),query_ix);
 
     FSDVRProof{ com, resp1, resp2 }
 }
@@ -1232,7 +1266,7 @@ pub fn fs_verify(params: &DVRParams,
 
     println!("verify...");
     verify3(&params,&vsk,&vpk,&lang,&inst,
-            &proof.com,&ch1,&proof.resp1,&ch2,&proof.resp2,query_ix)
+            &proof.com,&ch1,&proof.resp1,ch2.as_ref(),proof.resp2.as_ref(),query_ix)
 }
 
 
@@ -1278,9 +1312,10 @@ mod tests {
 
     #[test]
     fn test_correctness() {
+        for ggm_mode in [false,true] {
         let queries:usize = 32;
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams::new(256, 32, range, queries as u32, false, false);
+        let params = DVRParams::new(256, 32, range, queries as u32, false, ggm_mode);
 
         let (vpk,vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
@@ -1291,21 +1326,21 @@ mod tests {
 
             let (com,cr) = prove1(&params,&vpk,&lang,&wit);
             let ch1 = verify1(&params);
-
             let (resp1,resp1rand) = prove2(&params,&vpk,&lang,&wit,&ch1,&cr,query_ix);
             let ch2 = verify2(&params);
+            let resp2 = prove3(&params,&vpk,&wit,&ch1,&cr,&resp1,&resp1rand,ch2.as_ref(),query_ix);
 
-            let resp2 = prove3(&params,&vpk,&wit,&ch1,&cr,&resp1,&resp1rand,&ch2,query_ix);
             assert!(verify3(&params,&vsk,&vpk,&lang,&inst,
-                            &com,&ch1,&resp1,&ch2,&resp2,query_ix));
-        }
+                            &com,&ch1,&resp1,ch2.as_ref(),resp2.as_ref(),query_ix));
+        }}
     }
 
     #[test]
     fn test_correctness_fs() {
+        for ggm_mode in [false,true] {
         let queries:usize = 32;
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams::new(1024, 128, range, queries as u32, false, false);
+        let params = DVRParams::new(1024, 128, range, queries as u32, false, ggm_mode);
 
         let (vpk,vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
@@ -1315,6 +1350,7 @@ mod tests {
 
             let proof = fs_prove(&params,&vpk,&lang,&inst,&wit,query_ix);
             assert!(fs_verify(&params,&vsk,&vpk,&lang,&inst,query_ix,&proof));
+        }
         }
     }
 }

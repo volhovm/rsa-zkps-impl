@@ -700,7 +700,6 @@ mod tests {
 
                 let (com,cr) = prove1(&params,&lang);
                 let ch1 = verify1(&params);
-
                 let resp1 = prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
                 let ch2 = verify2(&params);
                 let resp2 = prove3(&params,&vpk,&cr,&wit,ch2.as_ref());
