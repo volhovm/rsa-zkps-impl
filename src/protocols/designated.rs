@@ -596,9 +596,7 @@ pub fn verify3(params: &DVParams,
 #[derive(Clone, Debug)]
 pub struct FSDVProof {
     com : DVCom,
-    ch1 : DVChallenge1,
     resp1 : DVResp1,
-    ch2 : Option<DVChallenge2>,
     resp2 : Option<DVResp2>,
 }
 
@@ -647,14 +645,14 @@ pub fn fs_prove(params: &DVParams,
                 inst: &DVInst,
                 wit: &DVWit,
                 query_ix: usize) -> FSDVProof {
-    let (com,cr) = prove1(&params,&lang);
-    let ch1 = fs_compute_challenge_1(&params,lang,inst,&com);
+    let (com,cr) = prove1(params,lang);
+    let ch1 = fs_compute_challenge_1(params,lang,inst,&com);
     // @volhovm what is query_ix here?
-    let resp1 = prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
+    let resp1 = prove2(params,vpk,&cr,wit,&ch1,query_ix);
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
-    let resp2 = prove3(&params,&vpk,&cr,&wit,ch2.as_ref());
+    let resp2 = prove3(params,vpk,&cr,wit,ch2.as_ref());
 
-    FSDVProof{ com, ch1, resp1, ch2, resp2 }
+    FSDVProof{ com, resp1, resp2 }
 }
 
 pub fn fs_verify(params: &DVParams,
@@ -665,13 +663,11 @@ pub fn fs_verify(params: &DVParams,
                  query_ix: usize,
                  proof: &FSDVProof) -> bool {
 
-    let ch1_own = fs_compute_challenge_1(&params,lang,inst,&proof.com);
-    if ch1_own != proof.ch1 { return false; }
-    let ch2_own = fs_compute_challenge_2(&params,lang,inst,&proof.com,&proof.ch1,&proof.resp1);
-    if ch2_own != proof.ch2 { return false; }
+    let ch1 = fs_compute_challenge_1(&params,lang,inst,&proof.com);
+    let ch2 = fs_compute_challenge_2(&params,lang,inst,&proof.com,&ch1,&proof.resp1);
 
     verify3(&params,&vsk,&vpk,&lang,&inst,
-            &proof.com,&proof.ch1,proof.ch2.as_ref(),&proof.resp1,proof.resp2.as_ref(),query_ix)
+            &proof.com,&ch1,ch2.as_ref(),&proof.resp1,proof.resp2.as_ref(),query_ix)
 }
 
 

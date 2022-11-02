@@ -1,4 +1,4 @@
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Roots};
+use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Roots, Converter};
 use curv::BigInt;
 use paillier::{Paillier, EncryptionKey, DecryptionKey,
                KeyGeneration, Encrypt, Decrypt, RawCiphertext,
@@ -17,7 +17,7 @@ use super::paillier_elgamal as pe;
 use super::schnorr_exp as se;
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DVRParams {
     /// N of the prover (of the homomorphism psi), bit length
     pub psi_n_bitlen: u32,
@@ -418,6 +418,7 @@ pub struct DVRComRand {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRChallenge1(BigInt);
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRResp1 {
     u_m: BigInt,
     v_m: BigInt,
@@ -444,6 +445,7 @@ pub struct DVRResp1 {
     com_u_r: sp_plus::Commitment,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRResp1Rand {
     u_r_m: BigInt,
     v_r_m: BigInt,
@@ -486,6 +488,7 @@ pub struct DVRChallenge2 {
     ch_u_r: sp_plus::Challenge,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRResp2 {
     resp_u_m: sp_plus::Response,
     resp_v_m: sp_plus::Response,
@@ -1014,9 +1017,7 @@ pub fn verify3(params: &DVRParams,
         let pe::PECiphertext{ct1:rhs_1,ct2:rhs_2} =
             pe::encrypt_with_randomness(&lang.pk, &u_m_plain, &u_r_plain);
 
-        // FIXME: what should be R for the randomness?...
-        // Currently it's N but it probably won't work
-        // @dimitris both (R,0) and (R,R) should work
+        // both (R,0) and (R,R) should work, depending on how u_r is constructed
         let pe::PECiphertext{ct1:psi_range_1,ct2:psi_range_2} =
             pe::encrypt_with_randomness(&lang.pk, &params.range, &BigInt::from(0));
             //pe::encrypt_with_randomness(&lang.pk, &params.range, lang.range_rand());
@@ -1129,6 +1130,122 @@ pub fn verify3(params: &DVRParams,
 }
 
 
+
+////////////////////////////////////////////////////////////////////////////
+// Fiat-Shamir variant
+////////////////////////////////////////////////////////////////////////////
+
+#[derive(Clone, Debug)]
+pub struct FSDVRProof {
+    com : DVRCom,
+    resp1 : DVRResp1,
+    resp2 : DVRResp2,
+}
+
+// Returns a lambda-bit bigint equal to the first bits of Blake2b(hash_input)
+fn fs_to_bigint(params: &DVRParams,
+                hash_input: &Vec<u8>) -> BigInt {
+
+    use blake2::*;
+    let mut hasher: Blake2b = Digest::new();
+    hasher.update(hash_input);
+    let r0 = hasher.finalize(); // the result is u8 array of size 64
+    let bigint = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8 - 1]);
+
+    bigint
+}
+
+fn fs_compute_challenge_1(params: &DVRParams,
+                          lang: &DVRLang,
+                          inst: &DVRInst,
+                          com: &DVRCom) -> DVRChallenge1 {
+    let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
+    let ch1 = fs_to_bigint(params, &x);
+    DVRChallenge1(ch1)
+}
+
+fn fs_compute_challenge_2(params: &DVRParams,
+                          lang: &DVRLang,
+                          inst: &DVRInst,
+                          com: &DVRCom,
+                          ch1: &DVRChallenge1,
+                          resp1: &DVRResp1) -> DVRChallenge2 {
+    // @volhovm: maybe we need to hash less here
+    let common_prefix: Vec<u8> = rmp_serde::to_vec(
+            &(params, lang, inst, com, ch1,
+              &resp1.u_m,
+              &resp1.v_m,
+              &resp1.u1_m,
+              &resp1.v1_m,
+              &resp1.u2_m,
+              &resp1.v2_m,
+              &resp1.u3_m,
+              &resp1.v3_m,
+              &resp1.u4_m,
+              &resp1.u_r)).unwrap();
+
+    let get_ch = |resp: &sp_plus::Commitment| {
+        let x: Vec<u8> = rmp_serde::to_vec(&(com, ch1, resp1, inst, lang, resp)).unwrap();
+        fs_to_bigint(params, &([common_prefix.clone(),x].concat()))
+    };
+    let ch_u_m  = sp_plus::Challenge(vec![get_ch(&resp1.com_u_m)]);
+    let ch_v_m  = sp_plus::Challenge(vec![get_ch(&resp1.com_v_m)]);
+    let ch_u1_m = sp_plus::Challenge(vec![get_ch(&resp1.com_u1_m)]);
+    let ch_v1_m = sp_plus::Challenge(vec![get_ch(&resp1.com_v1_m)]);
+    let ch_u2_m = sp_plus::Challenge(vec![get_ch(&resp1.com_u2_m)]);
+    let ch_v2_m = sp_plus::Challenge(vec![get_ch(&resp1.com_v2_m)]);
+    let ch_u3_m = sp_plus::Challenge(vec![get_ch(&resp1.com_u3_m)]);
+    let ch_v3_m = sp_plus::Challenge(vec![get_ch(&resp1.com_v3_m)]);
+    let ch_u4_m = sp_plus::Challenge(vec![get_ch(&resp1.com_u4_m)]);
+    let ch_u_r  = sp_plus::Challenge(vec![get_ch(&resp1.com_u_r)]);
+    DVRChallenge2 {
+        ch_u_m,
+        ch_v_m,
+        ch_u1_m,
+        ch_v1_m,
+        ch_u2_m,
+        ch_v2_m,
+        ch_u3_m,
+        ch_v3_m,
+        ch_u4_m,
+
+        ch_u_r }
+}
+
+pub fn fs_prove(params: &DVRParams,
+                vpk: &VPK,
+                lang: &DVRLang,
+                inst: &DVRInst,
+                wit: &DVRWit,
+                query_ix: usize) -> FSDVRProof {
+    let (com,cr) = prove1(params,vpk,lang,wit);
+    let ch1 = fs_compute_challenge_1(params,lang,inst,&com);
+    // @volhovm what is query_ix here?
+    let (resp1,resp1rand) = prove2(&params,&vpk,&lang,&wit,&ch1,&cr,query_ix);
+    let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
+    let resp2 = prove3(params,vpk,wit,&ch1,&cr,&resp1,&resp1rand,&ch2,query_ix);
+
+    FSDVRProof{ com, resp1, resp2 }
+}
+
+
+pub fn fs_verify(params: &DVRParams,
+                 vsk: &VSK,
+                 vpk: &VPK,
+                 lang: &DVRLang,
+                 inst: &DVRInst,
+                 query_ix: usize,
+                 proof: &FSDVRProof) -> bool {
+
+    let ch1 = fs_compute_challenge_1(params,lang,inst,&proof.com);
+    let ch2 = fs_compute_challenge_2(&params,lang,inst,&proof.com,&ch1,&proof.resp1);
+
+
+    verify3(&params,&vsk,&vpk,&lang,&inst,
+            &proof.com,&ch1,&proof.resp1,&ch2,&proof.resp2,query_ix)
+}
+
+
 ////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////
@@ -1174,4 +1291,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_correctness_fs() {
+        for _i in 0..10 {
+            let queries:usize = 32;
+            let range = BigInt::pow(&BigInt::from(2), 256);
+            let params = DVRParams::new(256, 32, range, queries as u32, false, false);
+
+            let (vpk,vsk) = keygen(&params);
+            assert!(verify_vpk(&params,&vpk));
+
+            for query_ix in 0..queries {
+                let (lang,inst,wit) = sample_liw(&params);
+
+                let proof = fs_prove(&params,&vpk,&lang,&inst,&wit,query_ix);
+                assert!(fs_verify(&params,&vsk,&vpk,&lang,&inst,query_ix,&proof));
+            }
+        }
+    }
 }

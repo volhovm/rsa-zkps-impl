@@ -111,19 +111,19 @@ pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
 
 
 /// Contains N-2^{λ+1} R
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Eq, Serialize)]
 pub struct VerifierPrecomp(Option<BigInt>);
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Eq, Serialize)]
 pub struct Commitment(Vec<BigInt>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ComRand(Vec<(BigInt,BigInt,BigInt)>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct Challenge(Vec<BigInt>);
+pub struct Challenge(pub Vec<BigInt>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Response(Vec<(BigInt,BigInt,BigInt)>);
 
 pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
