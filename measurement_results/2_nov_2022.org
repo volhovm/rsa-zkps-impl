@@ -263,3 +263,10 @@ DVR VPK malicious true, GGM false/keygen
                         time:   [41.222 s 42.162 s 43.188 s]
 DVR VPK malicious true, GGM false/verify_vpk
                         time:   [31.593 s 31.769 s 31.941 s]
+
+
+DVR VPK malicious false, GGM true/keygen                                                                          
+                        time:   [28.786 s 29.716 s 30.859 s]
+
+DVR VPK malicious true, GGM true/keygen                                                                          
+                        time:   [42.077 s 42.982 s 44.025 s]

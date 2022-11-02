@@ -1287,6 +1287,27 @@ pub fn test_correctness_fs() {
 }
 
 
+pub fn test_keygen_correctness() {
+    for ggm_mode in [false,true] {
+        for malicious_vpk in [false,true] {
+    let range = BigInt::pow(&BigInt::from(2), 256);
+    let params = DVRParams::new(2048, 128, range, 32, malicious_vpk, ggm_mode);
+
+    let t_start = SystemTime::now();
+    let (vpk,_vsk) = keygen(&params);
+    let t_2 = SystemTime::now();
+    if malicious_vpk { verify_vpk(&params,&vpk); };
+    let t_end = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_start).expect("error1");
+    let t_delta2 = t_end.duration_since(t_2).expect("error2");
+    println!("{:?}", params);
+            println!("keygen: {:?}, verify: {:?}", t_delta1, t_delta2);
+        }}
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use crate::protocols::designated_range::*;

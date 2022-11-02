@@ -330,14 +330,16 @@ fn bench_designated_all(c: &mut Criterion) {
     let n_bitlen = 2048;
     let lambda = 128;
     let queries = 32;
-    bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
-    bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
-   // bench_designated(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
-   // bench_designated(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
-    bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
-    bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
-    bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
-    bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
+    bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
+    bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
+    //bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
+    //bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
+   //// bench_designated(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
+   //// bench_designated(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
+    //bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
+    //bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
+    //bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
+    //bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
 }
 
 fn bench_designated_range_all(c: &mut Criterion) {

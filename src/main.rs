@@ -47,7 +47,7 @@ fn test_dv() {
 
 fn main() {
 
-    rsazkps::protocols::designated_range::test_correctness_fs();
+    rsazkps::protocols::designated_range::test_keygen_correctness();
 //    rsazkps::protocols::snark_paillier::test();
 //    rsazkps::protocols::schnorr_paillier_batched::tests::test_correctness();
     //test_dv_crs();
