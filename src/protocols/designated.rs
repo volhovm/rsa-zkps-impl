@@ -650,7 +650,7 @@ pub fn fs_prove(params: &DVParams,
     // @volhovm what is query_ix here?
     let resp1 = prove2(params,vpk,&cr,wit,&ch1,query_ix);
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
-    let resp2 = prove3(params,vpk,&cr,wit,ch2.as_ref());
+    let resp2 = prove3(params,vpk,&cr,&wit,ch2.as_ref());
 
     FSDVProof{ com, resp1, resp2 }
 }

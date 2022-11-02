@@ -53,13 +53,6 @@ impl DVRParams {
                              repbits)
     }
 
-    /// Bit length of the third N, wrt which VPK.n is constructed.
-    pub fn n_bitlen(&self) -> u32 {
-        // @volhovm FIXME I don't know the real value. This is a stub.
-        self.psi_n_bitlen * 3
-    }
-
-
     /// The size of honestly generated challenges (first λ).
     fn ch_small_bitlen(&self) -> u32 { self.lambda }
 
@@ -87,20 +80,12 @@ impl DVRParams {
         self.max_ch_bitlen() + slack + 1
     }
 
-    pub fn rand_m_bitlen(&self) -> u32 {
-        // r should be lambda bits more than c * w, where c is maximum sum-challenge proven.
-        self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
-        // TODO: maybe we can use range bits instead of psi_n_bitlen here. To optimise.
+    /// Bit length of the third N, wrt which VPK.n is constructed.
+    pub fn n_bitlen(&self) -> u32 {
+        // FIXME An educated guess. Plus two.
+        self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda + 2
     }
 
-    pub fn rand_r_bitlen(&self) -> u32 {
-        // @volhovm FIXME: which randomness we use here depends on
-        // what randomness is used for Paillier on Prover's side. It
-        // can either be randomness from N or from N^2.
-
-        self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
-        //2 * self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
-    }
 
     // M should be bigger than r + cw, but r should hide cw perfectly;
     // so cw is always negligibly smaller than r. We could just take M
@@ -1170,7 +1155,7 @@ fn fs_compute_challenge_2(params: &DVRParams,
                           com: &DVRCom,
                           ch1: &DVRChallenge1,
                           resp1: &DVRResp1) -> DVRChallenge2 {
-    // @volhovm: maybe we need to hash less here
+    // TODO: maybe we need to hash less here
     let common_prefix: Vec<u8> = rmp_serde::to_vec(
             &(params, lang, inst, com, ch1,
               &resp1.u_m,
@@ -1218,11 +1203,15 @@ pub fn fs_prove(params: &DVRParams,
                 inst: &DVRInst,
                 wit: &DVRWit,
                 query_ix: usize) -> FSDVRProof {
+    println!("prove1...");
     let (com,cr) = prove1(params,vpk,lang,wit);
+    println!("compute ch1...");
     let ch1 = fs_compute_challenge_1(params,lang,inst,&com);
-    // @volhovm what is query_ix here?
+    println!("prove2...");
     let (resp1,resp1rand) = prove2(&params,&vpk,&lang,&wit,&ch1,&cr,query_ix);
+    println!("compute ch2...");
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
+    println!("prove3...");
     let resp2 = prove3(params,vpk,wit,&ch1,&cr,&resp1,&resp1rand,&ch2,query_ix);
 
     FSDVRProof{ com, resp1, resp2 }
@@ -1237,10 +1226,11 @@ pub fn fs_verify(params: &DVRParams,
                  query_ix: usize,
                  proof: &FSDVRProof) -> bool {
 
+    println!("verify computing challenges...");
     let ch1 = fs_compute_challenge_1(params,lang,inst,&proof.com);
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&proof.com,&ch1,&proof.resp1);
 
-
+    println!("verify...");
     verify3(&params,&vsk,&vpk,&lang,&inst,
             &proof.com,&ch1,&proof.resp1,&ch2,&proof.resp2,query_ix)
 }
@@ -1249,6 +1239,26 @@ pub fn fs_verify(params: &DVRParams,
 ////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////
+
+
+pub fn test_correctness_fs() {
+    let queries:usize = 32;
+    let range = BigInt::pow(&BigInt::from(2), 256);
+    let params = DVRParams::new(1024, 128, range, queries as u32, false, false);
+
+    println!("keygen...");
+    let (vpk,vsk) = keygen(&params);
+    println!("verifying vpk...");
+    assert!(verify_vpk(&params,&vpk));
+
+    for query_ix in 0..queries {
+        let (lang,inst,wit) = sample_liw(&params);
+
+        let proof = fs_prove(&params,&vpk,&lang,&inst,&wit,query_ix);
+        assert!(fs_verify(&params,&vsk,&vpk,&lang,&inst,query_ix,&proof));
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -1293,20 +1303,18 @@ mod tests {
 
     #[test]
     fn test_correctness_fs() {
-        for _i in 0..10 {
-            let queries:usize = 32;
-            let range = BigInt::pow(&BigInt::from(2), 256);
-            let params = DVRParams::new(256, 32, range, queries as u32, false, false);
+        let queries:usize = 32;
+        let range = BigInt::pow(&BigInt::from(2), 256);
+        let params = DVRParams::new(1024, 128, range, queries as u32, false, false);
 
-            let (vpk,vsk) = keygen(&params);
-            assert!(verify_vpk(&params,&vpk));
+        let (vpk,vsk) = keygen(&params);
+        assert!(verify_vpk(&params,&vpk));
 
-            for query_ix in 0..queries {
-                let (lang,inst,wit) = sample_liw(&params);
+        for query_ix in 0..queries {
+            let (lang,inst,wit) = sample_liw(&params);
 
-                let proof = fs_prove(&params,&vpk,&lang,&inst,&wit,query_ix);
-                assert!(fs_verify(&params,&vsk,&vpk,&lang,&inst,query_ix,&proof));
-            }
+            let proof = fs_prove(&params,&vpk,&lang,&inst,&wit,query_ix);
+            assert!(fs_verify(&params,&vsk,&vpk,&lang,&inst,query_ix,&proof));
         }
     }
 }

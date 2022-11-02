@@ -1,0 +1,224 @@
+* Designated, 4 variants of FS compared
+#+DATE: [2022-11-02 Wed 07:25]
+
+Keygen prove time (total 15.640966099s): cts: 3.254240734s, nizk_gcd 54.700186ms; nizk_ct: 12.332025179s
+Benchmarking DV FS lam = 128, malicious false, GGM true/fs_prove: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 20.6s, or reduce sample count to 20.
+DV FS lam = 128, malicious false, GGM true/fs_prove
+                        time:   [99.086 ms 99.434 ms 99.818 ms]
+Found 9 outliers among 100 measurements (9.00%)
+  6 (6.00%) high mild
+  3 (3.00%) high severe
+Benchmarking DV FS lam = 128, malicious false, GGM true/fs_verify: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 26.9s, or reduce sample count to 10.
+DV FS lam = 128, malicious false, GGM true/fs_verify
+                        time:   [41.102 ms 41.654 ms 42.237 ms]
+Found 30 outliers among 100 measurements (30.00%)
+  10 (10.00%) low severe
+  7 (7.00%) low mild
+  2 (2.00%) high mild
+  11 (11.00%) high severe
+
+Keygen prove time (total 15.94438848s): cts: 3.70996413s, nizk_gcd 55.542767ms; nizk_ct: 12.178881583s
+Benchmarking DV FS lam = 128, malicious false, GGM false/fs_prove: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 31.4s, or reduce sample count to 10.
+DV FS lam = 128, malicious false, GGM false/fs_prove
+                        time:   [180.59 ms 181.69 ms 182.95 ms]
+Found 10 outliers among 100 measurements (10.00%)
+  3 (3.00%) high mild
+  7 (7.00%) high severe
+Benchmarking DV FS lam = 128, malicious false, GGM false/fs_verify: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 42.6s, or reduce sample count to 10.
+DV FS lam = 128, malicious false, GGM false/fs_verify
+                        time:   [120.94 ms 123.04 ms 126.06 ms]
+Found 6 outliers among 100 measurements (6.00%)
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+
+Keygen prove time (total 19.953978279s): cts: 4.276667712s, nizk_gcd 74.316057ms; nizk_ct: 15.60299451s
+Benchmarking DV FS lam = 128, malicious true, GGM true/fs_prove: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 23.4s, or reduce sample count to 20.
+DV FS lam = 128, malicious true, GGM true/fs_prove
+                        time:   [123.49 ms 126.22 ms 129.65 ms]
+Found 11 outliers among 100 measurements (11.00%)
+  2 (2.00%) high mild
+  9 (9.00%) high severe
+Benchmarking DV FS lam = 128, malicious true, GGM true/fs_verify: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 28.9s, or reduce sample count to 10.
+DV FS lam = 128, malicious true, GGM true/fs_verify
+                        time:   [45.095 ms 45.841 ms 46.617 ms]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+
+Keygen prove time (total 20.936299939s): cts: 4.513283619s, nizk_gcd 72.641645ms; nizk_ct: 16.350374675s
+Benchmarking DV FS lam = 128, malicious true, GGM false/fs_prove: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 35.3s, or reduce sample count to 10.
+DV FS lam = 128, malicious true, GGM false/fs_prove
+                        time:   [228.81 ms 229.95 ms 231.30 ms]
+Found 9 outliers among 100 measurements (9.00%)
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+Benchmarking DV FS lam = 128, malicious true, GGM false/fs_verify: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 49.3s, or reduce sample count to 10.
+DV FS lam = 128, malicious true, GGM false/fs_verify
+                        time:   [151.52 ms 153.36 ms 155.61 ms]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+
+Keygen prove time (total 15.640966099s): cts: 3.254240734s, nizk_gcd 54.700186ms; nizk_ct: 12.332025179s
+Benchmarking DV FS lam = 128, malicious false, GGM true/fs_prove: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 20.6s, or reduce sample count to 20.
+DV FS lam = 128, malicious false, GGM true/fs_prove
+                        time:   [99.086 ms 99.434 ms 99.818 ms]
+Found 9 outliers among 100 measurements (9.00%)
+  6 (6.00%) high mild
+  3 (3.00%) high severe
+Benchmarking DV FS lam = 128, malicious false, GGM true/fs_verify: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 26.9s, or reduce sample count to 10.
+DV FS lam = 128, malicious false, GGM true/fs_verify
+                        time:   [41.102 ms 41.654 ms 42.237 ms]
+Found 30 outliers among 100 measurements (30.00%)
+  10 (10.00%) low severe
+  7 (7.00%) low mild
+  2 (2.00%) high mild
+  11 (11.00%) high severe
+
+Keygen prove time (total 15.94438848s): cts: 3.70996413s, nizk_gcd 55.542767ms; nizk_ct: 12.178881583s
+Benchmarking DV FS lam = 128, malicious false, GGM false/fs_prove: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 31.4s, or reduce sample count to 10.
+DV FS lam = 128, malicious false, GGM false/fs_prove
+                        time:   [180.59 ms 181.69 ms 182.95 ms]
+Found 10 outliers among 100 measurements (10.00%)
+  3 (3.00%) high mild
+  7 (7.00%) high severe
+Benchmarking DV FS lam = 128, malicious false, GGM false/fs_verify: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 42.6s, or reduce sample count to 10.
+DV FS lam = 128, malicious false, GGM false/fs_verify
+                        time:   [120.94 ms 123.04 ms 126.06 ms]
+Found 6 outliers among 100 measurements (6.00%)
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+
+Keygen prove time (total 19.953978279s): cts: 4.276667712s, nizk_gcd 74.316057ms; nizk_ct: 15.60299451s
+Benchmarking DV FS lam = 128, malicious true, GGM true/fs_prove: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 23.4s, or reduce sample count to 20.
+DV FS lam = 128, malicious true, GGM true/fs_prove
+                        time:   [123.49 ms 126.22 ms 129.65 ms]
+Found 11 outliers among 100 measurements (11.00%)
+  2 (2.00%) high mild
+  9 (9.00%) high severe
+Benchmarking DV FS lam = 128, malicious true, GGM true/fs_verify: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 28.9s, or reduce sample count to 10.
+DV FS lam = 128, malicious true, GGM true/fs_verify
+                        time:   [45.095 ms 45.841 ms 46.617 ms]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+
+Keygen prove time (total 20.936299939s): cts: 4.513283619s, nizk_gcd 72.641645ms; nizk_ct: 16.350374675s
+Benchmarking DV FS lam = 128, malicious true, GGM false/fs_prove: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 35.3s, or reduce sample count to 10.
+DV FS lam = 128, malicious true, GGM false/fs_prove
+                        time:   [228.81 ms 229.95 ms 231.30 ms]
+Found 9 outliers among 100 measurements (9.00%)
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+Benchmarking DV FS lam = 128, malicious true, GGM false/fs_verify: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 49.3s, or reduce sample count to 10.
+DV FS lam = 128, malicious true, GGM false/fs_verify
+                        time:   [151.52 ms 153.36 ms 155.61 ms]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+* DV keygen
+#+DATE: [2022-11-02 Wed 08:09]
+
+Summary: two experiments, with malicious CRS and without; time is 20/16 second prove/verify with malicious (bigger challenges), and 15/12 without (but 12 does not really need to be run).
+
+
+Benchmarking DV VPK lam = 128, malicious true/keygen: Warming up for 3.0000 sKeygen prove time (total 20.38208578s): cts: 4.581029869s, nizk_gcd 72.721882ms; nizk_ct: 15.728334029s
+
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 203.8s.
+Benchmarking DV VPK lam = 128, malicious true/keygen: Collecting 10 samples in estimated 203.82 s (10 iterations)Keygen prove time (total 21.05634298s): cts: 4.599309929s, nizk_gcd 81.824621ms; nizk_ct: 16.37520843s
+Keygen prove time (total 20.061891673s): cts: 4.35052826s, nizk_gcd 72.49884ms; nizk_ct: 15.638864573s
+Keygen prove time (total 20.198718366s): cts: 4.352705869s, nizk_gcd 74.511092ms; nizk_ct: 15.771501405s
+Keygen prove time (total 20.826841136s): cts: 4.421398654s, nizk_gcd 80.404362ms; nizk_ct: 16.32503812s
+Keygen prove time (total 20.076276823s): cts: 4.406211879s, nizk_gcd 73.462442ms; nizk_ct: 15.596602502s
+Keygen prove time (total 19.995606363s): cts: 4.265648754s, nizk_gcd 72.417293ms; nizk_ct: 15.657540316s
+Keygen prove time (total 20.644326255s): cts: 4.206641917s, nizk_gcd 72.747158ms; nizk_ct: 16.36493718s
+Keygen prove time (total 19.855261562s): cts: 4.192114103s, nizk_gcd 72.898365ms; nizk_ct: 15.590249094s
+Keygen prove time (total 20.451599665s): cts: 4.556196281s, nizk_gcd 71.820545ms; nizk_ct: 15.823582839s
+Keygen prove time (total 20.945088073s): cts: 4.347536613s, nizk_gcd 72.518065ms; nizk_ct: 16.525033395s
+DV VPK lam = 128, malicious true/keygen
+                        time:   [20.165 s 20.412 s 20.674 s]
+Benchmarking DV VPK lam = 128, malicious true/verify_vpk: Warming up for 3.0000 sKeygen prove time (total 19.966731274s): cts: 4.2307519s, nizk_gcd 72.664835ms; nizk_ct: 15.663314539s
+Keygen verify time (total 15.766301275s): nizk_gcd 76.4269ms; nizk_ct: 15.689874375s
+
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 357.3s.
+Benchmarking DV VPK lam = 128, malicious true/verify_vpk: Collecting 10 samples in estimated 357.34 s (10 iterations)Keygen prove time (total 20.136151882s): cts: 4.214310925s, nizk_gcd 74.857397ms; nizk_ct: 15.84698356s
+Keygen verify time (total 16.504546663s): nizk_gcd 82.38046ms; nizk_ct: 16.422166203s
+Keygen prove time (total 19.985639162s): cts: 4.241896491s, nizk_gcd 73.096783ms; nizk_ct: 15.670645888s
+Keygen verify time (total 15.836885252s): nizk_gcd 74.699971ms; nizk_ct: 15.762185281s
+Keygen prove time (total 20.952491299s): cts: 4.272582643s, nizk_gcd 72.90439ms; nizk_ct: 16.607004266s
+Keygen verify time (total 15.75474224s): nizk_gcd 74.508121ms; nizk_ct: 15.680234119s
+Keygen prove time (total 20.04934496s): cts: 4.352442188s, nizk_gcd 72.59649ms; nizk_ct: 15.624306282s
+Keygen verify time (total 15.735482576s): nizk_gcd 77.846021ms; nizk_ct: 15.657636555s
+Keygen prove time (total 20.741818036s): cts: 4.289564785s, nizk_gcd 72.014566ms; nizk_ct: 16.380238685s
+Keygen verify time (total 15.675136246s): nizk_gcd 74.012259ms; nizk_ct: 15.601123987s
+Keygen prove time (total 20.069896274s): cts: 4.18730926s, nizk_gcd 72.104802ms; nizk_ct: 15.810482212s
+Keygen verify time (total 15.672272652s): nizk_gcd 74.8182ms; nizk_ct: 15.597454452s
+Keygen prove time (total 20.574361767s): cts: 4.573712427s, nizk_gcd 80.029012ms; nizk_ct: 15.920620328s
+Keygen verify time (total 15.902751512s): nizk_gcd 75.802168ms; nizk_ct: 15.826949344s
+Keygen prove time (total 20.23491755s): cts: 4.236177079s, nizk_gcd 73.106793ms; nizk_ct: 15.925633678s
+Keygen verify time (total 16.386246591s): nizk_gcd 74.049207ms; nizk_ct: 16.312197384s
+Keygen prove time (total 20.401885056s): cts: 4.662419448s, nizk_gcd 72.965611ms; nizk_ct: 15.666499997s
+Keygen verify time (total 15.990709019s): nizk_gcd 75.438362ms; nizk_ct: 15.915270657s
+Keygen prove time (total 19.990836205s): cts: 4.238855583s, nizk_gcd 73.355069ms; nizk_ct: 15.678625553s
+Keygen verify time (total 16.442974763s): nizk_gcd 75.292252ms; nizk_ct: 16.367682511s
+DV VPK lam = 128, malicious true/verify_vpk
+                        time:   [15.809 s 15.991 s 16.194 s]
+
+
+Benchmarking DV VPK lam = 128, malicious false/keygen: Warming up for 3.0000 sKeygen prove time (total 15.055346256s): cts: 3.263327402s, nizk_gcd 55.361166ms; nizk_ct: 11.736657688s
+
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 150.6s.
+Benchmarking DV VPK lam = 128, malicious false/keygen: Collecting 10 samples in estimated 150.56 s (10 iterations)Keygen prove time (total 15.068269676s): cts: 3.279716874s, nizk_gcd 54.972039ms; nizk_ct: 11.733580763s
+Keygen prove time (total 15.313947094s): cts: 3.373114729s, nizk_gcd 55.753934ms; nizk_ct: 11.885078431s
+Keygen prove time (total 15.892781748s): cts: 3.273283069s, nizk_gcd 55.826466ms; nizk_ct: 12.563672213s
+Keygen prove time (total 15.354765474s): cts: 3.353051199s, nizk_gcd 58.57879ms; nizk_ct: 11.943135485s
+Keygen prove time (total 15.075190599s): cts: 3.212420418s, nizk_gcd 56.258786ms; nizk_ct: 11.806511395s
+Keygen prove time (total 15.088695098s): cts: 3.259906639s, nizk_gcd 54.54045ms; nizk_ct: 11.774248009s
+Keygen prove time (total 15.902904878s): cts: 3.278225858s, nizk_gcd 57.034618ms; nizk_ct: 12.567644402s
+Keygen prove time (total 15.047879302s): cts: 3.238706973s, nizk_gcd 54.948419ms; nizk_ct: 11.75422391s
+Keygen prove time (total 15.526280136s): cts: 3.502579521s, nizk_gcd 57.875919ms; nizk_ct: 11.965824696s
+Keygen prove time (total 15.113190697s): cts: 3.183248838s, nizk_gcd 54.524611ms; nizk_ct: 11.875417248s
+DV VPK lam = 128, malicious false/keygen
+                        time:   [15.157 s 15.339 s 15.545 s]
+Benchmarking DV VPK lam = 128, malicious false/verify_vpk: Warming up for 3.0000 sKeygen prove time (total 15.848878727s): cts: 3.275152977s, nizk_gcd 54.973777ms; nizk_ct: 12.518751973s
+Keygen verify time (total 11.849729952s): nizk_gcd 57.469859ms; nizk_ct: 11.792260093s
+
+Warning: Unable to complete 10 samples in 5.0s. You may wish to increase target time to 277.0s.
+Benchmarking DV VPK lam = 128, malicious false/verify_vpk: Collecting 10 samples in estimated 276.99 s (10 iterations)Keygen prove time (total 15.174612748s): cts: 3.182812994s, nizk_gcd 55.569383ms; nizk_ct: 11.936230371s
+Keygen verify time (total 11.923574536s): nizk_gcd 56.742389ms; nizk_ct: 11.866832147s
+Keygen prove time (total 15.001003934s): cts: 3.201365003s, nizk_gcd 54.839364ms; nizk_ct: 11.744799567s
+Keygen verify time (total 12.5397943s): nizk_gcd 57.288327ms; nizk_ct: 12.482505973s
+Keygen prove time (total 15.189550672s): cts: 3.273705217s, nizk_gcd 55.00566ms; nizk_ct: 11.860839795s
+Keygen verify time (total 11.809400817s): nizk_gcd 57.656025ms; nizk_ct: 11.751744792s
+Keygen prove time (total 15.138401893s): cts: 3.172356493s, nizk_gcd 55.172858ms; nizk_ct: 11.910872542s
+Keygen verify time (total 11.95733765s): nizk_gcd 60.760038ms; nizk_ct: 11.896577612s
+Keygen prove time (total 16.122178647s): cts: 3.440798466s, nizk_gcd 65.19703ms; nizk_ct: 12.616183151s
+Keygen verify time (total 11.928326551s): nizk_gcd 57.604249ms; nizk_ct: 11.870722302s
+Keygen prove time (total 15.264663719s): cts: 3.441167645s, nizk_gcd 55.676124ms; nizk_ct: 11.76781995s
+Keygen verify time (total 11.807062318s): nizk_gcd 66.921511ms; nizk_ct: 11.740140807s
+Keygen prove time (total 15.956871435s): cts: 3.469460313s, nizk_gcd 55.546311ms; nizk_ct: 12.431864811s
+Keygen verify time (total 11.945586533s): nizk_gcd 99.214605ms; nizk_ct: 11.846371928s
+Keygen prove time (total 15.070087861s): cts: 3.240057658s, nizk_gcd 56.120774ms; nizk_ct: 11.773909429s
+Keygen verify time (total 11.831947969s): nizk_gcd 58.097576ms; nizk_ct: 11.773850393s
+Keygen prove time (total 15.246366887s): cts: 3.296669394s, nizk_gcd 54.645559ms; nizk_ct: 11.895051934s
+Keygen verify time (total 12.44541752s): nizk_gcd 56.809109ms; nizk_ct: 12.388608411s
+Keygen prove time (total 15.027125042s): cts: 3.174898166s, nizk_gcd 54.964574ms; nizk_ct: 11.797262302s
+Keygen verify time (total 11.87228127s): nizk_gcd 57.530843ms; nizk_ct: 11.814750427s
+DV VPK lam = 128, malicious false/verify_vpk
+                        time:   [11.872 s 12.007 s 12.180 s]
+Found 2 outliers among 10 measurements (20.00%)
+  2 (20.00%) high severe

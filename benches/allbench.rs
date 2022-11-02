@@ -4,6 +4,10 @@ use rsazkps::protocols::schnorr_paillier as sp;
 use rsazkps::protocols::schnorr_paillier_batched as spb;
 use rsazkps::protocols::designated as dv;
 
+////////////////////////////////////////////////////////////////////////////
+// Schnorr Paillier
+////////////////////////////////////////////////////////////////////////////
+
 
 // TODO the public modulus is not randomized. Should it be?
 fn bench_schnorr_paillier_raw(c: &mut Criterion, params: &sp::ProofParams) {
@@ -122,12 +126,17 @@ fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) 
 }
 
 
-fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
+////////////////////////////////////////////////////////////////////////////
+// DV
+////////////////////////////////////////////////////////////////////////////
+
+
+fn bench_designated_vpk(c: &mut Criterion, params: &dv::DVParams) {
 //    let mut grp = c.benchmark_group(format!("Group 3: Batched Schnorr Paillier for {}", params));
-    let mut grp = c.benchmark_group(format!("DV lam = {:?}", params.lambda));
+    let mut grp = c.benchmark_group(format!("DV VPK lam = {:?}, malicious {:?}", params.lambda, params.malicious_setup));
 
     //grp.measurement_time(Duration::from_secs(30));
-    //grp.sample_size(2);
+    grp.sample_size(10);
 
     grp.bench_function("keygen", |b| b.iter(|| dv::keygen(params)));
 
@@ -137,44 +146,110 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
                        |vpk| dv::verify_vpk(params,&vpk),
                        BatchSize::LargeInput);
     });
+}
 
 
-    //// This could be precomputed for each benchmark, but it's quite expensive?...
-    //let (vpk,vsk) = dv::keygen(&params);
+fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
+//    let mut grp = c.benchmark_group(format!("Group 3: Batched Schnorr Paillier for {}", params));
+    let mut grp = c.benchmark_group(format!("DV lam = {:?}", params.lambda));
 
-    //grp.bench_function("prove1", |b| {
-    //    b.iter_batched(|| dv::sample_liw(params).0,
-    //                   |lang| dv::prove1(params,&lang),
-    //                   BatchSize::LargeInput);
-    //});
+    //grp.measurement_time(Duration::from_secs(30));
+    //grp.sample_size(2);
 
-    //grp.bench_function("verify1", |b| b.iter(|| dv::verify1(params)));
 
-    //grp.bench_function("prove2", |b| {
-    //    b.iter_batched(
-    //        || { let (lang,_,wit) = dv::sample_liw(params);
-    //             let (_,cr) = dv::prove1(params,&lang);
-    //             let ch = dv::verify1(params);
-    //             return (wit,ch,cr); },
-    //        |(wit,ch,cr)| dv::prove2(&vpk,&cr,&wit,&ch),
-    //        BatchSize::LargeInput
-    //    );
-    //});
+    // This could be precomputed for each benchmark, but it's quite expensive?...
+    let (vpk,vsk) = dv::keygen(&params);
 
-    //grp.bench_function("verify2", |b| {
-    //    b.iter_batched(
-    //        || { let (lang,inst,wit) = dv::sample_liw(params);
-    //             let (com,cr) = dv::prove1(params,&lang);
-    //             let ch = dv::verify1(params);
-    //             let resp = dv::prove2(&vpk,&cr,&wit,&ch);
-    //             return (lang,inst,com,ch,resp); },
-    //        |(lang,inst,com,ch,resp)| dv::verify2(&vsk,&lang,&inst,&com,&ch,&resp),
-    //        BatchSize::LargeInput
-    //    );
-    //});
+    grp.bench_function("prove1", |b| {
+        b.iter_batched(|| dv::sample_liw(params).0,
+                       |lang| dv::prove1(params,&lang),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("verify1", |b| b.iter(|| dv::verify1(params)));
+
+    grp.bench_function("prove2", |b| {
+        b.iter_batched(
+            || { let (lang,_,wit) = dv::sample_liw(params);
+                 let (_,cr) = dv::prove1(params,&lang);
+                 let ch = dv::verify1(params);
+                 return (wit,ch,cr); },
+            |(wit,ch,cr)| dv::prove2(params,&vpk,&cr,&wit,&ch,0),
+            BatchSize::LargeInput
+        );
+    });
+
+    grp.bench_function("verify2", |b| b.iter(|| dv::verify2(params)));
+
+    grp.bench_function("prove3", |b| {
+        b.iter_batched(
+            || { let (lang,_,wit) = dv::sample_liw(params);
+                 let (_,cr) = dv::prove1(params,&lang);
+                 let ch = dv::verify1(params);
+                 let ch2 = dv::verify2(params);
+                 return (wit,ch,cr,ch2); },
+            |(wit,ch,cr,ch2)| dv::prove3(params,&vpk,&cr,&wit,ch2.as_ref()),
+            BatchSize::LargeInput
+        );
+    });
+
+
+    grp.bench_function("verify3", |b| {
+        b.iter_batched(
+            || { let (lang,inst,wit) = dv::sample_liw(params);
+                 let (com,cr) = dv::prove1(params,&lang);
+                 let ch1 = dv::verify1(params);
+                 let resp1 = dv::prove2(params,&vpk,&cr,&wit,&ch1,0);
+                 let ch2 = dv::verify2(params);
+                 let resp2 = dv::prove3(params,&vpk,&cr,&wit,ch2.as_ref());
+                 return (lang,inst,com,ch1,ch2,resp1,resp2); },
+            |(lang,inst,com,ch1,ch2,resp1,resp2)|
+            dv::verify3(params,&vsk,&vpk,&lang,&inst,
+                        &com,&ch1,ch2.as_ref(),&resp1,resp2.as_ref(),0),
+            BatchSize::LargeInput
+        );
+    });
 
     grp.finish();
 }
+
+fn bench_designated_fs(c: &mut Criterion, params: &dv::DVParams) {
+//    let mut grp = c.benchmark_group(format!("Group 3: Batched Schnorr Paillier for {}", params));
+    let mut grp = c.benchmark_group(format!("DV FS lam = {:?}, malicious {:?}, GGM {:?}", params.lambda, params.malicious_setup, params.ggm_mode));
+
+    //grp.measurement_time(Duration::from_secs(30));
+    //grp.sample_size(2);
+
+    // This could be precomputed for each benchmark, but it's quite expensive?...
+    let (vpk,vsk) = dv::keygen(&params);
+
+
+    grp.bench_function("fs_prove", |b| {
+        b.iter_batched(|| dv::sample_liw(params),
+                       |(lang,inst,wit)|
+                       dv::fs_prove(params,&vpk,&lang,&inst,&wit,0),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("fs_verify", |b| {
+        b.iter_batched(
+            || { let (lang,inst,wit) = dv::sample_liw(params);
+                 let proof = dv::fs_prove(params,&vpk,&lang,&inst,&wit,0);
+                 return (lang,inst,proof); },
+            |(lang,inst,proof)|
+            dv::fs_verify(params,&vsk,&vpk,&lang,&inst,0,&proof),
+            BatchSize::LargeInput
+        );
+    });
+
+    grp.finish();
+}
+
+
+////////////////////////////////////////////////////////////////////////////
+// All
+////////////////////////////////////////////////////////////////////////////
+
 
 
 #[allow(dead_code)]
@@ -195,9 +270,19 @@ fn bench_schnorr_paillier(c: &mut Criterion) {
 
 
 fn bench_designated_all(c: &mut Criterion) {
-//    bench_designated(c,&dv::DVParams::new(1024, 32));
-    bench_designated(c,&dv::DVParams::new(2048, 128, 1, false, false));
-    bench_designated(c,&dv::DVParams::new(2048, 128, 1, false, true));
+
+    //    bench_designated(c,&dv::DVParams::new(1024, 32));
+    let n_bitlen = 2048;
+    let lambda = 128;
+    let queries = 32;
+    bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
+    bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
+   // bench_designated(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
+   // bench_designated(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
+   // bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
+   // bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
+   // bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
+   // bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
 }
 
 
