@@ -65,7 +65,7 @@ pub struct Wit {
     pub m: BigInt,
     pub r: BigInt,
     /// exponent of ct
-    pub cexp: BigInt, 
+    pub cexp: BigInt,
 }
 
 pub fn sample_lang(params: &ProofParams) -> Lang {
@@ -116,10 +116,10 @@ pub struct VerifierPrecomp(Option<BigInt>);
 #[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Commitment(Vec<BigInt>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ComRand(Vec<(BigInt,BigInt,BigInt)>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Challenge(Vec<BigInt>);
 
 #[derive(Clone, PartialEq, Debug)]
@@ -139,7 +139,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
         let rm =  BigInt::sample_below(n);
         let rr = BigInt::sample_below(n);
         // FIXME should be just enough to blind c*wit.cexp, but wit.cexp is small.
-        let rcexp = BigInt::sample_below(n); 
+        let rcexp = BigInt::sample_below(n);
         (rm,rr,rcexp)
     }).collect();
     let alpha_v: Vec<_> = rand_v.iter().map(|(rm,rr,rcexp)| {
@@ -177,7 +177,6 @@ pub fn prove2(params: &ProofParams,
 pub fn verify2(params: &ProofParams,
                lang: &Lang,
                inst: &Inst,
-               _precomp: &VerifierPrecomp,
                com: &Commitment,
                ch: &Challenge,
                resp: &Response) -> bool {
@@ -241,13 +240,12 @@ pub fn fs_verify0(params: &ProofParams,
 pub fn fs_verify(params: &ProofParams,
                  lang: &Lang,
                  inst: &Inst,
-                 precomp: &VerifierPrecomp,
                  proof: &FSProof) -> bool {
 
     let fs_ch_own = fs_compute_challenge(lang,inst,&proof.fs_com);
     if fs_ch_own != proof.fs_ch { return false; }
 
-    verify2(&params,&lang,&inst,precomp,
+    verify2(&params,&lang,&inst,
             &proof.fs_com,&proof.fs_ch,&proof.fs_resp)
 }
 
@@ -269,8 +267,24 @@ mod tests {
         let ch = verify1(&params);
 
         let resp = prove2(&params,&lang,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
+        assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
     }
+
+    #[test]
+    fn test_correctness_noreps() {
+        let params = ProofParams::new(2048, 128, 128);
+        let (lang,inst,wit) = sample_liw(&params);
+
+        let (res,precomp) = verify0(&params,&lang);
+        assert!(res);
+
+        let (com,cr) = prove1(&params,&lang);
+        let ch = verify1(&params);
+
+        let resp = prove2(&params,&lang,&wit,&ch,&cr);
+        assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
+    }
+
 
     #[test]
     fn test_correctness_fs() {
@@ -280,7 +294,7 @@ mod tests {
         let proof = fs_prove(&params,&lang,&inst,&wit);
         let (res0,precomp) = fs_verify0(&params,&lang);
         assert!(res0);
-        let res = fs_verify(&params,&lang,&inst,&precomp,&proof);
+        let res = fs_verify(&params,&lang,&inst,&proof);
         assert!(res);
     }
 
