@@ -12,7 +12,6 @@ use rsazkps::protocols::designated_range as dvr;
 ////////////////////////////////////////////////////////////////////////////
 
 
-// TODO the public modulus is not randomized. Should it be?
 fn bench_schnorr_paillier_raw(c: &mut Criterion, params: &sp::ProofParams) {
     let mut grp = c.benchmark_group(format!("S-P, {}", params));
 
@@ -86,13 +85,8 @@ fn bench_schnorr_paillier_fs(c: &mut Criterion, params: &sp::ProofParams) {
     grp.finish();
 }
 
-// TODO the public modulus is not randomized. Should it be?
 fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) {
     let mut grp = c.benchmark_group(format!("Batched S-P {:?}", params));
-//    let mut grp = c.benchmark_group("Batched S-P");
-
-//    grp.measurement_time(Duration::from_secs(30));
-//    grp.sample_size(100);
 
     grp.bench_function("prove1", |b| {
         b.iter_batched(|| spb::sample_liw(params).0,
@@ -325,7 +319,6 @@ fn bench_schnorr_paillier(c: &mut Criterion) {
 
 
 fn bench_designated_all(c: &mut Criterion) {
-
     //    bench_designated(c,&dv::DVParams::new(1024, 32));
     let n_bitlen = 2048;
     let lambda = 128;

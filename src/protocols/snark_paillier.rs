@@ -103,7 +103,6 @@ impl<E: Engine> Circuit<E> for PailCorrectOpt {
         cs: &mut CS
     ) -> Result<(),SynthesisError>
     {
-        // *TODO* Perhaps optimize?
         let p_limbs = ((self.p_bitlen as f64) / (self.limb_width as f64)).ceil() as usize;
         let n_limbs = p_limbs * 2;
         let n2_limbs = n_limbs * 2;
@@ -121,7 +120,6 @@ impl<E: Engine> Circuit<E> for PailCorrectOpt {
         let n2_bn = alloc_bn(self.n.clone() * self.n.clone(), "n2", n2_limbs)?;
 
 
-        // FIXME we might need to have some constraints making sure numbers are related,
         // e.g. n = pq etc
 
 

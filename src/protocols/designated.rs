@@ -54,7 +54,7 @@ impl DVParams {
         if self.crs_uses == 0 {
             self.lambda + u::log2ceil(self.lambda)
         } else {
-            2 * self.lambda + u::log2ceil(self.lambda) // FIXME, shouldn't it be a bit more?
+            2 * self.lambda + u::log2ceil(self.lambda)
         }
     }
 
@@ -80,10 +80,6 @@ impl DVParams {
     }
 
     pub fn rand_r_bitlen(&self) -> u32 {
-        // @volhovm FIXME: which randomness we use here depends on
-        // what randomness is used for Paillier on Prover's side. It
-        // can either be randomness from N or from N^2.
-
         self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
         //2 * self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda
     }
@@ -94,7 +90,7 @@ impl DVParams {
     // but adding one extra bit will give us perfect completeness,
     // because now r + cw < 2 r.
     pub fn vpk_n_bitlen(&self) -> u32 {
-        // TODO: According to my calculations, it should be max(x,y)
+        // It should be max(x,y)
         // + 1, not +2. Maybe this has to do with the symmetric range.
         // But the difference does not affect the performance anyway.
         std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 2
@@ -301,10 +297,6 @@ pub fn sample_lang(params: &DVParams) -> DVLang {
 }
 
 pub fn sample_inst(lang: &DVLang, range: Option<&BigInt>) -> (DVInst,DVWit) {
-    // FIXME the bug is here! Even with fixed m/r being small,
-    // the proof does not always verify. Sometimes.
-    //let m = BigInt::from(5);
-    //let r = BigInt::from(10);
     let m_range = range.unwrap_or(&lang.pk.n);
     let m = BigInt::sample_below(m_range);
     let r = BigInt::sample_below(&lang.pk.n);
@@ -361,8 +353,6 @@ pub struct DVResp2 {
 
 
 pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
-    // TODO it's broken here
-    // TODO @volhovm 26/10 where? and how? :thinking:
     let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
     let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
 
@@ -631,7 +621,6 @@ fn fs_compute_challenge_2(params: &DVParams,
     if params.ggm_mode {
         None
     } else{
-        // @volhovm: maybe we need to hash less here
         let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, fs_ch1, fs_resp1, inst, lang)).unwrap();
         let ch2 = fs_to_bigint(params, &x);
         Some(DVChallenge2(ch2))
@@ -647,7 +636,6 @@ pub fn fs_prove(params: &DVParams,
                 query_ix: usize) -> FSDVProof {
     let (com,cr) = prove1(params,lang);
     let ch1 = fs_compute_challenge_1(params,lang,inst,&com);
-    // @volhovm what is query_ix here?
     let resp1 = prove2(params,vpk,&cr,wit,&ch1,query_ix);
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
     let resp2 = prove3(params,vpk,&cr,&wit,ch2.as_ref());

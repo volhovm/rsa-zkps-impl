@@ -9,71 +9,6 @@ use algebraics as alg;
 // prob. 4^reps, so reps = 40 should do to achieve a 80 bit error prob.
 static MILLER_RABIN_REPS: u32 = 40;
 
-type PolyCoeff = alg::mod_int::ModularInteger<
-                    nb::BigInt,
-                    alg::mod_int::KnownPrime<nb::BigInt>>;
-type Poly = alg::polynomial::Polynomial<PolyCoeff>;
-
-pub fn bigint_to_bi(n: &BigInt) -> nb::BigInt {
-    nb::BigInt::from_bytes_be(nb::Sign::Plus,&(BigInt::to_bytes(n))[..])
-}
-
-pub fn bigint_to_bui(n: &BigInt) -> nb::BigUint {
-    nb::BigUint::from_bytes_be(&(BigInt::to_bytes(n))[..])
-}
-
-pub fn two_squares_decompose_wip(p: &BigInt) -> (BigInt, BigInt) {
-    use num_bigint::{BigInt, ToBigInt, RandBigInt};
-    use core::ops::Rem;
-
-    let p_nb = bigint_to_bui(p);
-    let p_nb_signed: nb::BigInt = nb::ToBigInt::to_bigint(&p_nb).unwrap();
-    let modulus = alg::mod_int::KnownPrime::new_unsafe(p_nb_signed.clone());
-
-    let to_coeff = |e: &nb::BigInt| -> PolyCoeff {
-        alg::mod_int::ModularInteger::from_bigint(e,modulus.clone())
-    };
-
-    let one: nb::BigInt = From::from(1);
-    let two: nb::BigInt = From::from(2);
-    let step1: nb::BigInt = &p_nb_signed - &one;
-    let (k,krem) = step1.div_mod_floor(&From::from(4));
-    assert!(krem.is_zero());
-
-    let (_,two_k_bytes) = nb::BigInt::to_bytes_be(&(&two * &k));
-
-
-    let mut rng = rand::thread_rng();
-    let b = RandBigInt::gen_biguint_below(&mut rng,&p_nb).to_bigint().unwrap();
-//    (1+b^2) + (-2b) * t + 1 * t^2
-    let fb: Poly = From::from([to_coeff(&From::from(1)) + to_coeff(&b)*to_coeff(&b),
-                               -to_coeff(&From::from(2)) * to_coeff(&b),
-                               to_coeff(&From::from(1))]);
-
-    let mut h: Poly = From::from([to_coeff(&From::from(1))]);
-    let mut g: Poly =
-        From::from([to_coeff(&From::from(0)),to_coeff(&From::from(1))]);
-
-    for i in 0..two_k_bytes.len() {
-        let mut mask: u8 = 1;
-        for _j in 0..8 {
-            g = (&g * &g) % &fb;
-            if two_k_bytes[i] & mask != 0u8 {
-                h = &h * &g;
-            }
-            mask <<= 1;
-        }
-    }
-
-    let one_poly: Poly = From::from([to_coeff(&From::from(1))]);
-    let hfinal: Poly = &h - &one_poly;
-    let _gcd = alg::traits::GCD::gcd(&hfinal,&fb);
-
-
-    unimplemented!()
-}
-
-
 
 // Taken from https://math.stackexchange.com/questions/5877/efficiently-finding-two-squares-which-sum-to-a-prime
 
@@ -155,8 +90,6 @@ pub fn two_squares_decompose(p: &BigInt) -> (BigInt,BigInt) {
 
 
 // From "Randomized Algorithms in Number Theory" by Rabin and Shallit.
-// @volhovm: only works with numbers of form 4n+1 reliably. Otherwise
-// fails for no good reason sometimes.
 pub fn three_squares_decompose_raw(n: &BigInt) -> Option<(BigInt, BigInt, BigInt)> {
     // if n % 4 == 0, then do smth with n/4
     let (n_over_4,r) = BigInt::div_rem(n, &BigInt::from(4));
@@ -203,13 +136,11 @@ pub fn three_squares_decompose_raw(n: &BigInt) -> Option<(BigInt, BigInt, BigInt
 }
 
 
-// @volhovm: I will be properly ashamed of this code next time I work
-// on this project.
 pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
     for _i in 0..100 {
         match three_squares_decompose_raw(n) {
             Some((a,b,c)) => { if &(&a * &a + &b * &b + &c * &c) == n { return (a,b,c) }; },
-            None => { println!("I hate myself"); },
+            None => { println!("three_squares_decompose: got None"); },
         }
     }
     panic!("three squares decompose: I give up");
@@ -218,38 +149,6 @@ pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
 ////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////
-
-pub fn test_two_squares() {
-    let mut p: BigInt;
-
-    for _i in 0..1000 {
-        loop {
-            p = BigInt::sample(128);
-            if (&p % &BigInt::from(4)) == BigInt::from(1) &&
-                BigInt::is_probable_prime(&p, MILLER_RABIN_REPS) { break; }
-        }
-
-        println!("Computing decomposition");
-        let (a,b) = two_squares_decompose(&p);
-        assert!(&a * &a + &b * &b == p);
-    }
-}
-
-pub fn test_three_squares() {
-    let mut n: BigInt;
-    for _i in 0..100 {
-//        loop {
-//            //if &n % BigInt::from(8) != BigInt::from(7) { break; }
-//        }
-        let n0 = BigInt::sample(1024);
-        n = &BigInt::from(4) * &n0 + &BigInt::from(1);
-        println!("Computing 3sq decomposition");
-        let (a,b,c) = three_squares_decompose(&n);
-        assert!(&a * &a + &b * &b + &c * &c == n);
-        println!("Computing 3sq decomposition DONE");
-    }
-}
-
 
 #[cfg(test)]
 mod tests {
