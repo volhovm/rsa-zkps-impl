@@ -69,20 +69,18 @@ impl DVRParams {
             self.ch_small_bitlen() + u::log2ceil(self.lambda)
         } else {
             // Just ch_big_bitlen, because it masks ch_small_bitlen fully.
-            self.ch_big_bitlen() // FIXME, shouldn't it be a bit more?
+            self.ch_big_bitlen()
         }
     }
 
     /// Maximum size of the summed-up challenge, after considering VPK proof slack.
     pub fn max_ch_proven_bitlen(&self) -> u32 {
         let slack = if self.malicious_setup { self.range_slack_bitlen() } else { 0 };
-        // Plus one just in case. TODO maybe not necessary to add 1.
         self.max_ch_bitlen() + slack + 1
     }
 
     /// Bit length of the third N, wrt which VPK.n is constructed.
     pub fn n_bitlen(&self) -> u32 {
-        // FIXME An educated guess. Plus two.
         self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda + 2
     }
 
@@ -294,7 +292,6 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let p = sk_.p.clone();
     let q = sk_.q.clone();
 
-    // FIXME: not sure g in Z_N or in Z_{N^2}
     let h = BigInt::sample_below(&n);
     let phi = (&p-1) * (&q-1);
     let f = BigInt::sample_below(&phi);
@@ -503,7 +500,6 @@ pub struct DVRResp2 {
 
 
 fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
-    // FIXME over Z_N, right? Or Z_N^2?
     BigInt::mod_mul(
         &u::bigint_mod_pow(&vpk.g, msg, &vpk.n),
         &u::bigint_mod_pow(&vpk.h, r, &vpk.n),
@@ -512,8 +508,6 @@ fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
 
 
 pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (DVRCom,DVRComRand) {
-    // FIXME: these ranges are taken from the basic protocol, figure 3,
-    // that does not consider reusable CRS. With reusable CRS the ranges will become bigger.
 
     // maximum challenge possible, c
     let max_ch = BigInt::pow(&BigInt::from(2),params.max_ch_proven_bitlen());
@@ -1186,7 +1180,6 @@ fn fs_compute_challenge_2(params: &DVRParams,
                           ch1: &DVRChallenge1,
                           resp1: &DVRResp1) -> Option<DVRChallenge2> {
     if params.ggm_mode { None } else {
-    // TODO: maybe we need to hash less here
     let common_prefix: Vec<u8> = rmp_serde::to_vec(
             &(params, lang, inst, com, ch1,
               &resp1.u_m,

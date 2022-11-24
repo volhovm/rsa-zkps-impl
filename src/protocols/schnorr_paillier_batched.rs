@@ -119,9 +119,6 @@ pub struct Response(Vec<BigInt>,Vec<BigInt>);
 
 pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let n: &BigInt = &lang.pk.n;
-    // TODO Return normal values
-//    let rand_m_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::from(0)).collect();
-//    let rand_r_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::from(1)).collect();
 
     let rand_m_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::sample_below(&params.rand_range)).collect();
     let rand_r_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::sample_below(n)).collect();

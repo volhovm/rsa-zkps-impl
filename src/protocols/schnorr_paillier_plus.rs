@@ -140,7 +140,6 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let rand_v: Vec<_> = (0..params.reps).map(|_| {
         let rm =  BigInt::sample_below(n);
         let rr = BigInt::sample_below(n);
-        // FIXME should be just enough to blind c*wit.cexp, but wit.cexp is small.
         let rcexp = BigInt::sample_below(n);
         (rm,rr,rcexp)
     }).collect();
