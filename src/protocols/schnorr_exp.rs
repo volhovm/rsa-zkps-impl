@@ -1,3 +1,6 @@
+/// A simple Schnorr variant for knowledge-of-discrete-logarithm (`x = g^w`)
+/// in Z_N where N might be subverted.
+
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
 use curv::BigInt;
 use paillier::EncryptWithChosenRandomness;
@@ -7,18 +10,22 @@ use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
+////////////////////////////////////////////////////////////////////////////
+// Params
+////////////////////////////////////////////////////////////////////////////
+
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ProofParams {
-    /// Secparam
+    /// Security parameter
     pub lambda: u32,
-    /// Small number up to which N shouldn't have divisors.
+    /// Small number up to which N shouldn't have divisors
     pub q: u64,
-    /// Number of repetitions of the protocol.
+    /// Number of repetitions of the protocol
     pub reps: usize,
-    /// Bitlength of the RSA modulus.
+    /// Bitlength of the RSA modulus
     pub n_bitlen: u32,
-    /// Size of the challenge space, upper bound.
+    /// Size of the challenge space, upper bound
     pub ch_space: BigInt,
 }
 
@@ -160,6 +167,10 @@ pub fn verify2(params: &ProofParams,
 }
 
 
+////////////////////////////////////////////////////////////////////////////
+// Fiat-Shamir variant
+////////////////////////////////////////////////////////////////////////////
+
 
 #[derive(Clone, Debug)]
 pub struct FSProof {
@@ -214,6 +225,9 @@ pub fn fs_verify(params: &ProofParams,
 }
 
 
+////////////////////////////////////////////////////////////////////////////
+// Tests
+////////////////////////////////////////////////////////////////////////////
 
 
 #[cfg(test)]

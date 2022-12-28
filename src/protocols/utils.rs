@@ -1,3 +1,5 @@
+/// Collection of helpers and utility functions.
+
 use curv::BigInt;
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, NumberTests};
 
@@ -14,17 +16,19 @@ pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
     return true;
 }
 
+/// Samples integer in the range [-r/2,r/2) = [0,r) - r/2
 pub fn bigint_sample_below_sym(r: &BigInt) -> BigInt {
     BigInt::sample_below(r) - r / 2
 }
 
+/// Checks that x \in [-r/2,r/2) mod n.
 pub fn bigint_in_range_sym(r: &BigInt, x: &BigInt, n: &BigInt) -> bool {
     let r2 = r / BigInt::from(2);
     if x < &r2 || x >= &(n-&r2) { return true; }
     false
 }
 
-/// Mod_pow but allowing exponents to be negative.
+/// Mod_pow which allows exponents to be negative.
 pub fn bigint_mod_pow(a: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
     if BigInt::is_negative(exponent) {
         let inv: Option<BigInt> = BigInt::mod_inv(a, modulus);
@@ -34,6 +38,7 @@ pub fn bigint_mod_pow(a: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt
     }
 }
 
+/// Log2, ceiled.
 pub fn log2ceil(x: u32) -> u32 {
    (x as f64).log2().ceil() as u32
 }

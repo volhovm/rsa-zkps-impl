@@ -1,3 +1,7 @@
+/// The main DV (designated verifier) protocol, which proves knowledge
+/// of plaintext for the Paillier-Elgamal encryption scheme (see
+/// `super::paillier_elgamal`), assuming its modulus can be subverted.
+
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation,Converter};
 use curv::{BigInt};
 use paillier::{Paillier, EncryptionKey, DecryptionKey,
@@ -13,6 +17,11 @@ use super::utils as u;
 use super::schnorr_paillier_batched as spb;
 use super::n_gcd as n_gcd;
 use super::paillier_elgamal as pe;
+
+
+////////////////////////////////////////////////////////////////////////////
+// Params
+////////////////////////////////////////////////////////////////////////////
 
 
 #[derive(Clone, Debug)]
@@ -125,6 +134,7 @@ impl DVParams {
 ////////////////////////////////////////////////////////////////////////////
 // Keygen
 ////////////////////////////////////////////////////////////////////////////
+
 
 #[derive(Clone, Debug)]
 pub struct VSK {
@@ -278,8 +288,9 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
     return true;
 }
 
+
 ////////////////////////////////////////////////////////////////////////////
-// Interactive part
+// Language
 ////////////////////////////////////////////////////////////////////////////
 
 
@@ -309,6 +320,11 @@ pub fn sample_liw(params: &DVParams) -> (DVLang,DVInst,DVWit) {
     let (inst,wit) = sample_inst(&lang,None);
     (lang,inst,wit)
 }
+
+
+////////////////////////////////////////////////////////////////////////////
+// Interactive part
+////////////////////////////////////////////////////////////////////////////
 
 
 #[derive(Clone, Debug, Serialize)]
@@ -579,7 +595,7 @@ pub fn verify3(params: &DVParams,
 
 
 ////////////////////////////////////////////////////////////////////////////
-// Non-interactive variant
+// Fiat-Shamir variant
 ////////////////////////////////////////////////////////////////////////////
 
 
@@ -659,22 +675,28 @@ pub fn fs_verify(params: &DVParams,
 }
 
 
+////////////////////////////////////////////////////////////////////////////
+// Tests
+////////////////////////////////////////////////////////////////////////////
+
+
 pub fn test_keygen_correctness() {
     for ggm_mode in [true,false] {
         for malicious_vpk in [false,true] {
-    let params = DVParams::new(2048, 128, 32, malicious_vpk, ggm_mode);
+            let params = DVParams::new(2048, 128, 32, malicious_vpk, ggm_mode);
 
-    let t_start = SystemTime::now();
-    let (vpk,_vsk) = keygen(&params);
-    let t_2 = SystemTime::now();
-    if malicious_vpk { verify_vpk(&params,&vpk); };
-    let t_end = SystemTime::now();
+            let t_start = SystemTime::now();
+            let (vpk,_vsk) = keygen(&params);
+            let t_2 = SystemTime::now();
+            if malicious_vpk { verify_vpk(&params,&vpk); };
+            let t_end = SystemTime::now();
 
-    let t_delta1 = t_2.duration_since(t_start).expect("error1");
-    let t_delta2 = t_end.duration_since(t_2).expect("error2");
-    println!("{:?}", params);
+            let t_delta1 = t_2.duration_since(t_start).expect("error1");
+            let t_delta2 = t_end.duration_since(t_2).expect("error2");
+            println!("{:?}", params);
             println!("keygen: {:?}, verify: {:?}", t_delta1, t_delta2);
-        }}
+        }
+    }
 }
 
 

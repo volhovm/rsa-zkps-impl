@@ -1,5 +1,3 @@
-#[macro_use]
-
 /// Produces the circuit for knowledge-of-plaintext of the Paillier
 /// encryption scheme. Provides two versions: the naive one, and
 /// optimised one, that uses CRT (Chinese remainder theorem) to
@@ -9,7 +7,7 @@
 /// that is practical to work with.
 
 /*
-I was following:
+This code is following:
 - https://github.com/matter-labs/bellman/blob/master/tests/mimc.rs#L92
 - https://github.com/alex-ozdemir/bellman-bignat/blob/master/src/set/rsa.rs#L523
 */
@@ -226,7 +224,7 @@ impl<E: Engine> Circuit<E> for PailCorrectOpt {
 ////////////////////////////////////////////////////////////////////////////////////
 
 
-// Taken from https://asecuritysite.com/encryption/random3?val=256
+// Numbers taken from https://asecuritysite.com/encryption/random3
 
 const RSA_80_P: &'static str = "1036290781";
 const RSA_80_Q: &'static str = "878851969";

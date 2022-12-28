@@ -17,6 +17,11 @@ use super::paillier_elgamal as pe;
 use super::schnorr_exp as se;
 
 
+////////////////////////////////////////////////////////////////////////////
+// Params
+////////////////////////////////////////////////////////////////////////////
+
+
 #[derive(Clone, Debug, Serialize)]
 pub struct DVRParams {
     /// N of the prover (of the homomorphism psi), bit length
@@ -85,6 +90,7 @@ impl DVRParams {
     }
 
 
+    /// Bit length of the modulus N_V used by the verifier.
     // M should be bigger than r + cw, but r should hide cw perfectly;
     // so cw is always negligibly smaller than r. We could just take M
     // to be n and achieve statistical completeness in this respect,
@@ -137,6 +143,11 @@ impl DVRParams {
     }
 
 }
+
+
+////////////////////////////////////////////////////////////////////////////
+// Language
+////////////////////////////////////////////////////////////////////////////
 
 
 #[derive(Clone, Debug, Serialize)]

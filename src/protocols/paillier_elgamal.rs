@@ -1,3 +1,12 @@
+/// Paillier-Elgamal encryption scheme, which is a variant of Paillier
+/// that is additively homomorphic in both message and randomness.
+///
+/// For the reference, see:
+/// "A Simple Public-Key Cryptosystem with a Double Trapdoor Decryption Mechanism and Its Applications"
+/// Section 3.
+///
+/// https://link.springer.com/chapter/10.1007/978-3-540-40061-5_3
+
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, Integer};
 use curv::{BigInt};
 use serde::{Serialize};
@@ -5,9 +14,6 @@ use paillier::{Paillier, EncryptionKey, DecryptionKey,
                KeyGeneration,
                Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
 
-// "A Simple Public-Key Cryptosystem with a Double Trapdoor Decryption Mechanism and Its Applications"
-// Section 3.
-// https://link.springer.com/chapter/10.1007/978-3-540-40061-5_3
 
 #[derive(Clone, Debug)]
 pub struct PESecretKey {

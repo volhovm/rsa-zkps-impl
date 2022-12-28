@@ -1,5 +1,9 @@
 #![allow(dead_code)]
 
+/// A playground to empirically investigate different sub-statements
+/// of our main information-theoretical lemma.
+// No need to look into this, as this is not used anywhere else in the library.
+
 use curv::BigInt;
 use itertools::Itertools;
 use paillier::*;
@@ -318,7 +322,7 @@ pub fn test_lemmas() {
     //test_lemma();
     //test_lemma_q_div();
     //    test_mylemma();
-    
+
     //let p = 7;
     //let q = 29; // q - 1 = 7 * 4
     //let p = 29;

@@ -1,3 +1,10 @@
+/// Implementation of the protocol that proves
+/// gcd(N,phi(N)) != 1 for any integer N, directly in the Fiat-Shamir model.
+///
+/// Taken from from Section 3.2 ("Paillier-N" protocol) of
+/// "Efficient Noninteractive Certification of RSA Moduli and Beyond"
+/// https://par.nsf.gov/servlets/purl/10189824
+
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, Converter};
 use curv::BigInt;
 use paillier::EncryptWithChosenRandomness;
@@ -7,13 +14,11 @@ use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
-// Implementation of protocol Paillier-N from Section 3.2
-// https://par.nsf.gov/servlets/purl/10189824
 
-// Common parameters for the proof system.
+/// Common parameters for the proof system.
 #[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct ProofParams {
-    /// Bitlength of the RSA modulus.
+    /// Bitlength of the RSA modulus
     pub n_bitlen: usize,
     /// Security parameter
     pub lambda: u32,
@@ -111,8 +116,6 @@ pub fn verify(params: &ProofParams, inst: &Inst, proof: &Proof) -> bool {
 
 #[cfg(test)]
 mod tests {
-
-
     #[test]
     fn test_correctness() {
         use crate::protocols::n_gcd::*;

@@ -1,3 +1,10 @@
+/// Implements three-square decomposition algorithm, necessary for the
+/// DVRange protocol.
+///
+/// Sources:
+/// 1. "Randomized Algorithms in Number Theory" by Rabin and Shallit.
+/// 2. https://math.stackexchange.com/questions/5877/efficiently-finding-two-squares-which-sum-to-a-prime
+
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Zero, Roots, Integer, Primes, Converter};
 use curv::BigInt;
 use rand::distributions::{Distribution, Uniform};
@@ -10,19 +17,17 @@ use algebraics as alg;
 static MILLER_RABIN_REPS: u32 = 40;
 
 
-// Taken from https://math.stackexchange.com/questions/5877/efficiently-finding-two-squares-which-sum-to-a-prime
-
-pub fn mods(a: &BigInt, n: &BigInt) -> BigInt {
+fn mods(a: &BigInt, n: &BigInt) -> BigInt {
     if n <= &BigInt::from(0) { panic!("Mods: negative modulus"); }
     a % n
 }
 
-pub fn quos(a: &BigInt, n: &BigInt) -> BigInt {
+fn quos(a: &BigInt, n: &BigInt) -> BigInt {
     if n <= &BigInt::from(0) { panic!("Negative modulus"); }
     a / n
 }
 
-pub fn powmods(a0: &BigInt, r0: &BigInt, n: &BigInt) -> BigInt {
+fn powmods(a0: &BigInt, r0: &BigInt, n: &BigInt) -> BigInt {
     let mut out: BigInt = BigInt::from(1);
     let mut a = a0.clone();
     let mut r = r0.clone();
@@ -38,8 +43,8 @@ pub fn powmods(a0: &BigInt, r0: &BigInt, n: &BigInt) -> BigInt {
 }
 
 
-// remainder in Gaussian integers when dividing w by z
-pub fn grem(w: &(BigInt,BigInt), z: &(BigInt,BigInt)) -> (BigInt, BigInt) {
+// Remainder in Gaussian integers when dividing w by z
+fn grem(w: &(BigInt,BigInt), z: &(BigInt,BigInt)) -> (BigInt, BigInt) {
     let (w0, w1) = w;
     let (z0, z1) = z;
     let n = z0 * z0 + z1 * z1;
@@ -51,7 +56,7 @@ pub fn grem(w: &(BigInt,BigInt), z: &(BigInt,BigInt)) -> (BigInt, BigInt) {
             w1 - z0 * &u1 - z1 * &u0);
 }
 
-pub fn ggcd(w0: &(BigInt,BigInt), z0: &(BigInt,BigInt)) -> (BigInt,BigInt) {
+fn ggcd(w0: &(BigInt,BigInt), z0: &(BigInt,BigInt)) -> (BigInt,BigInt) {
     let mut w = w0.clone();
     let mut z = z0.clone();
     while z != (BigInt::from(0),BigInt::from(0)) {
@@ -63,7 +68,7 @@ pub fn ggcd(w0: &(BigInt,BigInt), z0: &(BigInt,BigInt)) -> (BigInt,BigInt) {
     w
 }
 
-pub fn root4(p: &BigInt) -> BigInt {
+fn root4(p: &BigInt) -> BigInt {
     // 4th root of 1 modulo p
     if p <= &BigInt::from(1) { panic!("too small"); }
     if (p % &BigInt::from(4)) != BigInt::from(1) { panic!("not congruent to 1"); }
@@ -89,8 +94,7 @@ pub fn two_squares_decompose(p: &BigInt) -> (BigInt,BigInt) {
 
 
 
-// From "Randomized Algorithms in Number Theory" by Rabin and Shallit.
-pub fn three_squares_decompose_raw(n: &BigInt) -> Option<(BigInt, BigInt, BigInt)> {
+fn three_squares_decompose_raw(n: &BigInt) -> Option<(BigInt, BigInt, BigInt)> {
     // if n % 4 == 0, then do smth with n/4
     let (n_over_4,r) = BigInt::div_rem(n, &BigInt::from(4));
     if BigInt::is_zero(&r) {
