@@ -1,4 +1,8 @@
-// variant of schnorr_paillier for knowledge-of-ciphertext for the DVRange protocol
+/// A tailored variant of schnorr_paillier for knowledge-of-ciphertext
+/// specifically for the DVRange protocol. It is very similar to
+/// super::schnorr_paillier, except that (1) it is for a slightly
+/// different 3-ary relation S = Enc(w_1,w_2)*C^{w_3}; (2) and that it
+/// does not support range check functionality.
 
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
 use curv::BigInt;
@@ -9,12 +13,12 @@ use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
-// Common parameters for the proof system.
+/// Common parameters for the proof system.
 #[derive(Clone, PartialEq, Debug)]
 pub struct ProofParams {
     /// Small number up to which N shouldn't have divisors.
     pub q: Option<u64>,
-    /// Number of repeats of the basic protocol.
+    /// Number of parallel repetitions of the basic protocol.
     pub reps: usize,
     /// Bitlength of the RSA modulus.
     pub n_bitlen: u32,
@@ -75,7 +79,7 @@ pub fn sample_lang(params: &ProofParams) -> Lang {
     Lang { pk, ch_ct }
 }
 
-// Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
+/// Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
 pub fn compute_si(pk: &EncryptionKey, ch_ct: &BigInt, m: &BigInt, r: &BigInt, cexp: &BigInt) -> BigInt {
     BigInt::mod_mul(
         &Paillier::encrypt_with_chosen_randomness(
@@ -120,6 +124,7 @@ pub struct Commitment(Vec<BigInt>);
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ComRand(Vec<(BigInt,BigInt,BigInt)>);
 
+// TODO this can be probably compressed
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Challenge(pub Vec<BigInt>);
 
@@ -298,25 +303,5 @@ mod tests {
         assert!(res);
     }
 
-//
-//    #[test]
-//    fn test_soundness_trivial() {
-//        let params = ProofParams::new(2048, 128, 15);
-//
-//        let lang = sample_lang(&params);
-//        let (inst,_) = sample_inst(&params,&lang);
-//        let (_,wit2) = sample_inst(&params,&lang);
-//
-//
-//        let (res,precomp) = verify0(&params,&lang);
-//        assert!(res);
-//
-//        let (com,cr) = prove1(&params,&lang);
-//        let ch = verify1(&params);
-//
-//        // with wit2
-//        let resp = prove2(&params,&lang,&wit2,&ch,&cr);
-//        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp) == false);
-//    }
 
 }

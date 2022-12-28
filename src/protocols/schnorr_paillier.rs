@@ -1,3 +1,9 @@
+/// This is an implementation of the basic Schnorr protocol for
+/// Paillier homomorphism with untrusted modulus N, with the optional
+/// range check functionality. It uses the p_max optimisation -- that is,
+/// verifier manually checks that there are no p<p_max divisors of N, which
+/// allows to use log(p_max) challenge space instead of the binary one.
+
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
 use curv::BigInt;
 use paillier::EncryptWithChosenRandomness;
@@ -9,8 +15,6 @@ use std::fmt;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct RangeProofParams {
-    /// Security parameter
-    pub lambda: u32,
     /// Range of the original message value.
     pub r: BigInt,
     /// R 2^{λ-1}
@@ -25,13 +29,15 @@ impl RangeProofParams {
         // R 2^{λ-1}
         let rand_range = &r * two_lambda_min1;
 
-        RangeProofParams{ lambda, r, rand_range }
+        RangeProofParams{ r, rand_range }
     }
 }
 
 // Common parameters for the proof system.
 #[derive(Clone, PartialEq, Debug)]
 pub struct ProofParams {
+    /// Security parameter
+    pub lambda: u32,
     /// Small number up to which N shouldn't have divisors.
     pub q: u64,
     /// Number of repeats of the basic protocol.
@@ -52,7 +58,7 @@ impl ProofParams {
         let ch_space = BigInt::pow(&BigInt::from(2), repbits);
         return ProofParams { q: 2u64.pow(repbits),
                              reps: (lambda as f64 / repbits as f64).ceil() as usize,
-                             n_bitlen, ch_space, range_params };
+                             n_bitlen, ch_space, range_params, lambda };
     }
     pub fn new(n_bitlen: u32, lambda: u32, repbits: u32) -> Self {
 
