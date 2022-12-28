@@ -35,24 +35,7 @@ fn test_dv_crs() {
     assert!(dv::verify_vpk(&params,&vpk));
 }
 
-fn test_dv() {
-    use rsazkps::protocols::designated as dv;
-
-    let params = dv::DVParams::new(256, 128, 100 as u32, true, false);
-    let (vpk,vsk) = dv::keygen(&params);
-    let (lang,inst,wit) = dv::sample_liw(&params);
-    let (com,cr) = dv::prove1(&params,&lang);
-    //let ch = dv::fs_compute_challenge_1(&params,&lang,&inst,&com);
-}
 
 fn main() {
-
     rsazkps::protocols::designated_range::test_keygen_correctness();
-//    rsazkps::protocols::snark_paillier::test();
-//    rsazkps::protocols::schnorr_paillier_batched::tests::test_correctness();
-    //test_dv_crs();
-    //rsazkps::protocols::squares_decomp::test_three_squares();
-    //rsazkps::protocols::schnorr_exp::test_correctness();
-    //    rsazkps::protocols::n_gcd::test();
-    //test_dv();
 }

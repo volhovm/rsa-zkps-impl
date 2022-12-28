@@ -240,7 +240,7 @@ const RSA_2048_Q: &str = "125089148898302683888991836902266045298248521010716318
 
 
 lazy_static! {
-    static ref test_moduli_pq: HashMap<usize,(Integer,Integer)> = {
+    static ref TEST_MODULI_PQ: HashMap<usize,(Integer,Integer)> = {
         let mut m = HashMap::new();
         let parse = |p,q| { (Integer::parse(p).unwrap().complete(),
                              Integer::parse(q).unwrap().complete()) };
@@ -259,7 +259,7 @@ pub trait PailCircuit<E: Engine>: Circuit<E> {
 }
 
 pub fn compute_circuit(n_bitlen: usize, opt: bool) -> Either<PailCorrect,PailCorrectOpt> {
-    let (p,q) = test_moduli_pq.get(&n_bitlen).unwrap();
+    let (p,q) = TEST_MODULI_PQ.get(&n_bitlen).unwrap();
 
     let n: Integer = p.clone() * q.clone();
 
@@ -335,7 +335,7 @@ pub fn test_completeness<C: PailCircuit<Bn256>>(n_bitlen: usize) {
 pub fn test() {
     test_completeness::<PailCorrectOpt>(80);
 
-    for &n in test_moduli_pq.keys() {
+    for &n in TEST_MODULI_PQ.keys() {
         estimate_num_constraints::<PailCorrect>(n);
         estimate_num_constraints::<PailCorrectOpt>(n);
     }

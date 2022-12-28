@@ -622,7 +622,6 @@ pub fn verify1(params: &DVRParams) -> DVRChallenge1 {
 
 pub fn prove2(params: &DVRParams,
               vpk: &VPK,
-              lang: &DVRLang,
               wit: &DVRWit,
               ch1: &DVRChallenge1,
               cr: &DVRComRand,
@@ -780,7 +779,6 @@ pub fn prove3(params: &DVRParams,
               wit: &DVRWit,
               ch1: &DVRChallenge1,
               cr: &DVRComRand,
-              resp1: &DVRResp1,
               resp1rand: &DVRResp1Rand,
               ch2: Option<&DVRChallenge2>,
               query_ix: usize) -> Option<DVRResp2> {
@@ -1243,9 +1241,9 @@ pub fn fs_prove(params: &DVRParams,
                 query_ix: usize) -> FSDVRProof {
     let (com,cr) = prove1(params,vpk,lang,wit);
     let ch1 = fs_compute_challenge_1(params,lang,inst,&com);
-    let (resp1,resp1rand) = prove2(&params,&vpk,&lang,&wit,&ch1,&cr,query_ix);
+    let (resp1,resp1rand) = prove2(&params,&vpk,&wit,&ch1,&cr,query_ix);
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
-    let resp2 = prove3(params,vpk,wit,&ch1,&cr,&resp1,&resp1rand,ch2.as_ref(),query_ix);
+    let resp2 = prove3(params,vpk,wit,&ch1,&cr,&resp1rand,ch2.as_ref(),query_ix);
 
     FSDVRProof{ com, resp1, resp2 }
 }
@@ -1344,9 +1342,9 @@ mod tests {
 
             let (com,cr) = prove1(&params,&vpk,&lang,&wit);
             let ch1 = verify1(&params);
-            let (resp1,resp1rand) = prove2(&params,&vpk,&lang,&wit,&ch1,&cr,query_ix);
+            let (resp1,resp1rand) = prove2(&params,&vpk,&wit,&ch1,&cr,query_ix);
             let ch2 = verify2(&params);
-            let resp2 = prove3(&params,&vpk,&wit,&ch1,&cr,&resp1,&resp1rand,ch2.as_ref(),query_ix);
+            let resp2 = prove3(&params,&vpk,&wit,&ch1,&cr,&resp1rand,ch2.as_ref(),query_ix);
 
             assert!(verify3(&params,&vsk,&vpk,&lang,&inst,
                             &com,&ch1,&resp1,ch2.as_ref(),resp2.as_ref(),query_ix));

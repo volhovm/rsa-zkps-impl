@@ -1,4 +1,6 @@
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Roots, Converter};
+#![allow(dead_code)]
+
+use curv::arithmetic::traits::BasicOps;
 use curv::BigInt;
 use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use std::time::Duration;
@@ -184,10 +186,9 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
         b.iter_batched(
             || { let (lang,_,wit) = dv::sample_liw(params);
                  let (_,cr) = dv::prove1(params,&lang);
-                 let ch = dv::verify1(params);
                  let ch2 = dv::verify2(params);
-                 return (wit,ch,cr,ch2); },
-            |(wit,ch,cr,ch2)| dv::prove3(params,&vpk,&cr,&wit,ch2.as_ref()),
+                 return (wit,cr,ch2); },
+            |(wit,cr,ch2)| dv::prove3(params,&vpk,&cr,&wit,ch2.as_ref()),
             BatchSize::LargeInput
         );
     });
@@ -301,7 +302,6 @@ fn bench_designated_range_fs(c: &mut Criterion, params: &dvr::DVRParams) {
 
 
 
-#[allow(dead_code)]
 fn bench_schnorr_paillier(c: &mut Criterion) {
 
     let params1 = sp::ProofParams::new(2048,256,15);

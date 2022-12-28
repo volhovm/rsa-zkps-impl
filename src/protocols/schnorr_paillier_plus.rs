@@ -90,7 +90,7 @@ pub fn compute_si(pk: &EncryptionKey, ch_ct: &BigInt, m: &BigInt, r: &BigInt, ce
         &pk.nn)
 }
 
-pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
+pub fn sample_inst(lang: &Lang) -> (Inst,Wit) {
     let m =  BigInt::sample_below(&lang.pk.n);
     let r = BigInt::sample_below(&lang.pk.n);
     let cexp = BigInt::sample_below(&lang.pk.n);
@@ -104,7 +104,7 @@ pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
 
 pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
     let lang = sample_lang(params);
-    let (inst,wit) = sample_inst(params, &lang);
+    let (inst,wit) = sample_inst(&lang);
     (lang,inst,wit)
 }
 
@@ -114,9 +114,6 @@ pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
 ////////////////////////////////////////////////////////////////////////////
 
 
-/// Contains N-2^{λ+1} R
-#[derive(Clone, PartialEq, Debug, Eq, Serialize)]
-pub struct VerifierPrecomp(Option<BigInt>);
 
 #[derive(Clone, PartialEq, Debug, Eq, Serialize)]
 pub struct Commitment(Vec<BigInt>);
@@ -131,13 +128,13 @@ pub struct Challenge(pub Vec<BigInt>);
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Response(Vec<(BigInt,BigInt,BigInt)>);
 
-pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
+pub fn verify0(params: &ProofParams, lang: &Lang) -> bool {
     let q = params.q.expect("schnorr_paillier_plus: q must be Some, maybe reps is too high?");
     if !super::utils::check_small_primes(q,&lang.pk.n) {
-        return (false,VerifierPrecomp(None));
+        return false
     };
 
-    (true, VerifierPrecomp(None))
+    true
 }
 
 pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
@@ -186,7 +183,6 @@ pub fn verify2(params: &ProofParams,
                com: &Commitment,
                ch: &Challenge,
                resp: &Response) -> bool {
-    let n: &BigInt = &lang.pk.n;
     let n2: &BigInt = &lang.pk.nn;
     for i in 0..params.reps {
         let ch = &(&ch.0)[i];
@@ -238,8 +234,7 @@ pub fn fs_prove(params: &ProofParams,
     FSProof{ fs_com, fs_ch, fs_resp }
 }
 
-pub fn fs_verify0(params: &ProofParams,
-                  lang: &Lang) -> (bool, VerifierPrecomp) {
+pub fn fs_verify0(params: &ProofParams, lang: &Lang) -> bool {
     verify0(params,lang)
 }
 
@@ -258,7 +253,6 @@ pub fn fs_verify(params: &ProofParams,
 
 #[cfg(test)]
 mod tests {
-
     use crate::protocols::schnorr_paillier_plus::*;
 
     #[test]
@@ -266,7 +260,7 @@ mod tests {
         let params = ProofParams::new(2048, 128, 15);
         let (lang,inst,wit) = sample_liw(&params);
 
-        let (res,precomp) = verify0(&params,&lang);
+        let res = verify0(&params,&lang);
         assert!(res);
 
         let (com,cr) = prove1(&params,&lang);
@@ -297,11 +291,9 @@ mod tests {
         let (lang,inst,wit) = sample_liw(&params);
 
         let proof = fs_prove(&params,&lang,&inst,&wit);
-        let (res0,precomp) = fs_verify0(&params,&lang);
+        let res0 = fs_verify0(&params,&lang);
         assert!(res0);
         let res = fs_verify(&params,&lang,&inst,&proof);
         assert!(res);
     }
-
-
 }

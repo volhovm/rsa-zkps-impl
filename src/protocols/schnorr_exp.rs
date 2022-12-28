@@ -137,7 +137,6 @@ pub fn verify1(params: &ProofParams) -> Challenge {
 }
 
 pub fn prove2(params: &ProofParams,
-              lang: &Lang,
               wit: &Wit,
               ch: &Challenge,
               cr: &ComRand) -> Response {
@@ -199,7 +198,7 @@ pub fn fs_prove(params: &ProofParams,
                 wit: &Wit) -> FSProof {
     let (fs_com,cr) = prove1(&params,&lang);
     let fs_ch = fs_compute_challenge(lang,inst,&fs_com);
-    let fs_resp = prove2(&params,&lang,&wit,&fs_ch,&cr);
+    let fs_resp = prove2(&params,&wit,&fs_ch,&cr);
 
     FSProof{ fs_com, fs_ch, fs_resp }
 }
@@ -246,7 +245,7 @@ mod tests {
         let (com,cr) = prove1(&params,&lang);
         let ch = verify1(&params);
 
-        let resp = prove2(&params,&lang,&wit,&ch,&cr);
+        let resp = prove2(&params,&wit,&ch,&cr);
         assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
     }
 
