@@ -7,6 +7,7 @@ pub mod squares_decomp;
 pub mod snark_paillier;
 pub mod designated;
 pub mod designated_range;
+pub mod paillier;
 pub mod paillier_elgamal;
 pub mod n_gcd;
 pub mod lemmas;

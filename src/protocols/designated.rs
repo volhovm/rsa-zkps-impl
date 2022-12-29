@@ -13,6 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize};
 use rand::distributions::{Distribution, Uniform};
 
+use super::paillier::paillier_enc_opt;
 use super::utils as u;
 use super::schnorr_paillier_batched as spb;
 use super::n_gcd as n_gcd;
@@ -178,14 +179,10 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         .collect();
 
     let cts: Vec<BigInt> =
-        chs.iter().zip(rs.iter()).map(|(ch,r)|
-            Paillier::encrypt_with_chosen_randomness(
-                &pk,
-                RawPlaintext::from(ch),
-                &Randomness::from(r)).0.into_owned())
+        chs.iter().zip(rs.iter())
+        .map(|(ch,r)| paillier_enc_opt(&pk,Some(&sk),ch,r))
         .collect();
 
-    let lang = spb::Lang{pk:pk.clone()};
 
     let t_p1 = SystemTime::now();
     let nizk_gcd: n_gcd::Proof =
@@ -201,6 +198,8 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
             if params.crs_uses == 0 { 1 }
             else { 2 + (params.crs_uses - 1) / params.lambda };
 
+    let lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
+
     for i in 0..nizk_batches {
         let batch_from = (i*params.lambda) as usize;
         let batch_to = std::cmp::min((i+1)*params.lambda,
@@ -214,10 +213,9 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 ms_wit.push(BigInt::from(0));
                 rs_wit.push(BigInt::from(1));
-                cts_inst.push(Paillier::encrypt_with_chosen_randomness(
-                    &pk,
-                    RawPlaintext::from(BigInt::from(0)),
-                    &Randomness::from(BigInt::from(1))).0.into_owned());
+                cts_inst.push(paillier_enc_opt(&pk,Some(&sk),
+                                            &BigInt::from(0),
+                                            &BigInt::from(1)));
             }
         }
 
@@ -235,7 +233,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let t_delta2 = t_p2.duration_since(t_p1).expect("error2");
     let t_delta3 = t_p3.duration_since(t_p2).expect("error2");
     let t_total = t_p3.duration_since(t_start).expect("error2");
-    //println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
+    println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
 
     (VPK{pk, cts, nizk_gcd, nizks_ct},VSK{sk, chs})
 }
@@ -262,17 +260,15 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
         let pad_last_batch = params.crs_uses > 0 && i == (vpk.nizks_ct.len() as u32) - 1;
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
-                cts_w.push(Paillier::encrypt_with_chosen_randomness(
-                    &vpk.pk,
-                    RawPlaintext::from(BigInt::from(0)),
-                    &Randomness::from(BigInt::from(1))).0.into_owned());
+                cts_w.push(
+                    paillier_enc_opt(&vpk.pk, None, &BigInt::from(0), &BigInt::from(1)));
             }
         }
 
         let params =
             if i == 0 { params.nizk_ct_params_1() }
             else { params.nizk_ct_params_2() };
-        let inst = spb::Lang{ pk: vpk.pk.clone() };
+        let inst = spb::Lang{ pk: vpk.pk.clone(), sk: None };
         let wit = spb::Inst{ cts: cts_w };
 
         let res2 = spb::fs_verify(&params, &inst, &wit, &vpk.nizks_ct[i as usize]);
@@ -422,18 +418,12 @@ pub fn prove2(params: &DVParams,
                           .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2)),
                         n2);
 
-    let sm_ct = Paillier::encrypt_with_chosen_randomness(
-                  &vpk.pk,
-                  RawPlaintext::from(&cr.rm_m),
-                  &Randomness::from(&cr.rm_r)).0.into_owned();
+    let sm_ct = paillier_enc_opt(&vpk.pk, None, &cr.rm_m, &cr.rm_r);
     let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, n2),
                              &sm_ct,
                              n2);
 
-    let sr_ct = Paillier::encrypt_with_chosen_randomness(
-                  &vpk.pk,
-                  RawPlaintext::from(&cr.rr_m),
-                  &Randomness::from(&cr.rr_r)).0.into_owned();
+    let sr_ct = paillier_enc_opt(&vpk.pk, None, &cr.rr_m, &cr.rr_r);
     let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, n2),
                              &sr_ct,
                              n2);
@@ -448,18 +438,12 @@ pub fn prove2(params: &DVParams,
         let tr2 = cr.tr2.as_ref().expect("designated#prove2: tr2 must be Some");
         let tr3 = cr.tr3.as_ref().expect("designated#prove2: tr3 must be Some");
 
-        let tm_ct = Paillier::encrypt_with_chosen_randomness(
-                      &vpk.pk,
-                      RawPlaintext::from(tm2),
-                      &Randomness::from(tm3)).0.into_owned();
+        let tm_ct = paillier_enc_opt(&vpk.pk, None, tm2, tm3);
         let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tm1, n2),
                                  &tm_ct,
                                  n2);
 
-        let tr_ct = Paillier::encrypt_with_chosen_randomness(
-                      &vpk.pk,
-                      RawPlaintext::from(tr2),
-                      &Randomness::from(tr3)).0.into_owned();
+        let tr_ct = paillier_enc_opt(&vpk.pk, None, tr2, tr3);
         let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tr1, n2),
                                  &tr_ct,
                                  n2);
@@ -568,10 +552,7 @@ pub fn verify3(params: &DVParams,
                             &vpk.pk.nn);
 
         {
-            let ct = Paillier::encrypt_with_chosen_randomness(
-                    &vpk.pk,
-                    RawPlaintext::from(&resp2.um2),
-                    &Randomness::from(&resp2.um3)).0.into_owned();
+            let ct = paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &resp2.um3);
             let tm = resp1.tm.as_ref().expect("designated#verify3: tm must be Some");
             let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.um1, &vpk.pk.nn), &ct, &vpk.pk.nn);
             let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sm, &ch2.0, &vpk.pk.nn), tm, &vpk.pk.nn);
@@ -579,10 +560,7 @@ pub fn verify3(params: &DVParams,
         }
 
         {
-            let ct = Paillier::encrypt_with_chosen_randomness(
-                    &vpk.pk,
-                    RawPlaintext::from(&resp2.ur2),
-                    &Randomness::from(&resp2.ur3)).0.into_owned();
+            let ct = paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &resp2.ur3);
             let tr = resp1.tr.as_ref().expect("designated#verify3: tr must be Some");
             let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.ur1, &vpk.pk.nn), &ct, &vpk.pk.nn);
             let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sr, &ch2.0, &vpk.pk.nn), tr, &vpk.pk.nn);

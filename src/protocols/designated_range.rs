@@ -9,6 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize};
 use rand::distributions::{Distribution, Uniform};
 
+use super::paillier::paillier_enc_opt;
 use super::utils as u;
 use super::schnorr_paillier_batched as spb;
 use super::schnorr_paillier_plus as sp_plus;
@@ -247,14 +248,11 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
         .collect();
 
     let cts: Vec<BigInt> =
-        chs.iter().zip(rs.iter()).map(|(ch,r)|
-            Paillier::encrypt_with_chosen_randomness(
-                &pk,
-                RawPlaintext::from(ch),
-                &Randomness::from(r)).0.into_owned())
+        chs.iter().zip(rs.iter())
+        .map(|(ch,r)| paillier_enc_opt(&pk, Some(&sk), &ch, &r))
         .collect();
 
-    let lang = spb::Lang{pk:pk.clone()};
+    let lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
 
     let nizk_gcd: n_gcd::Proof =
         n_gcd::prove(
@@ -281,10 +279,8 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 ms_wit.push(BigInt::from(0));
                 rs_wit.push(BigInt::from(1));
-                cts_inst.push(Paillier::encrypt_with_chosen_randomness(
-                    &pk,
-                    RawPlaintext::from(BigInt::from(0)),
-                    &Randomness::from(BigInt::from(1))).0.into_owned());
+                cts_inst.push(
+                    paillier_enc_opt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(1)));
             }
         }
 
@@ -336,17 +332,15 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
         let pad_last_batch = params.crs_uses > 0 && i == (vpk.nizks_ct.len() as u32) - 1;
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
-                cts_w.push(Paillier::encrypt_with_chosen_randomness(
-                    &vpk.pk,
-                    RawPlaintext::from(BigInt::from(0)),
-                    &Randomness::from(BigInt::from(1))).0.into_owned());
+                cts_w.push(
+                    paillier_enc_opt(&vpk.pk,None,&BigInt::from(0),&BigInt::from(1)));
             }
         }
 
         let params =
             if i == 0 { params.nizk_ct_params_1() }
             else { params.nizk_ct_params_2() };
-        let inst = spb::Lang{ pk: vpk.pk.clone() };
+        let inst = spb::Lang{ pk: vpk.pk.clone(), sk: None };
         let wit = spb::Inst{ cts: cts_w };
 
         let res2 = spb::fs_verify(&params, &inst, &wit, &vpk.nizks_ct[i as usize]);
@@ -642,7 +636,7 @@ pub fn prove2(params: &DVRParams,
 
     // Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
     let p2_generic = |rand: &BigInt,enc_arg: &BigInt,ct_exp: &BigInt|
-            super::schnorr_paillier_plus::compute_si(&vpk.pk,&ch_ct,enc_arg,rand,ct_exp);
+            super::schnorr_paillier_plus::compute_si(&vpk.pk,None,&ch_ct,enc_arg,rand,ct_exp);
 
     ////// For wit.m
 
@@ -688,7 +682,7 @@ pub fn prove2(params: &DVRParams,
     let (plus_com,plus_comrand) = if params.ggm_mode { (None,None) } else {
         //// Running the sub-proof
         let sp_plus_params = params.sp_plus_params();
-        let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), ch_ct: ch_ct.clone() };
+        let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), sk: None, ch_ct: ch_ct.clone() };
 
         let (com_u_m ,comrand_u_m ) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
         let (com_v_m ,comrand_v_m ) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
@@ -799,7 +793,7 @@ pub fn prove3(params: &DVRParams,
 
     //// Running the sub-proof
     let sp_plus_params = params.sp_plus_params();
-    let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), ch_ct: ch_ct.clone() };
+    let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), sk: None, ch_ct: ch_ct.clone() };
 
     let sp_plus_reply = |witm: &BigInt, witr: &BigInt, witcexp: &BigInt, ch: &sp_plus::Challenge, comrand: &sp_plus::ComRand| {
             sp_plus::prove2(&sp_plus_params,&sp_plus_lang,
@@ -1072,7 +1066,9 @@ pub fn verify3(params: &DVRParams,
     // Check the sub-protocol replies, for the schnorr-paillier plus
     if !params.ggm_mode {
         let sp_plus_params = params.sp_plus_params();
-        let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), ch_ct: ch_ct.clone() };
+        let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(),
+                                          sk: Some(vsk.sk.clone()),
+                                          ch_ct: ch_ct.clone() };
         let plus_com = resp1.plus_com.clone().expect("DVRange#verify3 plus_com must be Some");
         let plus_ch = ch2.expect("DVRange#verify3 ch2 must be Some");
         let plus_resp = resp2.expect("DVRange#verify3 resp2 must be Some");

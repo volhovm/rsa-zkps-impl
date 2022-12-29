@@ -2,11 +2,13 @@ use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation};
 use curv::BigInt;
 use paillier::EncryptWithChosenRandomness;
 use paillier::Paillier;
-use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
+use paillier::{EncryptionKey, DecryptionKey, Randomness, RawPlaintext, Keypair};
 use paillier::*;
 use serde::{Serialize};
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::fmt;
 
+use super::paillier::paillier_enc_opt;
 
 // Common parameters for the proof system.
 #[derive(Clone, PartialEq, Debug)]
@@ -55,7 +57,9 @@ impl fmt::Display for ProofParams {
 #[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Lang {
     /// Public key that is used to generate instances.
-    pub pk: EncryptionKey
+    pub pk: EncryptionKey,
+    /// Optional decryption key. If present, speeds up proving and verification.
+    pub sk: Option<DecryptionKey>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
@@ -67,12 +71,12 @@ pub struct Inst {
 #[derive(Clone, PartialEq, Debug)]
 pub struct Wit {
     pub ms: Vec<BigInt>,
-    pub rs: Vec<BigInt>
+    pub rs: Vec<BigInt>,
 }
 
 pub fn sample_lang(params: &ProofParams) -> Lang {
-    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys().0;
-    Lang { pk }
+    let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys();
+    Lang { pk: pk, sk: Some(sk) }
 }
 
 pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
@@ -85,10 +89,7 @@ pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let cts: Vec<BigInt> =
         ms.iter().zip(rs.iter())
         .map(|(m,r)|
-            Paillier::encrypt_with_chosen_randomness(
-                 &lang.pk,
-                 RawPlaintext::from(m),
-                 &Randomness::from(r)).0.into_owned())
+            paillier_enc_opt(&lang.pk, lang.sk.as_ref(), m, r))
         .collect();
 
     let inst = Inst { cts };
@@ -124,11 +125,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let rand_r_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::sample_below(n)).collect();
     let com_v: Vec<_> =
         rand_m_v.iter().zip(rand_r_v.iter()).map(|(rm,rr)|
-            Paillier::encrypt_with_chosen_randomness(
-                &EncryptionKey::from(n),
-                RawPlaintext::from(rm),
-                &Randomness::from(rr)).0.into_owned()
-        ).collect();
+            paillier_enc_opt(&lang.pk, lang.sk.as_ref(), rm, rr)).collect();
 
     (Commitment(com_v),ComRand(rand_m_v,rand_r_v))
 }
@@ -207,11 +204,7 @@ pub fn verify2(params: &ProofParams,
                 .fold(BigInt::from(1), |acc,x| BigInt::mod_mul(&acc, &x, &lang.pk.nn));
         let lhs = BigInt::mod_mul(&a, &ct_e, &lang.pk.nn);
 
-        let rhs =
-            Paillier::encrypt_with_chosen_randomness(
-                &lang.pk,
-                RawPlaintext::from(s_m),
-                &Randomness::from(s_r)).0.into_owned();
+        let rhs = paillier_enc_opt(&lang.pk, lang.sk.as_ref(), s_m, s_r);
 //        let rhs_doublecheck =
 //            BigInt::mod_mul(
 //                &BigInt::mod_pow(&(&lang.pk.n + 1), &s_m, &lang.pk.nn),
@@ -258,9 +251,21 @@ pub fn fs_prove(params: &ProofParams,
                 lang: &Lang,
                 inst: &Inst,
                 wit: &Wit) -> FSProof {
+    let t_start = SystemTime::now();
     let (fs_com,cr) = prove1(&params,&lang);
+    let t_p1 = SystemTime::now();
     let fs_ch = fs_compute_challenge(params.reps_n as usize,lang,inst,&fs_com);
+    let t_p2 = SystemTime::now();
     let fs_resp = prove2(&params,&lang,&wit,&fs_ch,&cr);
+
+    let t_p3 = SystemTime::now();
+
+    let t_delta1 = t_p1.duration_since(t_start).expect("error1");
+    let t_delta2 = t_p2.duration_since(t_p1).expect("error2");
+    let t_delta3 = t_p3.duration_since(t_p2).expect("error2");
+    let t_total = t_p3.duration_since(t_start).expect("error2");
+    println!("schnorr batched fs_prove time (total {:?}): prove1: {:?}, compute_ch {:?}; resp: {:?}",t_total, t_delta1, t_delta2, t_delta3);
+
 
     FSProof{ fs_com, fs_ch, fs_resp }
 }

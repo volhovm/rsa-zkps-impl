@@ -13,6 +13,9 @@ use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
+use super::paillier::paillier_enc_opt;
+
+
 /// Common parameters for the proof system.
 #[derive(Clone, PartialEq, Debug)]
 pub struct ProofParams {
@@ -55,6 +58,8 @@ impl fmt::Display for ProofParams {
 pub struct Lang {
     /// Public key that is used to generate instances.
     pub pk: EncryptionKey,
+    /// Optional decryption key that speeds up Paillier
+    pub sk: Option<DecryptionKey>,
     /// The encryption ciphertext C, corresponding to the DVRange challenge
     pub ch_ct: BigInt,
 }
@@ -74,18 +79,18 @@ pub struct Wit {
 }
 
 pub fn sample_lang(params: &ProofParams) -> Lang {
-    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys().0;
+    let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys();
     let ch_ct = BigInt::sample_below(&pk.nn);
-    Lang { pk, ch_ct }
+    Lang { pk, sk: Some(sk), ch_ct }
 }
 
 /// Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
-pub fn compute_si(pk: &EncryptionKey, ch_ct: &BigInt, m: &BigInt, r: &BigInt, cexp: &BigInt) -> BigInt {
+pub fn compute_si(pk: &EncryptionKey,
+                  sk: Option<&DecryptionKey>,
+                  ch_ct: &BigInt, m: &BigInt, r: &BigInt, cexp: &BigInt) -> BigInt {
+    // TODO This can be further optimised when N^2 is known.
     BigInt::mod_mul(
-        &Paillier::encrypt_with_chosen_randomness(
-            pk,
-            RawPlaintext::from(m),
-            &Randomness::from(r)).0.into_owned(),
+        &paillier_enc_opt(pk,sk,m,r),
         &super::utils::bigint_mod_pow(ch_ct, cexp, &pk.nn),
         &pk.nn)
 }
@@ -94,7 +99,7 @@ pub fn sample_inst(lang: &Lang) -> (Inst,Wit) {
     let m =  BigInt::sample_below(&lang.pk.n);
     let r = BigInt::sample_below(&lang.pk.n);
     let cexp = BigInt::sample_below(&lang.pk.n);
-    let si = compute_si(&lang.pk, &lang.ch_ct, &m, &r, &cexp);
+    let si = compute_si(&lang.pk, lang.sk.as_ref(), &lang.ch_ct, &m, &r, &cexp);
 
     let inst = Inst { si };
     let wit = Wit { m, r, cexp };
@@ -146,7 +151,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
         (rm,rr,rcexp)
     }).collect();
     let alpha_v: Vec<_> = rand_v.iter().map(|(rm,rr,rcexp)| {
-        compute_si(&lang.pk, &lang.ch_ct,&rm,&rr,&rcexp)
+        compute_si(&lang.pk, lang.sk.as_ref(), &lang.ch_ct,&rm,&rr,&rcexp)
     }).collect();
     return (Commitment(alpha_v),ComRand(rand_v));
 }
@@ -193,7 +198,7 @@ pub fn verify2(params: &ProofParams,
         let alpha = &com.0[i];
 
         let lhs = BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, n2), alpha, n2);
-        let rhs = compute_si(&lang.pk, &lang.ch_ct, s1, s2, s3);
+        let rhs = compute_si(&lang.pk, lang.sk.as_ref(), &lang.ch_ct, s1, s2, s3);
 
         if lhs != rhs { return false; }
     }

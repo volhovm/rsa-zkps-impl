@@ -19,6 +19,7 @@ fn estimate_size_designated(params: &dv::DVParams) {
              params.malicious_setup, params.ggm_mode);
 
     let (vpk,vsk) = dv::keygen(&params);
+    dv::verify_vpk(&params, &vpk);
     let (lang,inst,wit) = dv::sample_liw(params);
     let proof = dv::fs_prove(params,&vpk,&lang,&inst,&wit,0);
     println!("VPK: {} B, VSK: {} B, proof: {} B",
@@ -88,7 +89,8 @@ fn check_correct_ciphertext_proof() {
 }
 
 fn test_dv_crs() {
-    let params = dv::DVParams::new(2048, 128, 1, false, false);
+    let params = dv::DVParams::new(2048, 128, 256, false, false);
+    println!("{:?}", params);
     let (vpk,_vsk) = dv::keygen(&params);
     assert!(dv::verify_vpk(&params,&vpk));
 }
@@ -96,5 +98,6 @@ fn test_dv_crs() {
 
 fn main() {
     //rsazkps::protocols::designated_range::test_keygen_correctness();
-    estimate_proof_sizes();
+    test_dv_crs();
+    //estimate_proof_sizes();
 }
