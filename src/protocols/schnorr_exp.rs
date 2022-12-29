@@ -104,10 +104,10 @@ pub struct Commitment(Vec<BigInt>);
 #[derive(Clone, PartialEq, Debug)]
 pub struct ComRand(Vec<BigInt>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Challenge(Vec<BigInt>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Response(Vec<BigInt>);
 
 
@@ -171,10 +171,9 @@ pub fn verify2(params: &ProofParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct FSProof {
     fs_com : Commitment,
-    fs_ch : Challenge,
     fs_resp : Response
 }
 
@@ -200,7 +199,7 @@ pub fn fs_prove(params: &ProofParams,
     let fs_ch = fs_compute_challenge(lang,inst,&fs_com);
     let fs_resp = prove2(&params,&wit,&fs_ch,&cr);
 
-    FSProof{ fs_com, fs_ch, fs_resp }
+    FSProof{ fs_com, fs_resp }
 }
 
 pub fn fs_verify0(params: &ProofParams,
@@ -216,11 +215,10 @@ pub fn fs_verify(params: &ProofParams,
     let (res0, _) = fs_verify0(params,lang);
     if !res0 { return false; }
 
-    let fs_ch_own = fs_compute_challenge(lang,inst,&proof.fs_com);
-    if fs_ch_own != proof.fs_ch { return false; }
+    let fs_ch = fs_compute_challenge(lang,inst,&proof.fs_com);
 
     verify2(&params,&lang,&inst,precomp,
-            &proof.fs_com,&proof.fs_ch,&proof.fs_resp)
+            &proof.fs_com,&fs_ch,&proof.fs_resp)
 }
 
 

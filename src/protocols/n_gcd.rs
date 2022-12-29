@@ -46,7 +46,7 @@ pub struct Inst {
     pub n: BigInt
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Wit {
     pub p: BigInt,
     pub q: BigInt,
@@ -68,7 +68,7 @@ pub fn sample_inst_wit(params: &ProofParams) -> (Inst,Wit) {
     return (inst,wit);
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Proof(Vec<BigInt>);
 
 fn fs_compute_challenge(params: &ProofParams, inst: &Inst) -> Vec<BigInt> {

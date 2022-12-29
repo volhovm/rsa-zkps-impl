@@ -189,7 +189,7 @@ pub fn sample_liw(params: &DVRParams) -> (DVRLang,DVRInst,DVRWit) {
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
     pub sk: DecryptionKey,
@@ -206,7 +206,7 @@ pub struct VSK {
 }
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct VPK {
     /// Verifier's Paillier public key
     pub pk: EncryptionKey,
@@ -1153,7 +1153,8 @@ pub fn verify3(params: &DVRParams,
 // Fiat-Shamir variant
 ////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug)]
+
+#[derive(Clone, Debug, Serialize)]
 pub struct FSDVRProof {
     com : DVRCom,
     resp1 : DVRResp1,

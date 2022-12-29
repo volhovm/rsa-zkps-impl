@@ -136,7 +136,7 @@ impl DVParams {
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
     pub sk: DecryptionKey,
@@ -144,7 +144,7 @@ pub struct VSK {
     pub chs: Vec<BigInt>
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct VPK {
     /// Verifier's Paillier public key
     pub pk: EncryptionKey,
@@ -235,7 +235,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let t_delta2 = t_p2.duration_since(t_p1).expect("error2");
     let t_delta3 = t_p3.duration_since(t_p2).expect("error2");
     let t_total = t_p3.duration_since(t_start).expect("error2");
-    println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
+    //println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
 
     (VPK{pk, cts, nizk_gcd, nizks_ct},VSK{sk, chs})
 }
@@ -357,7 +357,7 @@ pub struct DVResp1 {
     pub tr: Option<BigInt>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DVResp2 {
     pub um1: BigInt,
     pub um2: BigInt,
@@ -599,7 +599,7 @@ pub fn verify3(params: &DVParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct FSDVProof {
     com : DVCom,
     resp1 : DVResp1,

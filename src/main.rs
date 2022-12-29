@@ -1,8 +1,67 @@
 #![allow(dead_code)]
 
+use serde::{Serialize};
 use curv::BigInt;
+use curv::arithmetic::traits::BasicOps;
 use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
+
+use rsazkps::protocols::designated as dv;
+use rsazkps::protocols::designated_range as dvr;
+
+fn estimate_size<T: Serialize>(x: &T) -> usize {
+    let x: Vec<u8> = rmp_serde::to_vec(x).unwrap();
+    x.len()
+}
+
+fn estimate_size_designated(params: &dv::DVParams) {
+    print!("DV FS, malicious {:?}, GGM {:?}. ",
+             params.malicious_setup, params.ggm_mode);
+
+    let (vpk,vsk) = dv::keygen(&params);
+    let (lang,inst,wit) = dv::sample_liw(params);
+    let proof = dv::fs_prove(params,&vpk,&lang,&inst,&wit,0);
+    println!("VPK: {} B, VSK: {} B, proof: {} B",
+             estimate_size(&vpk),
+             estimate_size(&vsk),
+             estimate_size(&proof))
+}
+
+fn estimate_size_designated_range(params: &dvr::DVRParams) {
+    print!("DVRange FS, malicious {:?}, GGM {:?}. ",
+             params.malicious_setup, params.ggm_mode);
+
+    let (vpk,vsk) = dvr::keygen(&params);
+    let (lang,inst,wit) = dvr::sample_liw(params);
+    let proof = dvr::fs_prove(params,&vpk,&lang,&inst,&wit,0);
+
+    println!("VPK: {} B, VSK: {} B, proof: {} B",
+             estimate_size(&vpk),
+             estimate_size(&vsk),
+             estimate_size(&proof))
+}
+
+fn estimate_proof_sizes() {
+    let n_bitlen = 2048;
+    let lambda = 128;
+    let queries = 32;
+    let range_bitlen = 256;
+    let range = BigInt::pow(&BigInt::from(2), range_bitlen);
+
+    println!("Estimating proof sizes; log(N) = {}, lambda = {}, queries = {}, log(Range) = {}",
+             n_bitlen, lambda, queries, range_bitlen);
+
+    estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
+    estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
+    estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
+    estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
+
+    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
+    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
+    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
+    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
+
+}
 
 
 fn check_correct_ciphertext_proof() {
@@ -29,7 +88,6 @@ fn check_correct_ciphertext_proof() {
 }
 
 fn test_dv_crs() {
-    use rsazkps::protocols::designated as dv;
     let params = dv::DVParams::new(2048, 128, 1, false, false);
     let (vpk,_vsk) = dv::keygen(&params);
     assert!(dv::verify_vpk(&params,&vpk));
@@ -37,5 +95,6 @@ fn test_dv_crs() {
 
 
 fn main() {
-    rsazkps::protocols::designated_range::test_keygen_correctness();
+    //rsazkps::protocols::designated_range::test_keygen_correctness();
+    estimate_proof_sizes();
 }
