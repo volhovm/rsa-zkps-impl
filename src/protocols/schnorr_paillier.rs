@@ -6,12 +6,13 @@
 
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
 use curv::BigInt;
-use paillier::EncryptWithChosenRandomness;
 use paillier::Paillier;
 use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
 use paillier::*;
 use serde::{Serialize};
 use std::fmt;
+
+use super::paillier::paillier_enc_opt;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct RangeProofParams {
@@ -85,7 +86,9 @@ impl fmt::Display for ProofParams {
 #[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Lang {
     /// Public key that is used to generate instances.
-    pub pk: EncryptionKey
+    pub pk: EncryptionKey,
+    /// Optional decryption key that speeds up Paillier
+    pub sk: Option<DecryptionKey>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
@@ -117,8 +120,8 @@ pub struct Challenge(Vec<BigInt>);
 pub struct Response(Vec<(BigInt,BigInt)>);
 
 pub fn sample_lang(params: &ProofParams) -> Lang {
-    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys().0;
-    Lang { pk }
+    let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys();
+    Lang { pk, sk: Some(sk) }
 }
 
 pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
@@ -131,10 +134,7 @@ pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
         None => BigInt::sample_below(&lang.pk.n),
     };
     let r = BigInt::sample_below(&lang.pk.n);
-    let ct = Paillier::encrypt_with_chosen_randomness(
-             &lang.pk,
-             RawPlaintext::from(m.clone()),
-             &Randomness(r.clone())).0.into_owned();
+    let ct = paillier_enc_opt(&lang.pk, lang.sk.as_ref(), &m, &r);
 
     let inst = Inst { ct };
     let wit = Wit { m, r };
@@ -179,11 +179,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
         (rm,rr)
     }).collect();
     let alpha_v: Vec<_> = rand_v.iter().map(|(rm,rr)| {
-        let ek = EncryptionKey::from(n);
-        return Paillier::encrypt_with_chosen_randomness(
-            &ek,
-            RawPlaintext::from(rm.clone()),
-            &Randomness(rr.clone())).0.into_owned();
+        paillier_enc_opt(&lang.pk, lang.sk.as_ref(), rm, rr)
     }).collect();
     return (Commitment(alpha_v),ComRand(rand_v));
 }

@@ -62,6 +62,7 @@ fn bench_schnorr_paillier_raw(c: &mut Criterion, params: &sp::ProofParams) {
 
 fn bench_schnorr_paillier_fs(c: &mut Criterion, params: &sp::ProofParams) {
     let mut grp = c.benchmark_group(format!("S-P FS {}", params));
+    grp.sample_size(10);
 
     grp.bench_function("FS prove", |b| {
         b.iter_batched(|| sp::sample_liw(params),
@@ -305,17 +306,14 @@ fn bench_designated_range_fs(c: &mut Criterion, params: &dvr::DVRParams) {
 
 fn bench_schnorr_paillier(c: &mut Criterion) {
 
-    let params1 = sp::ProofParams::new(2048,256,15);
-    bench_schnorr_paillier_raw(c, &params1);
-    bench_schnorr_paillier_fs(c, &params1);
+    // q = 8, 7, 6, 5
+    for i in [16, 19, 22, 26] {
+        let params1 = sp::ProofParams::new(2048,128,i);
+        bench_schnorr_paillier_fs(c, &params1);
+    }
 
-    // Not checking for small primes
-    let params2 = sp::ProofParams::new(2048,128,1);
-    bench_schnorr_paillier_raw(c, &params2);
-    bench_schnorr_paillier_fs(c, &params2);
-
-    let params3 = spb::ProofParams::new(2048,128,128,128);
-    bench_schnorr_paillier_batched(c, &params3);
+    let params2 = spb::ProofParams::new(2048,128,128,128);
+    bench_schnorr_paillier_batched(c, &params2);
 }
 
 
@@ -359,5 +357,6 @@ fn bench_designated_range_all(c: &mut Criterion) {
 
 
 //criterion_group!(benches, bench_schnorr_paillier, bench_designated_all);
-criterion_group!(benches, bench_designated_range_all);
+//criterion_group!(benches, bench_designated_range_all);
+criterion_group!(benches, bench_schnorr_paillier);
 criterion_main!(benches);

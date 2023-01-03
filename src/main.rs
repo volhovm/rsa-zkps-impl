@@ -89,7 +89,7 @@ fn check_correct_ciphertext_proof() {
 }
 
 fn test_dv_crs() {
-    let params = dv::DVParams::new(2048, 128, 256, false, false);
+    let params = dv::DVParams::new(2048, 128, 32, false, false);
     println!("{:?}", params);
     let (vpk,_vsk) = dv::keygen(&params);
     assert!(dv::verify_vpk(&params,&vpk));
