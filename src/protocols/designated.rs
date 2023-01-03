@@ -291,23 +291,33 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
 
 
 #[derive(Clone, Debug, Serialize)]
-pub struct DVLang { pub pk: pe::PEPublicKey }
+pub struct DVLang {
+    pub pk: pe::PEPublicKey,
+    pub sk: Option<pe::PESecretKey>
+}
+
 #[derive(Clone, Debug, Serialize)]
-pub struct DVInst { pub ct: pe::PECiphertext }
+pub struct DVInst {
+    pub ct: pe::PECiphertext
+}
+
 #[derive(Clone, Debug)]
-pub struct DVWit { pub m: BigInt, pub r: BigInt }
+pub struct DVWit {
+    pub m: BigInt,
+    pub r: BigInt,
+}
 
 
 pub fn sample_lang(params: &DVParams) -> DVLang {
-    let (pk,_sk) = pe::keygen(params.psi_n_bitlen as usize);
-    DVLang{pk}
+    let (pk,sk) = pe::keygen(params.psi_n_bitlen as usize);
+    DVLang{pk,sk:Some(sk)}
 }
 
 pub fn sample_inst(lang: &DVLang, range: Option<&BigInt>) -> (DVInst,DVWit) {
     let m_range = range.unwrap_or(&lang.pk.n);
     let m = BigInt::sample_below(m_range);
     let r = BigInt::sample_below(&lang.pk.n);
-    let ct = pe::encrypt_with_randomness(&lang.pk,&m,&r);
+    let ct = pe::encrypt_with_randomness_opt(&lang.pk,lang.sk.as_ref(),&m,&r);
     (DVInst{ct}, DVWit{m, r})
 }
 
@@ -371,7 +381,7 @@ pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
     let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
     let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
 
-    let a = pe::encrypt_with_randomness(&lang.pk,&rm_m,&rr_m);
+    let a = pe::encrypt_with_randomness_opt(&lang.pk,lang.sk.as_ref(),&rm_m,&rr_m);
 
     if params.ggm_mode {
         (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r,
@@ -523,7 +533,7 @@ pub fn verify3(params: &DVParams,
     // a Y^c = Enc_psi(s_m,s_r)
     {
         let pe::PECiphertext{ct1:x1,ct2:x2} =
-            pe::encrypt_with_randomness(&lang.pk, &sm, &sr);
+            pe::encrypt_with_randomness_opt(&lang.pk, None, &sm, &sr);
 
         let tmp1 =
             BigInt::mod_mul(

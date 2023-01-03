@@ -152,7 +152,10 @@ impl DVRParams {
 
 
 #[derive(Clone, Debug, Serialize)]
-pub struct DVRLang { pub pk: pe::PEPublicKey }
+pub struct DVRLang {
+    pub pk: pe::PEPublicKey,
+    pub sk: Option<pe::PESecretKey>,
+}
 
 impl DVRLang {
     pub fn range_rand(&self) -> &BigInt {
@@ -167,14 +170,14 @@ pub struct DVRWit { pub m: BigInt, pub r: BigInt }
 
 
 pub fn sample_lang(params: &DVRParams) -> DVRLang {
-    let (pk,_sk) = pe::keygen(params.psi_n_bitlen as usize);
-    DVRLang{pk}
+    let (pk,sk) = pe::keygen(params.psi_n_bitlen as usize);
+    DVRLang{pk, sk: Some(sk)}
 }
 
 pub fn sample_inst(params: &DVRParams, lang: &DVRLang) -> (DVRInst,DVRWit) {
     let m = BigInt::sample_below(&params.range);
     let r = BigInt::sample_below(&lang.pk.n);
-    let ct = pe::encrypt_with_randomness(&lang.pk,&m,&r);
+    let ct = pe::encrypt_with_randomness_opt(&lang.pk,lang.sk.as_ref(),&m,&r);
     (DVRInst{ct}, DVRWit{m, r})
 }
 
@@ -592,7 +595,7 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
 
     //// alpha1 and alpha_2
     let pe::PECiphertext{ct1:alpha1,ct2:alpha2} =
-            pe::encrypt_with_randomness(&lang.pk, &r_m, &r_r);
+            pe::encrypt_with_randomness_opt(&lang.pk, lang.sk.as_ref(), &r_m, &r_r);
 
     // Commitment and commitment randomness
     let com = DVRCom {
@@ -1024,11 +1027,11 @@ pub fn verify3(params: &DVRParams,
     // perform the alpha check
     {
         let pe::PECiphertext{ct1:rhs_1,ct2:rhs_2} =
-            pe::encrypt_with_randomness(&lang.pk, &u_m_plain, &u_r_plain);
+            pe::encrypt_with_randomness_opt(&lang.pk, None, &u_m_plain, &u_r_plain);
 
         // both (R,0) and (R,R) should work, depending on how u_r is constructed
         let pe::PECiphertext{ct1:psi_range_1,ct2:psi_range_2} =
-            pe::encrypt_with_randomness(&lang.pk, &params.range, &BigInt::from(0));
+            pe::encrypt_with_randomness_opt(&lang.pk, None, &params.range, &BigInt::from(0));
             //pe::encrypt_with_randomness(&lang.pk, &params.range, lang.range_rand());
 
         let lhs_1 =

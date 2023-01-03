@@ -15,7 +15,7 @@ use paillier::{Paillier, EncryptionKey, DecryptionKey,
                Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct PESecretKey {
     pub a: BigInt,
     pub ordg: BigInt,
@@ -69,7 +69,79 @@ pub fn encrypt_with_randomness(pk: &PEPublicKey,
     PECiphertext{ ct1, ct2 }
 }
 
+fn crt_recombine(vp: &BigInt,
+                 vq: &BigInt,
+                 p: &BigInt,
+                 q: &BigInt,
+                 pinv: &BigInt) -> BigInt {
+    let diff = BigInt::mod_sub(vq, vp, q);
+    let u = (&diff * pinv) % q;
+    vp + &u * p
+}
+
+pub fn encrypt_with_randomness_sk(pk: &PEPublicKey,
+                                  sk: &PESecretKey,
+                                  m: &BigInt,
+                                  r: &BigInt) -> PECiphertext {
+
+    let pp = &sk.p * &sk.p;
+    let qq = &sk.q * &sk.q;
+    let ppinv = BigInt::mod_inv(&pp, &qq).unwrap();
+
+    let m_p = m % &pp;
+    let m_q = m % &qq;
+
+    let ct1_p = super::utils::bigint_mod_pow(&pk.g, &r, &pp);
+    let ct1_q = super::utils::bigint_mod_pow(&pk.g, &r, &qq);
+
+    let ct2_p =
+        BigInt::mod_mul(
+            &super::utils::bigint_mod_pow(&pk.h, &r, &pp),
+            &(1 + m_p * &pk.n),
+            &pp);
+
+    let ct2_q =
+        BigInt::mod_mul(
+            &super::utils::bigint_mod_pow(&pk.h, &r, &qq),
+            &(1 + m_q * &pk.n),
+            &qq);
+
+    PECiphertext{ ct1: crt_recombine(&ct1_p, &ct1_q, &pp, &qq, &ppinv),
+                  ct2: crt_recombine(&ct2_p, &ct2_q, &pp, &qq, &ppinv) }
+
+}
+
+pub fn encrypt_with_randomness_opt(
+    pk: &PEPublicKey,
+    sk_m: Option<&PESecretKey>,
+    m: &BigInt,
+    r: &BigInt) -> PECiphertext {
+    match sk_m {
+        Some(sk) => encrypt_with_randomness_sk(pk,sk,m,r),
+        None => encrypt_with_randomness(pk,m,r),
+    }
+}
+
+
 pub fn encrypt(pk: &PEPublicKey, m: &BigInt) -> PECiphertext {
     let r = BigInt::sample_below(&pk.n2);
     encrypt_with_randomness(pk,m,&r)
+}
+
+
+
+#[cfg(test)]
+mod tests {
+
+    use crate::protocols::paillier_elgamal::*;
+
+    #[test]
+    fn test_correctness() {
+        let (pk,_sk) = keygen(1024);
+        let m = BigInt::from(12345);
+        let _ct = encrypt(&pk, &m);
+        //unimplemented!()
+        // TODO
+    }
+
 }

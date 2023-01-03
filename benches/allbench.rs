@@ -140,7 +140,6 @@ fn bench_designated_vpk(c: &mut Criterion, params: &dv::DVParams) {
 
     grp.bench_function("keygen", |b| b.iter(|| dv::keygen(params)));
 
-
     if params.malicious_setup {
     grp.bench_function("verify_vpk", |b| {
         b.iter_batched(|| dv::keygen(params).0,
@@ -318,25 +317,20 @@ fn bench_schnorr_paillier(c: &mut Criterion) {
 
 
 fn bench_designated_all(c: &mut Criterion) {
-    //    bench_designated(c,&dv::DVParams::new(1024, 32));
     let n_bitlen = 2048;
     let lambda = 128;
     let queries = 32;
+
     bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
     bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
-    //bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
-    //bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
-   //// bench_designated(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
-   //// bench_designated(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
-    //bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
-    //bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
-    //bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
-    //bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
+
+    bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
+    bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
+    bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
+    bench_designated_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
 }
 
 fn bench_designated_range_all(c: &mut Criterion) {
-
-    //    bench_designated(c,&dv::DVParams::new(1024, 32));
     let n_bitlen = 2048;
     let lambda = 128;
     let queries = 32;
@@ -344,19 +338,15 @@ fn bench_designated_range_all(c: &mut Criterion) {
 
     bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
     bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
-    //bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
-    //bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
-    //bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
-    //bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
 
-   // bench_designated_range_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
-   // bench_designated_range_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
-   // bench_designated_range_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
-   // bench_designated_range_fs(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
+    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries, true, false));
+    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries, false, false));
+    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries, true, true));
+    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries, false, true));
 }
 
 
-//criterion_group!(benches, bench_schnorr_paillier, bench_designated_all);
+criterion_group!(benches, bench_designated_all, bench_designated_range_all);
 //criterion_group!(benches, bench_designated_range_all);
-criterion_group!(benches, bench_schnorr_paillier);
+//criterion_group!(benches, bench_schnorr_paillier);
 criterion_main!(benches);
