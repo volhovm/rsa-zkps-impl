@@ -113,10 +113,10 @@ pub struct Commitment(Vec<BigInt>);
 #[derive(Clone, PartialEq, Debug)]
 pub struct ComRand(Vec<(BigInt,BigInt)>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Challenge(Vec<BigInt>);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Response(Vec<(BigInt,BigInt)>);
 
 pub fn sample_lang(params: &ProofParams) -> Lang {
@@ -245,7 +245,7 @@ pub fn verify2(params: &ProofParams,
 
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct FSProof {
     fs_com : Commitment,
     fs_ch : Challenge,

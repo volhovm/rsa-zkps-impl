@@ -264,7 +264,7 @@ pub fn fs_prove(params: &ProofParams,
     let t_delta2 = t_p2.duration_since(t_p1).expect("error2");
     let t_delta3 = t_p3.duration_since(t_p2).expect("error2");
     let t_total = t_p3.duration_since(t_start).expect("error2");
-    println!("schnorr batched fs_prove time (total {:?}): prove1: {:?}, compute_ch {:?}; resp: {:?}",t_total, t_delta1, t_delta2, t_delta3);
+    //println!("schnorr batched fs_prove time (total {:?}): prove1: {:?}, compute_ch {:?}; resp: {:?}",t_total, t_delta1, t_delta2, t_delta3);
 
 
     FSProof{ fs_com, fs_ch, fs_resp }

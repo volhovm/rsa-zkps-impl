@@ -6,6 +6,7 @@ use curv::arithmetic::traits::BasicOps;
 use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 
+use rsazkps::protocols::schnorr_paillier as sp;
 use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
 
@@ -42,6 +43,16 @@ fn estimate_size_designated_range(params: &dvr::DVRParams) {
              estimate_size(&proof))
 }
 
+fn estimate_size_schnorr_paillier(params: &sp::ProofParams) {
+    print!("Schnorr-Pailler FS, range {:?}. ", !params.range_params.is_none());
+
+    let (lang,inst,wit) = sp::sample_liw(&params);
+    let proof = sp::fs_prove(&params,&lang,&inst,&wit);
+
+    println!("proof: {} B",
+             estimate_size(&proof))
+}
+
 fn estimate_proof_sizes() {
     let n_bitlen = 2048;
     let lambda = 128;
@@ -51,6 +62,10 @@ fn estimate_proof_sizes() {
 
     println!("Estimating proof sizes; log(N) = {}, lambda = {}, queries = {}, log(Range) = {}",
              n_bitlen, lambda, queries, range_bitlen);
+
+
+    estimate_size_schnorr_paillier(&sp::ProofParams::new(n_bitlen, lambda, 22));
+    estimate_size_schnorr_paillier(&sp::ProofParams::new_range(n_bitlen, lambda, range.clone()));
 
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, true, true));
@@ -98,6 +113,6 @@ fn test_dv_crs() {
 
 fn main() {
     //rsazkps::protocols::designated_range::test_keygen_correctness();
-    test_dv_crs();
-    //estimate_proof_sizes();
+    //test_dv_crs();
+    estimate_proof_sizes();
 }

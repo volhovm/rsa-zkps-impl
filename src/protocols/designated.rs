@@ -233,7 +233,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let t_delta2 = t_p2.duration_since(t_p1).expect("error2");
     let t_delta3 = t_p3.duration_since(t_p2).expect("error2");
     let t_total = t_p3.duration_since(t_start).expect("error2");
-    println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
+    //println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
 
     (VPK{pk, cts, nizk_gcd, nizks_ct},VSK{sk, chs})
 }
@@ -279,7 +279,7 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
     let t_delta1 = t_p1.duration_since(t_start).expect("error1");
     let t_delta2 = t_p2.duration_since(t_p1).expect("error2");
     let t_total = t_p2.duration_since(t_start).expect("error3");
-    println!("Keygen verify time (total {:?}): nizk_gcd {:?}; nizk_ct: {:?}", t_total,t_delta1, t_delta2);
+    //println!("Keygen verify time (total {:?}): nizk_gcd {:?}; nizk_ct: {:?}", t_total,t_delta1, t_delta2);
 
     return true;
 }
