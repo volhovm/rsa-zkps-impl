@@ -5,6 +5,7 @@ use curv::BigInt;
 use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use std::time::Duration;
 use rsazkps::protocols::schnorr_paillier as sp;
+use rsazkps::protocols::schnorr_paillier_elgamal as spe;
 use rsazkps::protocols::schnorr_paillier_batched as spb;
 use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
@@ -125,6 +126,32 @@ fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) 
     grp.finish();
 }
 
+fn bench_schnorr_paillier_elgamal_fs(c: &mut Criterion, params: &spe::ProofParams) {
+    let mut grp = c.benchmark_group(format!("S-P-E FS {}", params));
+    grp.sample_size(10);
+
+    grp.bench_function("FS prove", |b| {
+        b.iter_batched(|| spe::sample_liw(params),
+                       |(lang,inst,wit)| spe::fs_prove(params,&lang,&inst,&wit),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("FS verify 0", |b| {
+        b.iter_batched(|| spe::sample_lang(params),
+                       |lang| spe::fs_verify0(params,&lang),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("FS verify", |b| {
+        b.iter_batched(|| { let (lang,inst,wit) = spe::sample_liw(params);
+                            let proof = spe::fs_prove(params,&lang,&inst,&wit);
+                            (params,lang,inst,proof) },
+                       |(params,lang,inst,proof)| spe::fs_verify(params,&lang,&inst,&proof),
+                       BatchSize::LargeInput);
+    });
+
+    grp.finish();
+}
 
 ////////////////////////////////////////////////////////////////////////////
 // DV
@@ -306,9 +333,11 @@ fn bench_designated_range_fs(c: &mut Criterion, params: &dvr::DVRParams) {
 fn bench_schnorr_paillier(c: &mut Criterion) {
 
     // q = 8, 7, 6, 5
-    for i in [16, 19, 22, 26] {
+    for i in [1, 16, 19, 22, 26] {
         let params1 = sp::ProofParams::new(2048,128,i);
         bench_schnorr_paillier_fs(c, &params1);
+        let params1e = spe::ProofParams::new(2048,128,i);
+        bench_schnorr_paillier_elgamal_fs(c, &params1e);
     }
 
     let params2 = spb::ProofParams::new(2048,128,128,128);
@@ -346,7 +375,7 @@ fn bench_designated_range_all(c: &mut Criterion) {
 }
 
 
-criterion_group!(benches, bench_designated_all, bench_designated_range_all);
+//criterion_group!(benches, bench_designated_all, bench_designated_range_all);
 //criterion_group!(benches, bench_designated_range_all);
-//criterion_group!(benches, bench_schnorr_paillier);
+criterion_group!(benches, bench_schnorr_paillier);
 criterion_main!(benches);

@@ -172,10 +172,10 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let rand_v: Vec<_> = (0..params.reps).map(|_| {
         let rm = match &params.range_params {
             Some(RangeProofParams{ rand_range, .. }) =>
-                BigInt::sample_below(&rand_range),
-            None => BigInt::sample_below(n),
+                BigInt::sample_below(&(rand_range + &BigInt::pow(&BigInt::from(2), params.lambda))),
+            None => BigInt::sample_below(&(n + &BigInt::pow(&BigInt::from(2), params.lambda))),
         };
-        let rr = BigInt::sample_below(n);
+        let rr = BigInt::sample_below(&(n + &BigInt::pow(&BigInt::from(2), params.lambda)));
         (rm,rr)
     }).collect();
     let alpha_v: Vec<_> = rand_v.iter().map(|(rm,rr)| {
@@ -201,10 +201,8 @@ pub fn prove2(params: &ProofParams,
         let rm = &(&cr.0)[i].0;
         let rr = &(&cr.0)[i].1;
 
-        let t1 = BigInt::mod_mul(ch, &wit.m , n);
-        let s1 = BigInt::mod_add(rm, &t1, n);
-        let t2 = BigInt::mod_pow(&(wit.r), ch, n2);
-        let s2 = BigInt::mod_mul(rr, &t2, n2);
+        let s1 = BigInt::mod_add(rm, &BigInt::mod_mul(ch, &wit.m , n), n);
+        let s2 = BigInt::mod_mul(rr, &BigInt::mod_pow(&(wit.r), ch, n2), n2);
         return (s1,s2);
     }).collect();
     return Response(resp_v);
@@ -217,7 +215,6 @@ pub fn verify2(params: &ProofParams,
                com: &Commitment,
                ch: &Challenge,
                resp: &Response) -> bool {
-    let n: &BigInt = &lang.pk.n;
     let n2: &BigInt = &lang.pk.nn;
     for i in 0..params.reps {
         let ch = &(&ch.0)[i];
@@ -230,13 +227,8 @@ pub fn verify2(params: &ProofParams,
             if s1 >= rand_range  { return false; }
         };
 
-        let ec = BigInt::mod_pow(&ct, ch, n2);
-        let lhs = BigInt::mod_mul(&ec, alpha, n2);
-
-        let rhs = BigInt::mod_mul(
-            &BigInt::mod_pow(&(n + 1), s1, n2),
-            &BigInt::mod_pow(s2, n, n2),
-            &n2);
+        let lhs = BigInt::mod_mul(&BigInt::mod_pow(&ct, ch, n2), alpha, n2);
+        let rhs = paillier_enc_opt(&lang.pk, None, s1, s2);
 
         if lhs != rhs { return false; }
     }

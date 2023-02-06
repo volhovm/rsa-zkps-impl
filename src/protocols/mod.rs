@@ -1,6 +1,7 @@
 pub mod utils;
 pub mod schnorr_exp;
 pub mod schnorr_paillier;
+pub mod schnorr_paillier_elgamal;
 pub mod schnorr_paillier_plus;
 pub mod schnorr_paillier_batched;
 pub mod squares_decomp;

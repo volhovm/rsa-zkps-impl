@@ -15,7 +15,7 @@ use paillier::{Paillier, EncryptionKey, DecryptionKey,
                Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 pub struct PESecretKey {
     pub a: BigInt,
     pub ordg: BigInt,
@@ -23,7 +23,7 @@ pub struct PESecretKey {
     pub q: BigInt
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 pub struct PEPublicKey {
     pub n: BigInt,
     pub n2: BigInt,
@@ -31,7 +31,7 @@ pub struct PEPublicKey {
     pub h: BigInt
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize)]
 pub struct PECiphertext {
     // g^r
     pub ct1: BigInt,
