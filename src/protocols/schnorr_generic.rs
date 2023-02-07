@@ -2,7 +2,7 @@
 
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
 use curv::BigInt;
-use serde::{Serialize};
+use serde::{Serialize, Serializer};
 use std::fmt;
 use std::fmt::Debug;
 
@@ -70,17 +70,18 @@ pub trait Lang: Serialize {
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Commitment<L:Lang>(Vec<L::CoDom>);
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, )]
 pub struct ComRand<L:Lang>(Vec<L::Dom>);
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct Challenge(Vec<BigInt>);
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Challenge(pub Vec<BigInt>);
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Response<L:Lang>(Vec<L::Dom>);
+
 
 
 pub fn prove1<L:Lang>(params: &ProofParams, lang: &L) -> (Commitment<L>,ComRand<L>) {
@@ -196,4 +197,31 @@ pub fn generic_test_correctness_fs<L: Lang>(params: &ProofParams, lparams: &L::L
     let proof = fs_prove(params,&lang,&inst,&wit);
     let res = fs_verify(params,&lang,&inst,&proof);
     assert!(res);
+}
+
+////////////////////////////////////////////////////////////////////////////
+// Trait implementations for our types
+////////////////////////////////////////////////////////////////////////////
+
+
+// #derive is a bit broken for associated types
+
+impl <L:Lang> PartialEq for Commitment<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
+impl <L:Lang> Eq for Commitment<L> {}
+impl <L:Lang> PartialEq for ComRand<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
+impl <L:Lang> Eq for ComRand<L> {}
+impl <L:Lang> PartialEq for Response<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
+impl <L:Lang> Eq for Response<L> {}
+
+impl <L:Lang> Serialize for Commitment<L> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    { self.0.serialize(serializer) }
+}
+impl <L:Lang> Serialize for ComRand<L> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    { self.0.serialize(serializer) }
+}
+impl <L:Lang> Serialize for Response<L> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    { self.0.serialize(serializer) }
 }

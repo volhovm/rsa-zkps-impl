@@ -1,7 +1,7 @@
 /// A tailored variant of schnorr_paillier for knowledge-of-ciphertext
 /// specifically for the DVRange protocol. It is very similar to
 /// super::schnorr_paillier, except that (1) it is for a slightly
-/// different 3-ary relation S = Enc(w_1,w_2)*C^{w_3}; (2) and that it
+/// different 3-ary relation S = Enc(w_1,w_2)*C^{w_3} mod N^2; (2) and that it
 /// does not support range check functionality.
 
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
@@ -14,48 +14,13 @@ use serde::{Serialize};
 use std::fmt;
 
 use super::paillier::paillier_enc_opt;
+use super::schnorr_generic::*;
 
-
-/// Common parameters for the proof system.
-#[derive(Clone, PartialEq, Debug)]
-pub struct ProofParams {
-    /// Small number up to which N shouldn't have divisors.
-    pub q: Option<u64>,
-    /// Number of parallel repetitions of the basic protocol.
-    pub reps: usize,
-    /// Bitlength of the RSA modulus.
-    pub n_bitlen: u32,
-    /// Size of the challenge space, upper bound.
-    pub ch_space: BigInt,
-}
-
-impl ProofParams {
-    fn calc_proof_params(n_bitlen: u32,
-                         lambda: u32,
-                         repbits: u32) -> Self {
-        let ch_space = BigInt::pow(&BigInt::from(2), repbits);
-        let reps = if lambda % repbits == 0 { lambda / repbits } else { (lambda / repbits) + 1};
-        return ProofParams { q: if repbits > 32 {None} else {Some(2u64.pow(repbits))},
-                             reps: reps as usize,
-                             n_bitlen, ch_space };
-    }
-    pub fn new(n_bitlen: u32, lambda: u32, repbits: u32) -> Self {
-        Self::calc_proof_params(n_bitlen,lambda,repbits)
-    }
-}
-
-impl fmt::Display for ProofParams {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProofParams ( q: {:?}, reps: {}, n_bitlen: {}, ch_space: {} )",
-               self.q,
-               self.reps,
-               self.n_bitlen,
-               self.ch_space)
-    }
-}
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Lang {
+pub struct PPLang {
+    /// Bit size of the RSA modulus
+    pub n_bitlen: u32,
     /// Public key that is used to generate instances.
     pub pk: EncryptionKey,
     /// Optional decryption key that speeds up Paillier
@@ -64,25 +29,20 @@ pub struct Lang {
     pub ch_ct: BigInt,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Inst {
-    /// The encryption ciphertext S_i = Enc(w1,w2)
-    pub si: BigInt
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct Wit {
+#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+pub struct PPLangDom {
     pub m: BigInt,
     pub r: BigInt,
     /// exponent of ct
     pub cexp: BigInt,
 }
 
-pub fn sample_lang(params: &ProofParams) -> Lang {
-    let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys();
-    let ch_ct = BigInt::sample_below(&pk.nn);
-    Lang { pk, sk: Some(sk), ch_ct }
+#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+pub struct PPLangCoDom {
+    /// The encryption ciphertext S_i = Enc(w1,w2)
+    pub si: BigInt
 }
+
 
 /// Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
 pub fn compute_si(pk: &EncryptionKey,
@@ -95,210 +55,86 @@ pub fn compute_si(pk: &EncryptionKey,
         &pk.nn)
 }
 
-pub fn sample_inst(lang: &Lang) -> (Inst,Wit) {
-    let m =  BigInt::sample_below(&lang.pk.n);
-    let r = BigInt::sample_below(&lang.pk.n);
-    let cexp = BigInt::sample_below(&lang.pk.n);
-    let si = compute_si(&lang.pk, lang.sk.as_ref(), &lang.ch_ct, &m, &r, &cexp);
+impl Lang for PPLang {
+    type LangParams = u32;
+    type Dom = PPLangDom;
+    type CoDom = PPLangCoDom;
 
-    let inst = Inst { si };
-    let wit = Wit { m, r, cexp };
-
-    return (inst,wit);
-}
-
-pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
-    let lang = sample_lang(params);
-    let (inst,wit) = sample_inst(&lang);
-    (lang,inst,wit)
-}
-
-
-////////////////////////////////////////////////////////////////////////////
-// Interactive protocol
-////////////////////////////////////////////////////////////////////////////
-
-
-
-#[derive(Clone, PartialEq, Debug, Eq, Serialize)]
-pub struct Commitment(Vec<BigInt>);
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct ComRand(Vec<(BigInt,BigInt,BigInt)>);
-
-// TODO this can be probably compressed
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct Challenge(pub Vec<BigInt>);
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct Response(Vec<(BigInt,BigInt,BigInt)>);
-
-pub fn verify0(params: &ProofParams, lang: &Lang) -> bool {
-    let q = params.q.expect("schnorr_paillier_plus: q must be Some, maybe reps is too high?");
-    if !super::utils::check_small_primes(q,&lang.pk.n) {
-        return false
-    };
-
-    true
-}
-
-pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
-    let n: &BigInt = &lang.pk.n;
-    let rand_v: Vec<_> = (0..params.reps).map(|_| {
-        let rm =  BigInt::sample_below(n);
-        let rr = BigInt::sample_below(n);
-        let rcexp = BigInt::sample_below(n);
-        (rm,rr,rcexp)
-    }).collect();
-    let alpha_v: Vec<_> = rand_v.iter().map(|(rm,rr,rcexp)| {
-        compute_si(&lang.pk, lang.sk.as_ref(), &lang.ch_ct,&rm,&rr,&rcexp)
-    }).collect();
-    return (Commitment(alpha_v),ComRand(rand_v));
-}
-
-pub fn verify1(params: &ProofParams) -> Challenge {
-    let b = (0..params.reps).map(|_| BigInt::sample_below(&params.ch_space)).collect();
-    return Challenge(b);
-}
-
-pub fn prove2(params: &ProofParams,
-              lang: &Lang,
-              wit: &Wit,
-              ch: &Challenge,
-              cr: &ComRand) -> Response {
-    let n: &BigInt = &lang.pk.n;
-    let n2: &BigInt = &lang.pk.nn;
-    let resp_v: Vec<_> = (0..params.reps).map(|i| {
-        let ch = &(&ch.0)[i];
-        let rm = &(&cr.0)[i].0;
-        let rr = &(&cr.0)[i].1;
-        let rcexp = &(&cr.0)[i].2;
-
-        let s1 = BigInt::mod_add(rm, &BigInt::mod_mul(&wit.m, ch, n), n);
-        let s2 = BigInt::mod_mul(rr, &BigInt::mod_pow(&wit.r, ch, n2), n2);
-        let s3 = &wit.cexp * ch + rcexp;
-        return (s1,s2,s3);
-    }).collect();
-    return Response(resp_v);
-}
-
-pub fn verify2(params: &ProofParams,
-               lang: &Lang,
-               inst: &Inst,
-               com: &Commitment,
-               ch: &Challenge,
-               resp: &Response) -> bool {
-    let n2: &BigInt = &lang.pk.nn;
-    for i in 0..params.reps {
-        let ch = &(&ch.0)[i];
-        let s1 = &resp.0[i].0;
-        let s2 = &resp.0[i].1;
-        let s3 = &resp.0[i].2;
-
-        let alpha = &com.0[i];
-
-        let lhs = BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, n2), alpha, n2);
-        let rhs = compute_si(&lang.pk, lang.sk.as_ref(), &lang.ch_ct, s1, s2, s3);
-
-        if lhs != rhs { return false; }
+    fn sample_lang(n_bitlen: &Self::LangParams) -> Self {
+        let (pk,sk) = Paillier::keypair_with_modulus_size(*n_bitlen as usize).keys();
+        let ch_ct = BigInt::sample_below(&pk.nn);
+        PPLang { n_bitlen: *n_bitlen, pk, sk: Some(sk), ch_ct  }
     }
-    return true;
-}
 
+    fn sample_wit(&self) -> Self::Dom {
+        let m = BigInt::sample_below(&self.pk.n);
+        let r = BigInt::sample_below(&self.pk.n);
+        // FIXME check, shouldn't this be n?
+        let cexp = BigInt::sample_below(&self.pk.nn);
 
+        PPLangDom { m, r, cexp }
+    }
 
-#[derive(Clone, Debug)]
-pub struct FSProof {
-    fs_com : Commitment,
-    fs_ch : Challenge,
-    fs_resp : Response
-}
+    fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
+        let si = compute_si(&self.pk, self.sk.as_ref(), &self.ch_ct, &wit.m, &wit.r, &wit.cexp);
+        PPLangCoDom { si }
+    }
 
-fn fs_compute_challenge(lang: &Lang, inst:&Inst, fs_com: &Commitment) -> Challenge {
-    use blake2::*;
-    let b = fs_com.0.iter().map(|com:&BigInt| {
-        let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
-        // Use Digest::digest, but it asks for a fixed-sized slice?
-        let mut hasher: Blake2b = Digest::new();
-        hasher.update(&x);
-        let r0 = hasher.finalize();
-        BigInt::from((&(r0.as_slice())[0] & 0b0000001) as u32)
-    }).collect();
-    Challenge(b)
-}
+    fn verify(&self, params: &ProofParams) -> bool {
+        if params.ch_space_bitlen > 32 {
+            panic!("schnorr_paillier_plus: verify0: ch_space is too big: {:?} bits",
+                   params.ch_space_bitlen)
+        }
+        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
+    }
 
+    fn sample_com_rand(&self, _params: &ProofParams) -> Self::Dom {
+        let m =  BigInt::sample_below(&self.pk.n);
+        let r = BigInt::sample_below(&self.pk.n);
+        // FIXME check, shouldn't this be n^2?
+        let cexp = BigInt::sample_below(&self.pk.n);
 
-pub fn fs_prove(params: &ProofParams,
-                lang: &Lang,
-                inst: &Inst,
-                wit: &Wit) -> FSProof {
-    let (fs_com,cr) = prove1(&params,&lang);
-    let fs_ch = fs_compute_challenge(lang,inst,&fs_com);
-    let fs_resp = prove2(&params,&lang,&wit,&fs_ch,&cr);
+        PPLangDom { m, r, cexp }
+    }
 
-    FSProof{ fs_com, fs_ch, fs_resp }
-}
+    fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom {
+        let n = &self.pk.n;
+        let n2 = &self.pk.nn;
 
-pub fn fs_verify0(params: &ProofParams, lang: &Lang) -> bool {
-    verify0(params,lang)
-}
+        let m = BigInt::mod_add(&rand.m, &BigInt::mod_mul(&wit.m, ch, n), n);
+        let r = BigInt::mod_mul(&rand.r, &BigInt::mod_pow(&wit.r, ch, n2), n2);
+        let cexp = &wit.cexp * ch + &rand.cexp;
 
-pub fn fs_verify(params: &ProofParams,
-                 lang: &Lang,
-                 inst: &Inst,
-                 proof: &FSProof) -> bool {
+        PPLangDom { m, r, cexp }
+    }
 
-    let fs_ch_own = fs_compute_challenge(lang,inst,&proof.fs_com);
-    if fs_ch_own != proof.fs_ch { return false; }
+    fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom {
+        let n2 = &self.pk.nn;
+        let si = BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, n2), &com.si, n2);
+        PPLangCoDom { si }
+    }
 
-    verify2(&params,&lang,&inst,
-            &proof.fs_com,&proof.fs_ch,&proof.fs_resp)
+    fn check_resp_range(&self, _: &ProofParams, _: &Self::Dom) -> bool {
+        panic!("schnorr_paillier_plus does not run in the range mode");
+    }
 }
 
 
 #[cfg(test)]
 mod tests {
+
     use crate::protocols::schnorr_paillier_plus::*;
+    use crate::protocols::schnorr_generic::*;
 
     #[test]
     fn test_correctness() {
-        let params = ProofParams::new(2048, 128, 15);
-        let (lang,inst,wit) = sample_liw(&params);
-
-        let res = verify0(&params,&lang);
-        assert!(res);
-
-        let (com,cr) = prove1(&params,&lang);
-        let ch = verify1(&params);
-
-        let resp = prove2(&params,&lang,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
+        let params = ProofParams::new(128, 16);
+        generic_test_correctness::<PPLang>(&params,&1024);
     }
-
-    #[test]
-    fn test_correctness_noreps() {
-        let params = ProofParams::new(2048, 128, 128);
-        let (lang,inst,wit) = sample_liw(&params);
-
-        // not running verify0 because reps=128 is too high
-
-        let (com,cr) = prove1(&params,&lang);
-        let ch = verify1(&params);
-
-        let resp = prove2(&params,&lang,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
-    }
-
 
     #[test]
     fn test_correctness_fs() {
-        let params = ProofParams::new(2048, 128, 15);
-        let (lang,inst,wit) = sample_liw(&params);
-
-        let proof = fs_prove(&params,&lang,&inst,&wit);
-        let res0 = fs_verify0(&params,&lang);
-        assert!(res0);
-        let res = fs_verify(&params,&lang,&inst,&proof);
-        assert!(res);
+        let params = ProofParams::new(128, 16);
+        generic_test_correctness_fs::<PPLang>(&params,&1024);
     }
 }

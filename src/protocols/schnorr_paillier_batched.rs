@@ -260,10 +260,10 @@ pub fn fs_prove(params: &ProofParams,
 
     let t_p3 = SystemTime::now();
 
-    let t_delta1 = t_p1.duration_since(t_start).expect("error1");
-    let t_delta2 = t_p2.duration_since(t_p1).expect("error2");
-    let t_delta3 = t_p3.duration_since(t_p2).expect("error2");
-    let t_total = t_p3.duration_since(t_start).expect("error2");
+    let _t_delta1 = t_p1.duration_since(t_start).expect("error1");
+    let _t_delta2 = t_p2.duration_since(t_p1).expect("error2");
+    let _t_delta3 = t_p3.duration_since(t_p2).expect("error2");
+    let _t_total = t_p3.duration_since(t_start).expect("error2");
     //println!("schnorr batched fs_prove time (total {:?}): prove1: {:?}, compute_ch {:?}; resp: {:?}",t_total, t_delta1, t_delta2, t_delta3);
 
 

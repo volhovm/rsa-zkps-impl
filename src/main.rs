@@ -6,8 +6,10 @@ use curv::arithmetic::traits::BasicOps;
 use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 
-use rsazkps::protocols::schnorr_paillier as sp;
 use rsazkps::protocols::schnorr_generic as sch;
+use rsazkps::protocols::schnorr_paillier as sp;
+use rsazkps::protocols::schnorr_paillier_elgamal as spe;
+
 use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
 
@@ -44,11 +46,10 @@ fn estimate_size_designated_range(params: &dvr::DVRParams) {
              estimate_size(&proof))
 }
 
-fn estimate_size_schnorr_paillier(params: &sch::ProofParams, lparams: &sp::PLangParams) {
-    print!("Schnorr-Pailler FS, range on? {:?}. ", !lparams.range.is_some());
+fn estimate_size_schnorr<L: sch::Lang>(params: &sch::ProofParams, lparams: &L::LangParams) {
+    print!("Schnorr FS, {:?} {:?}. ", params, lparams);
 
-    use sch::Lang;
-    let (lang,inst,wit) = sp::PLang::sample_liw(lparams);
+    let (lang,inst,wit) = L::sample_liw(lparams);
     let proof = sch::fs_prove(&params,&lang,&inst,&wit);
 
     println!("proof: {} B",
@@ -65,13 +66,23 @@ fn estimate_proof_sizes() {
     println!("Estimating proof sizes; log(N) = {}, lambda = {}, queries = {}, log(Range) = {}",
              n_bitlen, lambda, queries, range_bitlen);
 
-
-    estimate_size_schnorr_paillier(
+    estimate_size_schnorr::<sp::PLang>(
+        &sch::ProofParams::new(lambda, 1),
+        &sp::PLangParams{ n_bitlen, range: None });
+    estimate_size_schnorr::<sp::PLang>(
         &sch::ProofParams::new(lambda, 22),
-        &sp::PLangParams{ n_bitlen: 1024, range: None });
-    estimate_size_schnorr_paillier(
+        &sp::PLangParams{ n_bitlen, range: None });
+    estimate_size_schnorr::<sp::PLang>(
         &sch::ProofParams::new_range(lambda),
-        &sp::PLangParams{ n_bitlen: 1024, range: Some(range.clone()) });
+        &sp::PLangParams{ n_bitlen, range: Some(range.clone()) });
+
+    estimate_size_schnorr::<spe::PELang>(
+        &sch::ProofParams::new(lambda, 1),
+        &n_bitlen);
+    estimate_size_schnorr::<spe::PELang>(
+        &sch::ProofParams::new(lambda, 22),
+        &n_bitlen);
+
 
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, true, true));

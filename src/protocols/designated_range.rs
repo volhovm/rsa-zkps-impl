@@ -13,7 +13,7 @@ use super::paillier::paillier_enc_opt;
 use super::utils as u;
 use super::schnorr_generic as sch;
 use super::schnorr_paillier_batched as spb;
-use super::schnorr_paillier_plus as sp_plus;
+use super::schnorr_paillier_plus as spp;
 use super::n_gcd as n_gcd;
 use super::paillier_elgamal as pe;
 use super::schnorr_exp as se;
@@ -138,8 +138,8 @@ impl DVRParams {
     }
 
     /// Parameters for the schnorr-paillier+ sub-protocol
-    pub fn sp_plus_params(&self) -> sp_plus::ProofParams {
-        sp_plus::ProofParams::new(self.vpk_n_bitlen(), self.lambda, self.lambda)
+    pub fn spp_params(&self) -> sch::ProofParams {
+        sch::ProofParams::new(self.lambda, self.lambda)
     }
 
 }
@@ -351,6 +351,8 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
 
     let se_params = &params.nizk_se_params();
     let se_lang = se::ExpNLang{n_bitlen: params.psi_n_bitlen, n: vpk.n.clone(), h: vpk.h.clone()};
+    // FIXME I'm not sure it's needed, and I'm not sure I
+    // haven't missed lang. verification anywhere else
     if !sch::Lang::verify(&se_lang,&se_params) { return false; }
     if !sch::fs_verify(&se_params,
                        &se_lang,
@@ -412,17 +414,17 @@ pub struct DVRChallenge1(BigInt);
 /// Commitment for the pe+ protocol
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PlusCom {
-    com_u_m: sp_plus::Commitment,
-    com_v_m: sp_plus::Commitment,
-    com_u1_m: sp_plus::Commitment,
-    com_v1_m: sp_plus::Commitment,
-    com_u2_m: sp_plus::Commitment,
-    com_v2_m: sp_plus::Commitment,
-    com_u3_m: sp_plus::Commitment,
-    com_v3_m: sp_plus::Commitment,
-    com_u4_m: sp_plus::Commitment,
+    com_u_m: sch::Commitment<spp::PPLang>,
+    com_v_m: sch::Commitment<spp::PPLang>,
+    com_u1_m: sch::Commitment<spp::PPLang>,
+    com_v1_m: sch::Commitment<spp::PPLang>,
+    com_u2_m: sch::Commitment<spp::PPLang>,
+    com_v2_m: sch::Commitment<spp::PPLang>,
+    com_u3_m: sch::Commitment<spp::PPLang>,
+    com_v3_m: sch::Commitment<spp::PPLang>,
+    com_u4_m: sch::Commitment<spp::PPLang>,
 
-    com_u_r: sp_plus::Commitment,
+    com_u_r: sch::Commitment<spp::PPLang>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -444,17 +446,17 @@ pub struct DVRResp1 {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct PlusComRand {
-    comrand_u_m: sp_plus::ComRand,
-    comrand_v_m: sp_plus::ComRand,
-    comrand_u1_m: sp_plus::ComRand,
-    comrand_v1_m: sp_plus::ComRand,
-    comrand_u2_m: sp_plus::ComRand,
-    comrand_v2_m: sp_plus::ComRand,
-    comrand_u3_m: sp_plus::ComRand,
-    comrand_v3_m: sp_plus::ComRand,
-    comrand_u4_m: sp_plus::ComRand,
+    comrand_u_m: sch::ComRand<spp::PPLang>,
+    comrand_v_m: sch::ComRand<spp::PPLang>,
+    comrand_u1_m: sch::ComRand<spp::PPLang>,
+    comrand_v1_m: sch::ComRand<spp::PPLang>,
+    comrand_u2_m: sch::ComRand<spp::PPLang>,
+    comrand_v2_m: sch::ComRand<spp::PPLang>,
+    comrand_u3_m: sch::ComRand<spp::PPLang>,
+    comrand_v3_m: sch::ComRand<spp::PPLang>,
+    comrand_u4_m: sch::ComRand<spp::PPLang>,
 
-    comrand_u_r: sp_plus::ComRand,
+    comrand_u_r: sch::ComRand<spp::PPLang>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -477,32 +479,32 @@ pub struct DVRResp1Rand {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRChallenge2 {
-    ch_u_m: sp_plus::Challenge,
-    ch_v_m: sp_plus::Challenge,
-    ch_u1_m: sp_plus::Challenge,
-    ch_v1_m: sp_plus::Challenge,
-    ch_u2_m: sp_plus::Challenge,
-    ch_v2_m: sp_plus::Challenge,
-    ch_u3_m: sp_plus::Challenge,
-    ch_v3_m: sp_plus::Challenge,
-    ch_u4_m: sp_plus::Challenge,
+    ch_u_m: sch::Challenge,
+    ch_v_m: sch::Challenge,
+    ch_u1_m: sch::Challenge,
+    ch_v1_m: sch::Challenge,
+    ch_u2_m: sch::Challenge,
+    ch_v2_m: sch::Challenge,
+    ch_u3_m: sch::Challenge,
+    ch_v3_m: sch::Challenge,
+    ch_u4_m: sch::Challenge,
 
-    ch_u_r: sp_plus::Challenge,
+    ch_u_r: sch::Challenge,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct DVRResp2 {
-    resp_u_m: sp_plus::Response,
-    resp_v_m: sp_plus::Response,
-    resp_u1_m: sp_plus::Response,
-    resp_v1_m: sp_plus::Response,
-    resp_u2_m: sp_plus::Response,
-    resp_v2_m: sp_plus::Response,
-    resp_u3_m: sp_plus::Response,
-    resp_v3_m: sp_plus::Response,
-    resp_u4_m: sp_plus::Response,
+    resp_u_m: sch::Response<spp::PPLang>,
+    resp_v_m: sch::Response<spp::PPLang>,
+    resp_u1_m: sch::Response<spp::PPLang>,
+    resp_v1_m: sch::Response<spp::PPLang>,
+    resp_u2_m: sch::Response<spp::PPLang>,
+    resp_v2_m: sch::Response<spp::PPLang>,
+    resp_u3_m: sch::Response<spp::PPLang>,
+    resp_v3_m: sch::Response<spp::PPLang>,
+    resp_u4_m: sch::Response<spp::PPLang>,
 
-    resp_u_r: sp_plus::Response,
+    resp_u_r: sch::Response<spp::PPLang>,
 }
 
 
@@ -685,20 +687,23 @@ pub fn prove2(params: &DVRParams,
 
     let (plus_com,plus_comrand) = if params.ggm_mode { (None,None) } else {
         //// Running the sub-proof
-        let sp_plus_params = params.sp_plus_params();
-        let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), sk: None, ch_ct: ch_ct.clone() };
+        let spp_params = params.spp_params();
+        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen(),
+                                    pk: vpk.pk.clone(),
+                                    sk: None,
+                                    ch_ct: ch_ct.clone() };
 
-        let (com_u_m ,comrand_u_m ) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-        let (com_v_m ,comrand_v_m ) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-        let (com_u1_m,comrand_u1_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-        let (com_v1_m,comrand_v1_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-        let (com_u2_m,comrand_u2_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-        let (com_v2_m,comrand_v2_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-        let (com_u3_m,comrand_u3_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-        let (com_v3_m,comrand_v3_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
-        let (com_u4_m,comrand_u4_m) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_u_m ,comrand_u_m ) = sch::prove1(&spp_params, &spp_lang);
+        let (com_v_m ,comrand_v_m ) = sch::prove1(&spp_params, &spp_lang);
+        let (com_u1_m,comrand_u1_m) = sch::prove1(&spp_params, &spp_lang);
+        let (com_v1_m,comrand_v1_m) = sch::prove1(&spp_params, &spp_lang);
+        let (com_u2_m,comrand_u2_m) = sch::prove1(&spp_params, &spp_lang);
+        let (com_v2_m,comrand_v2_m) = sch::prove1(&spp_params, &spp_lang);
+        let (com_u3_m,comrand_u3_m) = sch::prove1(&spp_params, &spp_lang);
+        let (com_v3_m,comrand_v3_m) = sch::prove1(&spp_params, &spp_lang);
+        let (com_u4_m,comrand_u4_m) = sch::prove1(&spp_params, &spp_lang);
 
-        let (com_u_r ,comrand_u_r) = sp_plus::prove1(&sp_plus_params, &sp_plus_lang);
+        let (com_u_r ,comrand_u_r) = sch::prove1(&spp_params, &spp_lang);
 
         (Some(PlusCom {
             com_u_m ,
@@ -743,19 +748,19 @@ pub fn prove2(params: &DVRParams,
 
 pub fn verify2(params: &DVRParams) -> Option<DVRChallenge2> {
     if params.ggm_mode { None } else {
-    let sp_plus_params = params.sp_plus_params();
+    let spp_params = params.spp_params();
 
-    let ch_u_m = sp_plus::verify1(&sp_plus_params);
-    let ch_v_m = sp_plus::verify1(&sp_plus_params);
-    let ch_u1_m = sp_plus::verify1(&sp_plus_params);
-    let ch_v1_m = sp_plus::verify1(&sp_plus_params);
-    let ch_u2_m = sp_plus::verify1(&sp_plus_params);
-    let ch_v2_m = sp_plus::verify1(&sp_plus_params);
-    let ch_u3_m = sp_plus::verify1(&sp_plus_params);
-    let ch_v3_m = sp_plus::verify1(&sp_plus_params);
-    let ch_u4_m = sp_plus::verify1(&sp_plus_params);
+    let ch_u_m = sch::verify1(&spp_params);
+    let ch_v_m = sch::verify1(&spp_params);
+    let ch_u1_m = sch::verify1(&spp_params);
+    let ch_v1_m = sch::verify1(&spp_params);
+    let ch_u2_m = sch::verify1(&spp_params);
+    let ch_v2_m = sch::verify1(&spp_params);
+    let ch_u3_m = sch::verify1(&spp_params);
+    let ch_v3_m = sch::verify1(&spp_params);
+    let ch_u4_m = sch::verify1(&spp_params);
 
-    let ch_u_r = sp_plus::verify1(&sp_plus_params);
+    let ch_u_r = sch::verify1(&spp_params);
 
     Some(DVRChallenge2 {
         ch_u_m,
@@ -796,14 +801,15 @@ pub fn prove3(params: &DVRParams,
                         vpk_n2);
 
     //// Running the sub-proof
-    let sp_plus_params = params.sp_plus_params();
-    let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(), sk: None, ch_ct: ch_ct.clone() };
+    let spp_params = params.spp_params();
+        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen(),
+                                    pk: vpk.pk.clone(), sk: None, ch_ct: ch_ct.clone() };
 
-    let sp_plus_reply = |witm: &BigInt, witr: &BigInt, witcexp: &BigInt, ch: &sp_plus::Challenge, comrand: &sp_plus::ComRand| {
-            sp_plus::prove2(&sp_plus_params,&sp_plus_lang,
-                            &sp_plus::Wit{m: witm.clone(),
-                                          r: witr.clone(),
-                                          cexp: witcexp.clone()},
+    let spp_reply = |witm: &BigInt, witr: &BigInt, witcexp: &BigInt, ch: &sch::Challenge, comrand: &sch::ComRand<spp::PPLang>| {
+            sch::prove2(&spp_params,&spp_lang,
+                            &spp::PPLangDom{m: witm.clone(),
+                                            r: witr.clone(),
+                                            cexp: witcexp.clone()},
                             ch,
                             comrand)
     };
@@ -812,52 +818,52 @@ pub fn prove3(params: &DVRParams,
     let plus_comrand = resp1rand.plus_comrand.clone().expect("DVRange#prove3: plus_comrand must be Some");
 
 
-    let resp_u_m = sp_plus_reply(&cr.r_m,
+    let resp_u_m = spp_reply(&cr.r_m,
                                  &resp1rand.u_r_m,
                                  &(&params.range - &wit.m),
                                  &ch2_unwrap.ch_u_m,
                                  &plus_comrand.comrand_u_m);
 
-    let resp_v_m = sp_plus_reply(&cr.sigma_m,
+    let resp_v_m = spp_reply(&cr.sigma_m,
                                  &resp1rand.v_r_m,
                                  &-&cr.t_m,
                                  &ch2_unwrap.ch_v_m,
                                  &plus_comrand.comrand_v_m);
 
-    let resp_u1_m = sp_plus_reply(&cr.r1_m,
+    let resp_u1_m = spp_reply(&cr.r1_m,
                                   &resp1rand.u1_r_m,
                                   &cr.x1_m,
                                   &ch2_unwrap.ch_u1_m,
                                   &plus_comrand.comrand_u1_m);
-    let resp_v1_m = sp_plus_reply(&cr.sigma1_m,
+    let resp_v1_m = spp_reply(&cr.sigma1_m,
                                   &resp1rand.v1_r_m,
                                   &cr.t1_m,
                                   &ch2_unwrap.ch_v1_m,
                                   &plus_comrand.comrand_v1_m);
 
-    let resp_u2_m = sp_plus_reply(&cr.r2_m,
+    let resp_u2_m = spp_reply(&cr.r2_m,
                                   &resp1rand.u2_r_m,
                                   &cr.x2_m,
                                   &ch2_unwrap.ch_u2_m,
                                   &plus_comrand.comrand_u2_m);
-    let resp_v2_m = sp_plus_reply(&cr.sigma2_m,
+    let resp_v2_m = spp_reply(&cr.sigma2_m,
                                   &resp1rand.v2_r_m,
                                   &cr.t2_m,
                                   &ch2_unwrap.ch_v2_m,
                                   &plus_comrand.comrand_v2_m);
 
-    let resp_u3_m = sp_plus_reply(&cr.r3_m,
+    let resp_u3_m = spp_reply(&cr.r3_m,
                                   &resp1rand.u3_r_m,
                                   &cr.x3_m,
                                   &ch2_unwrap.ch_u3_m,
                                   &plus_comrand.comrand_u3_m);
-    let resp_v3_m = sp_plus_reply(&cr.sigma3_m,
+    let resp_v3_m = spp_reply(&cr.sigma3_m,
                                   &resp1rand.v3_r_m,
                                   &cr.t3_m,
                                   &ch2_unwrap.ch_v3_m,
                                   &plus_comrand.comrand_v3_m);
 
-    let resp_u4_m = sp_plus_reply(&cr.tau_m,
+    let resp_u4_m = spp_reply(&cr.tau_m,
                                   &resp1rand.u4_r_m,
                                   &(&cr.x1_m * &cr.t1_m +
                                     &cr.x2_m * &cr.t2_m +
@@ -867,7 +873,7 @@ pub fn prove3(params: &DVRParams,
                                   &plus_comrand.comrand_u4_m);
 
 
-    let resp_u_r = sp_plus_reply(&cr.r_r,
+    let resp_u_r = spp_reply(&cr.r_r,
                                  &resp1rand.u_r_r,
                                  &-&wit.r,
                                  &ch2_unwrap.ch_u_r,
@@ -1069,78 +1075,79 @@ pub fn verify3(params: &DVRParams,
 
     // Check the sub-protocol replies, for the schnorr-paillier plus
     if !params.ggm_mode {
-        let sp_plus_params = params.sp_plus_params();
-        let sp_plus_lang = sp_plus::Lang{ pk: vpk.pk.clone(),
-                                          sk: Some(vsk.sk.clone()),
-                                          ch_ct: ch_ct.clone() };
+        let spp_params = params.spp_params();
+        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen(),
+                                    pk: vpk.pk.clone(),
+                                    sk: Some(vsk.sk.clone()),
+                                    ch_ct: ch_ct.clone() };
         let plus_com = resp1.plus_com.clone().expect("DVRange#verify3 plus_com must be Some");
         let plus_ch = ch2.expect("DVRange#verify3 ch2 must be Some");
         let plus_resp = resp2.expect("DVRange#verify3 resp2 must be Some");
 
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.u_m.clone()},
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.u_m.clone()},
                              &plus_com.com_u_m,
                              &plus_ch.ch_u_m,
                              &plus_resp.resp_u_m)
-        { println!("DVRange#verify3: sp_plus 1"); return false; }
+        { println!("DVRange#verify3: spp 1"); return false; }
 
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.v_m.clone()},
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.v_m.clone()},
                              &plus_com.com_v_m,
                              &plus_ch.ch_v_m,
                              &plus_resp.resp_v_m)
-        { println!("DVRange#verify3: sp_plus 2");  return false; }
+        { println!("DVRange#verify3: spp 2");  return false; }
 
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.u1_m.clone()},
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.u1_m.clone()},
                              &plus_com.com_u1_m,
                              &plus_ch.ch_u1_m,
                              &plus_resp.resp_u1_m)
-        { println!("DVRange#verify3: sp_plus 3");  return false; }
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.v1_m.clone()},
+        { println!("DVRange#verify3: spp 3");  return false; }
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.v1_m.clone()},
                              &plus_com.com_v1_m,
                              &plus_ch.ch_v1_m,
                              &plus_resp.resp_v1_m)
-        { println!("DVRange#verify3: sp_plus 4");  return false; }
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.u2_m.clone()},
+        { println!("DVRange#verify3: spp 4");  return false; }
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.u2_m.clone()},
                              &plus_com.com_u2_m,
                              &plus_ch.ch_u2_m,
                              &plus_resp.resp_u2_m)
-        { println!("DVRange#verify3: sp_plus 5");  return false; }
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.v2_m.clone()},
+        { println!("DVRange#verify3: spp 5");  return false; }
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.v2_m.clone()},
                              &plus_com.com_v2_m,
                              &plus_ch.ch_v2_m,
                              &plus_resp.resp_v2_m)
-        { println!("DVRange#verify3: sp_plus 6");  return false; }
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.u3_m.clone()},
+        { println!("DVRange#verify3: spp 6");  return false; }
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.u3_m.clone()},
                              &plus_com.com_u3_m,
                              &plus_ch.ch_u3_m,
                              &plus_resp.resp_u3_m)
-        { println!("DVRange#verify3: sp_plus 7");  return false; }
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.v3_m.clone()},
+        { println!("DVRange#verify3: spp 7");  return false; }
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.v3_m.clone()},
                              &plus_com.com_v3_m,
                              &plus_ch.ch_v3_m,
                              &plus_resp.resp_v3_m)
-        { println!("DVRange#verify3: sp_plus 8");  return false; }
+        { println!("DVRange#verify3: spp 8");  return false; }
 
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.u4_m.clone()},
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.u4_m.clone()},
                              &plus_com.com_u4_m,
                              &plus_ch.ch_u4_m,
                              &plus_resp.resp_u4_m)
-        { println!("DVRange#verify3: sp_plus 9");  return false; }
+        { println!("DVRange#verify3: spp 9");  return false; }
 
-        if !sp_plus::verify2(&sp_plus_params,&sp_plus_lang,
-                             &sp_plus::Inst{si:resp1.u_r.clone()},
+        if !sch::verify2(&spp_params,&spp_lang,
+                             &spp::PPLangCoDom{si:resp1.u_r.clone()},
                              &plus_com.com_u_r,
                              &plus_ch.ch_u_r,
                              &plus_resp.resp_u_r)
-        { println!("DVRange#verify3: sp_plus 10");  return false; }
+        { println!("DVRange#verify3: spp 10");  return false; }
 
     }
 
@@ -1203,21 +1210,21 @@ fn fs_compute_challenge_2(params: &DVRParams,
               &resp1.u4_m,
               &resp1.u_r)).unwrap();
 
-    let get_ch = |resp: &sp_plus::Commitment| {
+    let get_ch = |resp: &sch::Commitment<spp::PPLang>| {
         let x: Vec<u8> = rmp_serde::to_vec(&(com, ch1, resp1, inst, lang, resp)).unwrap();
         fs_to_bigint(params, &([common_prefix.clone(),x].concat()))
     };
     let plus_com = resp1.plus_com.clone().expect("DVRange#verify3 plus_com must be Some");
-    let ch_u_m  = sp_plus::Challenge(vec![get_ch(&plus_com.com_u_m)]);
-    let ch_v_m  = sp_plus::Challenge(vec![get_ch(&plus_com.com_v_m)]);
-    let ch_u1_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_u1_m)]);
-    let ch_v1_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_v1_m)]);
-    let ch_u2_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_u2_m)]);
-    let ch_v2_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_v2_m)]);
-    let ch_u3_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_u3_m)]);
-    let ch_v3_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_v3_m)]);
-    let ch_u4_m = sp_plus::Challenge(vec![get_ch(&plus_com.com_u4_m)]);
-    let ch_u_r  = sp_plus::Challenge(vec![get_ch(&plus_com.com_u_r)]);
+    let ch_u_m  = sch::Challenge(vec![get_ch(&plus_com.com_u_m)]);
+    let ch_v_m  = sch::Challenge(vec![get_ch(&plus_com.com_v_m)]);
+    let ch_u1_m = sch::Challenge(vec![get_ch(&plus_com.com_u1_m)]);
+    let ch_v1_m = sch::Challenge(vec![get_ch(&plus_com.com_v1_m)]);
+    let ch_u2_m = sch::Challenge(vec![get_ch(&plus_com.com_u2_m)]);
+    let ch_v2_m = sch::Challenge(vec![get_ch(&plus_com.com_v2_m)]);
+    let ch_u3_m = sch::Challenge(vec![get_ch(&plus_com.com_u3_m)]);
+    let ch_v3_m = sch::Challenge(vec![get_ch(&plus_com.com_v3_m)]);
+    let ch_u4_m = sch::Challenge(vec![get_ch(&plus_com.com_u4_m)]);
+    let ch_u_r  = sch::Challenge(vec![get_ch(&plus_com.com_u_r)]);
 
     Some(DVRChallenge2 {
         ch_u_m,
