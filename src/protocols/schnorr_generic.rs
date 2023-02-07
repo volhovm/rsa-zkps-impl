@@ -34,7 +34,7 @@ impl ProofParams {
 ////////////////////////////////////////////////////////////////////////////
 
 pub trait Lang: Serialize {
-    type LangParam;
+    type LangParam: Debug;
     type Dom: Serialize + Eq + Clone + Debug;
     type Range: Serialize + Eq + Clone + Debug;
 
@@ -46,13 +46,13 @@ pub trait Lang: Serialize {
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom;
     fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom;
     fn resp_lhs(&self, inst: &Self::Range, ch: &BigInt, com: &Self::Range) -> Self::Range;
-}
 
-pub fn sample_liw<L:Lang>(lang_param: &L::LangParam) -> (L,L::Range,L::Dom) {
-    let lang = L::sample_lang(lang_param);
-    let wit = lang.sample_wit();
-    let inst = lang.eval(&wit);
-    (lang,inst,wit)
+    fn sample_liw(lang_param: &Self::LangParam) -> (Self,Self::Range,Self::Dom) where Self: Sized {
+        let lang = Self::sample_lang(lang_param);
+        let wit = lang.sample_wit();
+        let inst = lang.eval(&wit);
+        (lang,inst,wit)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -169,7 +169,7 @@ pub fn fs_verify<L:Lang>(params: &ProofParams,
 
 
 pub fn generic_test_correctness<L: Lang>(params: &ProofParams, lang_param: &L::LangParam) {
-    let (lang,inst,wit): (L,_,_) = sample_liw(lang_param);
+    let (lang,inst,wit) = L::sample_liw(lang_param);
 
     let (com,cr) = prove1(params,&lang);
     let ch = verify1(params);
@@ -179,7 +179,7 @@ pub fn generic_test_correctness<L: Lang>(params: &ProofParams, lang_param: &L::L
 }
 
 pub fn generic_test_correctness_fs<L: Lang>(params: &ProofParams, lang_param: &L::LangParam) {
-    let (lang,inst,wit): (L,_,_) = sample_liw(lang_param);
+    let (lang,inst,wit) = L::sample_liw(lang_param);
 
     let proof = fs_prove(params,&lang,&inst,&wit);
     let res = fs_verify(params,&lang,&inst,&proof);
