@@ -30,17 +30,17 @@ pub struct ExpNLangDom {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize)]
-pub struct ExpNLangRange {
+pub struct ExpNLangCoDom {
     /// g = h^x mod N
     pub g: BigInt,
 }
 
 impl Lang for ExpNLang {
-    type LangParam = u32;
+    type LangParams = u32;
     type Dom = ExpNLangDom;
-    type Range = ExpNLangRange;
+    type CoDom = ExpNLangCoDom;
 
-    fn sample_lang(n_bitlen: &Self::LangParam) -> Self {
+    fn sample_lang(n_bitlen: &Self::LangParams) -> Self {
         use paillier::*;
         let n = Paillier::keypair_with_modulus_size(*n_bitlen as usize).keys().0.n;
         let h = BigInt::sample_below(&n);
@@ -51,8 +51,8 @@ impl Lang for ExpNLang {
         ExpNLangDom { x: BigInt::sample_below(&self.n) }
     }
 
-    fn eval(&self, wit: &Self::Dom) -> Self::Range {
-        ExpNLangRange { g: BigInt::mod_pow(&self.h, &wit.x, &self.n) }
+    fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
+        ExpNLangCoDom { g: BigInt::mod_pow(&self.h, &wit.x, &self.n) }
     }
 
     fn verify(&self, params: &ProofParams) -> bool {
@@ -72,9 +72,13 @@ impl Lang for ExpNLang {
         ExpNLangDom { x: &wit.x * ch + &rand.x }
     }
 
-    fn resp_lhs(&self, inst: &Self::Range, ch: &BigInt, com: &Self::Range) -> Self::Range {
+    fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom {
         let g = BigInt::mod_mul(&BigInt::mod_pow(&inst.g, ch, &self.n), &com.g, &self.n);
-        ExpNLangRange { g }
+        ExpNLangCoDom { g }
+    }
+
+    fn check_resp_range(&self, _: &ProofParams, _: &Self::Dom) -> bool {
+        panic!("schnorr_exp does not run in the range mode");
     }
 }
 

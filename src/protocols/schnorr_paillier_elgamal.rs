@@ -31,17 +31,17 @@ pub struct PELangDom {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize)]
-pub struct PELangRange {
+pub struct PELangCoDom {
     /// The encryption ciphertext
     pub ct: pe::PECiphertext
 }
 
 impl Lang for PELang {
-    type LangParam = u32;
+    type LangParams = u32;
     type Dom = PELangDom;
-    type Range = PELangRange;
+    type CoDom = PELangCoDom;
 
-    fn sample_lang(n_bitlen: &Self::LangParam) -> Self {
+    fn sample_lang(n_bitlen: &Self::LangParams) -> Self {
         let (pk,sk) = pe::keygen(*n_bitlen as usize);
         PELang { n_bitlen: *n_bitlen, pk, sk: Some(sk) }
     }
@@ -53,9 +53,9 @@ impl Lang for PELang {
         PELangDom { m, r }
     }
 
-    fn eval(&self, wit: &Self::Dom) -> Self::Range {
+    fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
         let ct = pe::encrypt_with_randomness_opt(&self.pk, self.sk.as_ref(), &wit.m, &wit.r);
-        PELangRange { ct }
+        PELangCoDom { ct }
     }
 
     fn verify(&self, params: &ProofParams) -> bool {
@@ -81,11 +81,15 @@ impl Lang for PELang {
         PELangDom { m, r }
     }
 
-    fn resp_lhs(&self, inst: &Self::Range, ch: &BigInt, com: &Self::Range) -> Self::Range {
+    fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom {
         let n2 = &self.pk.n2;
         let ct1 = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct.ct1, ch, n2), &com.ct.ct1, n2);
         let ct2 = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct.ct2, ch, n2), &com.ct.ct2, n2);
-        PELangRange { ct: pe::PECiphertext{ ct1, ct2 } }
+        PELangCoDom { ct: pe::PECiphertext{ ct1, ct2 } }
+    }
+
+    fn check_resp_range(&self, _: &ProofParams, _: &Self::Dom) -> bool {
+        panic!("schnorr_paillier_elgamal does not run in the range mode");
     }
 }
 

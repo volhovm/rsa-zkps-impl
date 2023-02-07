@@ -308,7 +308,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let nizk_gen = sch::fs_prove(
         &params.nizk_se_params(),
         &se::ExpNLang{n_bitlen: params.psi_n_bitlen, n: n.clone(), h: h.clone()},
-        &se::ExpNLangRange{g: g.clone()},
+        &se::ExpNLangCoDom{g: g.clone()},
         &se::ExpNLangDom{x: f.clone()});
 
     let vsk = VSK{f, p, q, sk, chs};
@@ -354,7 +354,7 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
     if !sch::Lang::verify(&se_lang,&se_params) { return false; }
     if !sch::fs_verify(&se_params,
                        &se_lang,
-                       &se::ExpNLangRange{g: vpk.g.clone()},
+                       &se::ExpNLangCoDom{g: vpk.g.clone()},
                        &vpk.nizk_gen) { return false; }
 
     true
