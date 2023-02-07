@@ -123,14 +123,16 @@ pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
             let x = BigInt::sample_below(&(r));
             x - r/2
         }
+        // Full message range N
         None => BigInt::sample_below(&lang.pk.n),
     };
+    // We consider it safe to choose randomness from Z_N not from Z_N^2 for Paillier.
     let r = BigInt::sample_below(&lang.pk.n);
+
     let ct = paillier_enc_opt(&lang.pk, lang.sk.as_ref(), &m, &r);
 
     let inst = Inst { ct };
     let wit = Wit { m, r };
-
     return (inst,wit);
 }
 

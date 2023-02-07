@@ -11,6 +11,7 @@ use rand::distributions::{Distribution, Uniform};
 
 use super::paillier::paillier_enc_opt;
 use super::utils as u;
+use super::schnorr_generic as sch;
 use super::schnorr_paillier_batched as spb;
 use super::schnorr_paillier_plus as sp_plus;
 use super::n_gcd as n_gcd;
@@ -52,11 +53,9 @@ impl DVRParams {
     }
 
     /// Parameters for the Gen g/h NIZK proof.
-    pub fn nizk_se_params(&self) -> se::ProofParams {
-        let repbits = 15;
-        se::ProofParams::new(self.psi_n_bitlen,
-                             self.lambda,
-                             repbits)
+    pub fn nizk_se_params(&self) -> sch::ProofParams {
+        let ch_space_bitlen = 16;
+        sch::ProofParams::new(self.lambda, ch_space_bitlen)
     }
 
     /// The size of honestly generated challenges (first λ).
@@ -229,7 +228,7 @@ pub struct VPK {
     /// Proofs of correctness+range of cts.
     pub nizks_ct: Vec<spb::FSProof>,
     /// Schnorr proof of g/h
-    pub nizk_gen: se::FSProof,
+    pub nizk_gen: sch::FSProof<se::ExpNLang>,
 }
 
 
@@ -306,11 +305,11 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let phi = (&p-1) * (&q-1);
     let f = BigInt::sample_below(&phi);
     let g = u::bigint_mod_pow(&h, &f, &n);
-    let nizk_gen = se::fs_prove(
+    let nizk_gen = sch::fs_prove(
         &params.nizk_se_params(),
-        &se::Lang{n: n.clone(), h: h.clone()},
-        &se::Inst{g: g.clone()},
-        &se::Wit{x: f.clone()});
+        &se::ExpNLang{n_bitlen: params.psi_n_bitlen, n: n.clone(), h: h.clone()},
+        &se::ExpNLangRange{g: g.clone()},
+        &se::ExpNLangDom{x: f.clone()});
 
     let vsk = VSK{f, p, q, sk, chs};
     let vpk = VPK{n, g, h, nizk_gen, pk, cts, nizk_gcd, nizks_ct};
@@ -350,10 +349,9 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
         if !res2 { return false; }
     }
 
-    if !se::fs_verify(&params.nizk_se_params(),
-                      &se::Lang{n: vpk.n.clone(), h: vpk.h.clone()},
-                      &se::Inst{g: vpk.g.clone()},
-                      &se::VerifierPrecomp(None),
+    if !sch::fs_verify(&params.nizk_se_params(),
+                      &se::ExpNLang{n_bitlen: params.psi_n_bitlen, n: vpk.n.clone(), h: vpk.h.clone()},
+                      &se::ExpNLangRange{g: vpk.g.clone()},
                       &vpk.nizk_gen) { return false; }
 
     true

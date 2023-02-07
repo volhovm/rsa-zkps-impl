@@ -10,252 +10,86 @@ use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
-////////////////////////////////////////////////////////////////////////////
-// Params
-////////////////////////////////////////////////////////////////////////////
-
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct ProofParams {
-    /// Security parameter
-    pub lambda: u32,
-    /// Small number up to which N shouldn't have divisors
-    pub q: u64,
-    /// Number of repetitions of the protocol
-    pub reps: usize,
-    /// Bitlength of the RSA modulus
-    pub n_bitlen: u32,
-    /// Size of the challenge space, upper bound
-    pub ch_space: BigInt,
-}
-
-impl ProofParams {
-    // Rep bits is bitlength of the smallest prime in N.
-    pub fn new(n_bitlen: u32,
-           lambda: u32,
-           repbits: u32) -> Self {
-        let ch_space = BigInt::pow(&BigInt::from(2), repbits);
-        let reps = (lambda as f64 / repbits as f64).ceil() as usize;
-        let q = 2u64.pow(repbits);
-        return ProofParams { q, reps, n_bitlen, lambda, ch_space };
-    }
-
-}
-
-
-////////////////////////////////////////////////////////////////////////////
-// Language
-////////////////////////////////////////////////////////////////////////////
+use crate::protocols::schnorr_generic::*;
 
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Lang {
+pub struct ExpNLang {
+    /// Bitlength of the RSA modulus
+    pub n_bitlen: u32,
     /// RSA modulus
     pub n: BigInt,
     /// Randomly sampled from Z_N
     pub h: BigInt,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Inst {
-    /// g = h^x
-    pub g: BigInt,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct Wit {
-    /// x | g = h^x
+#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+pub struct ExpNLangDom {
+    /// x | g = h^x mod N
     pub x: BigInt
 }
 
-
-pub fn sample_lang(params: &ProofParams) -> Lang {
-    let pk = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys().0;
-    let h = BigInt::sample_below(&pk.n);
-    Lang{n: pk.n.clone(), h: h.clone()}
+#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+pub struct ExpNLangRange {
+    /// g = h^x mod N
+    pub g: BigInt,
 }
 
-pub fn sample_inst(_params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
-    let x = BigInt::sample_below(&lang.n);
-    let g = BigInt::mod_pow(&lang.h, &x, &lang.n);
-
-    (Inst{g}, Wit{x})
-}
-
-pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
-    let lang = sample_lang(params);
-    let (inst,wit) = sample_inst(params, &lang);
-    (lang,inst,wit)
-}
-
-
-////////////////////////////////////////////////////////////////////////////
-// Protocol
-////////////////////////////////////////////////////////////////////////////
-
-
-/// Contains N-2^{λ+1} R
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct VerifierPrecomp(pub Option<BigInt>);
-
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Commitment(Vec<BigInt>);
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct ComRand(Vec<BigInt>);
-
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Challenge(Vec<BigInt>);
-
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Response(Vec<BigInt>);
-
-
-
-pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
-    if !super::utils::check_small_primes(params.q,&lang.n) {
-        return (false,VerifierPrecomp(None));
-    };
-
-    (true, VerifierPrecomp(None))
-}
-
-pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
-    let mut rand_v = vec![];
-    let mut com_v = vec![];
-    for _i in 0..params.reps {
-        let r = BigInt::sample_below(&lang.n);
-        com_v.push(BigInt::mod_pow(&lang.h, &r, &lang.n));
-        rand_v.push(r);
+impl ExpNLang {
+    pub fn sample_lang(n_bitlen: u32) -> Self {
+        use paillier::*;
+        let n = Paillier::keypair_with_modulus_size(n_bitlen as usize).keys().0.n;
+        let h = BigInt::sample_below(&n);
+        ExpNLang { n_bitlen, n, h }
     }
-    return (Commitment(com_v),ComRand(rand_v));
 }
 
-pub fn verify1(params: &ProofParams) -> Challenge {
-    let b = (0..params.reps).map(|_| BigInt::sample_below(&params.ch_space)).collect();
-    return Challenge(b);
-}
+impl Lang for ExpNLang {
+    type Dom = ExpNLangDom;
+    type Range = ExpNLangRange;
 
-pub fn prove2(params: &ProofParams,
-              wit: &Wit,
-              ch: &Challenge,
-              cr: &ComRand) -> Response {
-    //let n: &BigInt = &lang.n;
-    let resp_v: Vec<_> = (0..params.reps).map(|i| {
-        &cr.0[i] + &wit.x * &ch.0[i]
-    }).collect();
-    return Response(resp_v);
-}
-
-pub fn verify2(params: &ProofParams,
-               lang: &Lang,
-               inst: &Inst,
-               _precomp: &VerifierPrecomp,
-               com: &Commitment,
-               ch: &Challenge,
-               resp: &Response) -> bool {
-    let n = &lang.n;
-
-    for i in 0..params.reps {
-        let lhs = BigInt::mod_mul(&BigInt::mod_pow(&inst.g, &ch.0[i], n), &com.0[i], n);
-        let rhs = BigInt::mod_pow(&lang.h, &resp.0[i], n);
-
-        if lhs != rhs { return false; }
+    fn sample_wit(&self) -> Self::Dom {
+        ExpNLangDom { x: BigInt::sample_below(&self.n) }
     }
-    true
+
+    fn eval(&self, wit: &Self::Dom) -> Self::Range {
+        ExpNLangRange { g: BigInt::mod_pow(&self.h, &wit.x, &self.n) }
+    }
+
+    fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom {
+        let x = BigInt::sample((self.n_bitlen + params.ch_space_bitlen + params.lambda) as usize); 
+        ExpNLangDom { x }
+    }
+
+    fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom {
+        ExpNLangDom { x: &wit.x * ch + &rand.x }
+    }
+
+    fn resp_lhs(&self, inst: &Self::Range, ch: &BigInt, com: &Self::Range) -> Self::Range {
+        let g = BigInt::mod_mul(&BigInt::mod_pow(&inst.g, ch, &self.n), &com.g, &self.n);
+        ExpNLangRange { g }
+    }
 }
 
-
-////////////////////////////////////////////////////////////////////////////
-// Fiat-Shamir variant
-////////////////////////////////////////////////////////////////////////////
-
-
-#[derive(Clone, Debug, Serialize)]
-pub struct FSProof {
-    fs_com : Commitment,
-    fs_resp : Response
-}
-
-fn fs_compute_challenge(lang: &Lang, inst:&Inst, fs_com: &Commitment) -> Challenge {
-    use blake2::*;
-    let b = fs_com.0.iter().map(|com:&BigInt| {
-        let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
-        // Use Digest::digest, but it asks for a fixed-sized slice?
-        let mut hasher: Blake2b = Digest::new();
-        hasher.update(&x);
-        let r0 = hasher.finalize();
-        BigInt::from((&(r0.as_slice())[0] & 0b0000001) as u32)
-    }).collect();
-    Challenge(b)
-}
-
-
-pub fn fs_prove(params: &ProofParams,
-                lang: &Lang,
-                inst: &Inst,
-                wit: &Wit) -> FSProof {
-    let (fs_com,cr) = prove1(&params,&lang);
-    let fs_ch = fs_compute_challenge(lang,inst,&fs_com);
-    let fs_resp = prove2(&params,&wit,&fs_ch,&cr);
-
-    FSProof{ fs_com, fs_resp }
-}
-
-pub fn fs_verify0(params: &ProofParams,
-                  lang: &Lang) -> (bool, VerifierPrecomp) {
-    verify0(params,lang)
-}
-
-pub fn fs_verify(params: &ProofParams,
-                 lang: &Lang,
-                 inst: &Inst,
-                 precomp: &VerifierPrecomp,
-                 proof: &FSProof) -> bool {
-    let (res0, _) = fs_verify0(params,lang);
-    if !res0 { return false; }
-
-    let fs_ch = fs_compute_challenge(lang,inst,&proof.fs_com);
-
-    verify2(&params,&lang,&inst,precomp,
-            &proof.fs_com,&fs_ch,&proof.fs_resp)
-}
-
-
-////////////////////////////////////////////////////////////////////////////
-// Tests
-////////////////////////////////////////////////////////////////////////////
 
 
 #[cfg(test)]
 mod tests {
 
     use crate::protocols::schnorr_exp::*;
+    use crate::protocols::schnorr_generic::*;
 
     #[test]
-    fn test_correctness() {
-        let params = ProofParams::new(2048, 128, 15);
-        let (lang,inst,wit) = sample_liw(&params);
-
-        let (res,precomp) = verify0(&params,&lang);
-        assert!(res);
-
-        let (com,cr) = prove1(&params,&lang);
-        let ch = verify1(&params);
-
-        let resp = prove2(&params,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
+    fn test_correctness_expN() {
+        let params = ProofParams::new(128, 16);
+        let lang = ExpNLang::sample_lang(1024);
+        generic_test_correctness(&params,&lang);
     }
 
     #[test]
     fn test_correctness_fs() {
-        let params = ProofParams::new(2048, 128, 15);
-        let (lang,inst,wit) = sample_liw(&params);
-
-        let proof = fs_prove(&params,&lang,&inst,&wit);
-        let (res0,precomp) = fs_verify0(&params,&lang);
-        assert!(res0);
-        let res = fs_verify(&params,&lang,&inst,&precomp,&proof);
-        assert!(res);
+        let params = ProofParams::new(128, 16);
+        let lang = ExpNLang::sample_lang(1024);
+        generic_test_correctness_fs(&params,&lang);
     }
 }
