@@ -39,14 +39,12 @@ impl RangeProofParams {
 pub struct ProofParams {
     /// Security parameter
     pub lambda: u32,
-    /// Small number up to which N shouldn't have divisors.
-    pub q: u64,
-    /// Number of repeats of the basic protocol.
-    pub reps: usize,
     /// Bitlength of the RSA modulus.
     pub n_bitlen: u32,
-    /// Size of the challenge space, upper bound.
-    pub ch_space: BigInt,
+    /// Bitsize of the challenge space
+    pub ch_space_bitlen: u32,
+    /// Number of repeats of the basic protocol.
+    pub reps: usize,
     /// Whether to run in a range-proof mode.
     pub range_params: Option<RangeProofParams>,
 }
@@ -54,17 +52,16 @@ pub struct ProofParams {
 impl ProofParams {
     fn calc_proof_params(n_bitlen: u32,
                          lambda: u32,
-                         repbits: u32,
+                         ch_space_bitlen: u32,
                          range_params: Option<RangeProofParams>) -> Self {
-        let ch_space = BigInt::pow(&BigInt::from(2), repbits);
-        return ProofParams { q: 2u64.pow(repbits),
-                             reps: (lambda as f64 / repbits as f64).ceil() as usize,
-                             n_bitlen, ch_space, range_params, lambda };
+        let reps = (lambda as f64 / ch_space_bitlen as f64).ceil() as usize;
+        return ProofParams { lambda, n_bitlen, ch_space_bitlen, reps, range_params };
     }
-    pub fn new(n_bitlen: u32, lambda: u32, repbits: u32) -> Self {
 
-        Self::calc_proof_params(n_bitlen,lambda,repbits,None)
+    pub fn new(n_bitlen: u32, lambda: u32, ch_space_bitlen: u32) -> Self {
+        Self::calc_proof_params(n_bitlen,lambda,ch_space_bitlen,None)
     }
+
     pub fn new_range(n_bitlen: u32,
                      lambda: u32,
                      r: BigInt) -> Self {
@@ -75,11 +72,10 @@ impl ProofParams {
 
 impl fmt::Display for ProofParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProofParams ( q: {}, reps: {}, n_bitlen: {}, ch_space: {} )",
-               self.q,
+        write!(f, "ProofParams ( ch_space_bitlen: {}, reps: {}, n_bitlen: {},  )",
+               self.ch_space_bitlen,
                self.reps,
-               self.n_bitlen,
-               self.ch_space)
+               self.n_bitlen)
     }
 }
 
@@ -102,10 +98,6 @@ pub struct Wit {
     pub m: BigInt,
     pub r: BigInt
 }
-
-/// Contains N-2^{λ+1} R
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct VerifierPrecomp(Option<BigInt>);
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Commitment(Vec<BigInt>);
@@ -149,33 +141,32 @@ pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
 }
 
 
-pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
-    if !super::utils::check_small_primes(params.q,&lang.pk.n) {
-        return (false,VerifierPrecomp(None));
+pub fn verify0(params: &ProofParams, lang: &Lang) -> bool {
+    if params.ch_space_bitlen > 32 {
+        panic!("schnorr_paillier: verify0: ch_space is too big: {:?} bits",
+               params.ch_space_bitlen)
+    }
+    let q:u64 = 2u64.pow(params.ch_space_bitlen);
+    if !super::utils::check_small_primes(q,&lang.pk.n) {
+        return false
     };
 
-//    let precomp = params.range_params.as_ref().map(|RangeProofParams{rand_range2,..}| {
-//            let rnd = BigInt::from(1);
-//            let m = &lang.pk.n - rand_range2;
-//            let neg_ct = Paillier::encrypt_with_chosen_randomness(
-//                &lang.pk,
-//                RawPlaintext::from(m),
-//                &Randomness(rnd)).0.into_owned();
-//            neg_ct
-    //        });
-
-    (true, VerifierPrecomp(None))
+    true
 }
 
 pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let n: &BigInt = &lang.pk.n;
     let rand_v: Vec<_> = (0..params.reps).map(|_| {
         let rm = match &params.range_params {
-            Some(RangeProofParams{ rand_range, .. }) =>
-                BigInt::sample_below(&(rand_range + &BigInt::pow(&BigInt::from(2), params.lambda))),
-            None => BigInt::sample_below(&(n + &BigInt::pow(&BigInt::from(2), params.lambda))),
+            // Perfect blinding, because response is computed mod N for Paillier
+            None => BigInt::sample_below(n),
+            // Statistical blinding, rand_range has (range * ch + lambda) bits, and in range
+            // proof setting challenges are binary
+            Some(RangeProofParams{ rand_range, .. }) => BigInt::sample_below(&rand_range),
         };
-        let rr = BigInt::sample_below(&(n + &BigInt::pow(&BigInt::from(2), params.lambda)));
+        // Statistical blinding, this must blind (r * ch) modulo n^2
+        let rr = BigInt::sample(
+            (params.n_bitlen + params.ch_space_bitlen + params.lambda) as usize);
         (rm,rr)
     }).collect();
     let alpha_v: Vec<_> = rand_v.iter().map(|(rm,rr)| {
@@ -185,7 +176,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
 }
 
 pub fn verify1(params: &ProofParams) -> Challenge {
-    let b = (0..params.reps).map(|_| BigInt::sample_below(&params.ch_space)).collect();
+    let b = (0..params.reps).map(|_| BigInt::sample(params.ch_space_bitlen as usize)).collect();
     return Challenge(b);
 }
 
@@ -211,7 +202,6 @@ pub fn prove2(params: &ProofParams,
 pub fn verify2(params: &ProofParams,
                lang: &Lang,
                inst: &Inst,
-               _precomp: &VerifierPrecomp,
                com: &Commitment,
                ch: &Challenge,
                resp: &Response) -> bool {
@@ -270,20 +260,19 @@ pub fn fs_prove(params: &ProofParams,
 }
 
 pub fn fs_verify0(params: &ProofParams,
-                  lang: &Lang) -> (bool, VerifierPrecomp) {
+                  lang: &Lang) -> bool {
     verify0(params,lang)
 }
 
 pub fn fs_verify(params: &ProofParams,
                  lang: &Lang,
                  inst: &Inst,
-                 precomp: &VerifierPrecomp,
                  proof: &FSProof) -> bool {
 
     let fs_ch_own = fs_compute_challenge(lang,inst,&proof.fs_com);
     if fs_ch_own != proof.fs_ch { return false; }
 
-    verify2(&params,&lang,&inst,precomp,
+    verify2(&params,&lang,&inst,
             &proof.fs_com,&proof.fs_ch,&proof.fs_resp)
 }
 
@@ -298,14 +287,14 @@ mod tests {
         let params = ProofParams::new(2048, 128, 15);
         let (lang,inst,wit) = sample_liw(&params);
 
-        let (res,precomp) = verify0(&params,&lang);
+        let res = verify0(&params,&lang);
         assert!(res);
 
         let (com,cr) = prove1(&params,&lang);
         let ch = verify1(&params);
 
         let resp = prove2(&params,&lang,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
+        assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
     }
 
     #[test]
@@ -314,9 +303,9 @@ mod tests {
         let (lang,inst,wit) = sample_liw(&params);
 
         let proof = fs_prove(&params,&lang,&inst,&wit);
-        let (res0,precomp) = fs_verify0(&params,&lang);
+        let res0 = fs_verify0(&params,&lang);
         assert!(res0);
-        let res = fs_verify(&params,&lang,&inst,&precomp,&proof);
+        let res = fs_verify(&params,&lang,&inst,&proof);
         assert!(res);
     }
 
@@ -330,15 +319,14 @@ mod tests {
 
         println!("Debug: Inst {:?}", inst);
 
-        let (res,precomp) = verify0(&params,&lang);
-        println!("Debug: Precomp {:?}", precomp);
+        let res = verify0(&params,&lang);
         assert!(res);
 
         let (com,cr) = prove1(&params,&lang);
         let ch = verify1(&params);
 
         let resp = prove2(&params,&lang,&wit,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp));
+        assert!(verify2(&params,&lang,&inst,&com,&ch,&resp));
     }
 
 
@@ -351,7 +339,7 @@ mod tests {
         let (_,wit2) = sample_inst(&params,&lang);
 
 
-        let (res,precomp) = verify0(&params,&lang);
+        let res = verify0(&params,&lang);
         assert!(res);
 
         let (com,cr) = prove1(&params,&lang);
@@ -359,7 +347,7 @@ mod tests {
 
         // with wit2
         let resp = prove2(&params,&lang,&wit2,&ch,&cr);
-        assert!(verify2(&params,&lang,&inst,&precomp,&com,&ch,&resp) == false);
+        assert!(verify2(&params,&lang,&inst,&com,&ch,&resp) == false);
     }
 
 }
