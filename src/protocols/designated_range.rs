@@ -349,10 +349,13 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
         if !res2 { return false; }
     }
 
-    if !sch::fs_verify(&params.nizk_se_params(),
-                      &se::ExpNLang{n_bitlen: params.psi_n_bitlen, n: vpk.n.clone(), h: vpk.h.clone()},
-                      &se::ExpNLangRange{g: vpk.g.clone()},
-                      &vpk.nizk_gen) { return false; }
+    let se_params = &params.nizk_se_params();
+    let se_lang = se::ExpNLang{n_bitlen: params.psi_n_bitlen, n: vpk.n.clone(), h: vpk.h.clone()};
+    if !sch::Lang::verify(&se_lang,&se_params) { return false; }
+    if !sch::fs_verify(&se_params,
+                       &se_lang,
+                       &se::ExpNLangRange{g: vpk.g.clone()},
+                       &vpk.nizk_gen) { return false; }
 
     true
 }

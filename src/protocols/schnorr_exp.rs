@@ -35,18 +35,17 @@ pub struct ExpNLangRange {
     pub g: BigInt,
 }
 
-impl ExpNLang {
-    pub fn sample_lang(n_bitlen: u32) -> Self {
-        use paillier::*;
-        let n = Paillier::keypair_with_modulus_size(n_bitlen as usize).keys().0.n;
-        let h = BigInt::sample_below(&n);
-        ExpNLang { n_bitlen, n, h }
-    }
-}
-
 impl Lang for ExpNLang {
+    type LangParam = u32;
     type Dom = ExpNLangDom;
     type Range = ExpNLangRange;
+
+    fn sample_lang(n_bitlen: &Self::LangParam) -> Self {
+        use paillier::*;
+        let n = Paillier::keypair_with_modulus_size(*n_bitlen as usize).keys().0.n;
+        let h = BigInt::sample_below(&n);
+        ExpNLang { n_bitlen: *n_bitlen, n, h }
+    }
 
     fn sample_wit(&self) -> Self::Dom {
         ExpNLangDom { x: BigInt::sample_below(&self.n) }
@@ -54,6 +53,14 @@ impl Lang for ExpNLang {
 
     fn eval(&self, wit: &Self::Dom) -> Self::Range {
         ExpNLangRange { g: BigInt::mod_pow(&self.h, &wit.x, &self.n) }
+    }
+
+    fn verify(&self, params: &ProofParams) -> bool {
+        if params.ch_space_bitlen > 32 {
+            panic!("schnorr_exp: verify0: ch_space is too big: {:?} bits",
+                   params.ch_space_bitlen)
+        }
+        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.n) 
     }
 
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom {
@@ -80,16 +87,14 @@ mod tests {
     use crate::protocols::schnorr_generic::*;
 
     #[test]
-    fn test_correctness_expN() {
+    fn test_correctness() {
         let params = ProofParams::new(128, 16);
-        let lang = ExpNLang::sample_lang(1024);
-        generic_test_correctness(&params,&lang);
+        generic_test_correctness::<ExpNLang>(&params,&1024);
     }
 
     #[test]
     fn test_correctness_fs() {
         let params = ProofParams::new(128, 16);
-        let lang = ExpNLang::sample_lang(1024);
-        generic_test_correctness_fs(&params,&lang);
+        generic_test_correctness_fs::<ExpNLang>(&params,&1024);
     }
 }

@@ -34,17 +34,26 @@ impl ProofParams {
 ////////////////////////////////////////////////////////////////////////////
 
 pub trait Lang: Serialize {
+    type LangParam;
     type Dom: Serialize + Eq + Clone + Debug;
     type Range: Serialize + Eq + Clone + Debug;
 
+    fn sample_lang(lang_param: &Self::LangParam) -> Self;
     fn sample_wit(&self) -> Self::Dom;
     fn eval(&self, wit: &Self::Dom) -> Self::Range;
 
+    fn verify(&self, params: &ProofParams) -> bool;
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom;
     fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom;
     fn resp_lhs(&self, inst: &Self::Range, ch: &BigInt, com: &Self::Range) -> Self::Range;
 }
 
+pub fn sample_liw<L:Lang>(lang_param: &L::LangParam) -> (L,L::Range,L::Dom) {
+    let lang = L::sample_lang(lang_param);
+    let wit = lang.sample_wit();
+    let inst = lang.eval(&wit);
+    (lang,inst,wit)
+}
 
 ////////////////////////////////////////////////////////////////////////////
 // Protocol
@@ -63,15 +72,6 @@ pub struct Challenge(Vec<BigInt>);
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Response<L:Lang>(Vec<L::Dom>);
 
-
-
-//pub fn verify0(params: &ProofParams, lang: &Lang) -> (bool,VerifierPrecomp) {
-//    if !super::utils::check_small_primes(params.q,&lang.n) {
-//        return (false,VerifierPrecomp(None));
-//    };
-//
-//    (true, VerifierPrecomp(None))
-//}
 
 pub fn prove1<L:Lang>(params: &ProofParams, lang: &L) -> (Commitment<L>,ComRand<L>) {
     let mut rand_v = vec![];
@@ -154,11 +154,6 @@ pub fn fs_prove<L:Lang>(params: &ProofParams,
     FSProof{ fs_com, fs_resp }
 }
 
-//pub fn fs_verify0(params: &ProofParams,
-//                  lang: &Lang) -> (bool, VerifierPrecomp) {
-//    verify0(params,lang)
-//}
-
 pub fn fs_verify<L:Lang>(params: &ProofParams,
                          lang: &L,
                          inst: &L::Range,
@@ -173,22 +168,20 @@ pub fn fs_verify<L:Lang>(params: &ProofParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
-pub fn generic_test_correctness<L: Lang>(params: &ProofParams, lang: &L) {
-    let wit = lang.sample_wit();
-    let inst = lang.eval(&wit);
+pub fn generic_test_correctness<L: Lang>(params: &ProofParams, lang_param: &L::LangParam) {
+    let (lang,inst,wit): (L,_,_) = sample_liw(lang_param);
 
-    let (com,cr) = prove1(params,lang);
+    let (com,cr) = prove1(params,&lang);
     let ch = verify1(params);
 
-    let resp = prove2(params,lang,&wit,&ch,&cr);
-    assert!(verify2(params,lang,&inst,&com,&ch,&resp));
+    let resp = prove2(params,&lang,&wit,&ch,&cr);
+    assert!(verify2(params,&lang,&inst,&com,&ch,&resp));
 }
 
-pub fn generic_test_correctness_fs<L: Lang>(params: &ProofParams, lang: &L) {
-    let wit = lang.sample_wit();
-    let inst = lang.eval(&wit);
+pub fn generic_test_correctness_fs<L: Lang>(params: &ProofParams, lang_param: &L::LangParam) {
+    let (lang,inst,wit): (L,_,_) = sample_liw(lang_param);
 
-    let proof = fs_prove(params,lang,&inst,&wit);
-    let res = fs_verify(params,lang,&inst,&proof);
+    let proof = fs_prove(params,&lang,&inst,&wit);
+    let res = fs_verify(params,&lang,&inst,&proof);
     assert!(res);
 }

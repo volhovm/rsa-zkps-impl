@@ -4,11 +4,90 @@ use curv::arithmetic::traits::BasicOps;
 use curv::BigInt;
 use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use std::time::Duration;
+
+use rsazkps::protocols::schnorr_generic as sch;
 use rsazkps::protocols::schnorr_paillier as sp;
 use rsazkps::protocols::schnorr_paillier_elgamal as spe;
 use rsazkps::protocols::schnorr_paillier_batched as spb;
 use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
+
+////////////////////////////////////////////////////////////////////////////
+// Schnorr generic
+////////////////////////////////////////////////////////////////////////////
+
+fn bench_schnorr_raw<L: sch::Lang>(c: &mut Criterion, params: &sch::ProofParams, lang: &L) {
+    let mut grp = c.benchmark_group(format!("S-P, {} {:?}", params, lang));
+
+    grp.measurement_time(Duration::from_secs(120));
+
+    grp.bench_function("verify_lang", |b| {
+        b.iter_batched(|| sch::sample_liw(params).0,
+                       |lang| sch::verify0(params,&lang),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("prove1", |b| {
+        b.iter_batched(|| sch::sample_liw(params).0,
+                       |lang| sch::prove1(params,&lang),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("verify1", |b| b.iter(|| sch::verify1(params)));
+
+    grp.bench_function("prove2", |b| {
+        b.iter_batched(
+            || { let (lang,_,wit) = sch::sample_liw(params);
+                 let (_,cr) = sch::prove1(params,&lang);
+                 let ch = sch::verify1(params);
+                 return (lang,wit,ch,cr); },
+            |(lang,wit,ch,cr)| sch::prove2(params,&lang,&wit,&ch,&cr),
+            BatchSize::LargeInput
+        );
+    });
+
+    grp.bench_function("verify2", |b| {
+        b.iter_batched(
+            || { let (lang,inst,wit) = sch::sample_liw(params);
+                 let (com,cr) = sch::prove1(params,&lang);
+                 let ch = sch::verify1(params);
+                 let resp = sch::prove2(params,&lang,&wit,&ch,&cr);
+                 return (lang,inst,com,ch,resp); },
+            |(lang,inst,com,ch,resp)| sch::verify2(params,&lang,&inst,&com,&ch,&resp),
+            BatchSize::LargeInput
+        );
+    });
+
+    grp.finish();
+}
+
+fn bench_schnorr_paillier_fs(c: &mut Criterion, params: &sp::ProofParams) {
+    let mut grp = c.benchmark_group(format!("S-P FS {}", params));
+    grp.sample_size(10);
+
+    grp.bench_function("FS prove", |b| {
+        b.iter_batched(|| sp::sample_liw(params),
+                       |(lang,inst,wit)| sp::fs_prove(params,&lang,&inst,&wit),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("FS verify 0", |b| {
+        b.iter_batched(|| sp::sample_lang(params),
+                       |lang| sp::fs_verify0(params,&lang),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("FS verify", |b| {
+        b.iter_batched(|| { let (lang,inst,wit) = sp::sample_liw(params);
+                            let proof = sp::fs_prove(params,&lang,&inst,&wit);
+                            (params,lang,inst,proof) },
+                       |(params,lang,inst,proof)| sp::fs_verify(params,&lang,&inst,&proof),
+                       BatchSize::LargeInput);
+    });
+
+    grp.finish();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////
 // Schnorr Paillier
