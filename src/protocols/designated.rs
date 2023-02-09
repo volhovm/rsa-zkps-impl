@@ -152,14 +152,15 @@ pub struct VPK {
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
     /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
-    pub nizk_gcd: n_gcd::Proof,
+    pub nizk_gcd: Option<n_gcd::Proof>,
     /// Proofs of correctness+range of cts.
-    pub nizks_ct: Vec<spb::FSProof>,
+    pub nizks_ct: Option<Vec<spb::FSProof>>,
 }
 
 
 pub fn keygen(params: &DVParams) -> (VPK, VSK) {
-    let t_start = SystemTime::now();
+    //let t_start = SystemTime::now();
+
     // This can be more effective in terms of move/copy
     // e.g. Inst/Wit could contain references inside?
     let (pk,sk) =
@@ -183,56 +184,62 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         .map(|(ch,r)| paillier_enc_opt(&pk,Some(&sk),ch,r))
         .collect();
 
-
-    let t_p1 = SystemTime::now();
-    let nizk_gcd: n_gcd::Proof =
-        n_gcd::prove(
-            &params.nizk_gcd_params(),
-            &n_gcd::Inst{ n: pk.n.clone() },
-            &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
+    let (nizk_gcd,nizks_ct) = if !params.malicious_setup {
+        (None,None)
+    } else {
+        
+        //let t_p1 = SystemTime::now();
+        let nizk_gcd: n_gcd::Proof =
+            n_gcd::prove(
+                &params.nizk_gcd_params(),
+                &n_gcd::Inst{ n: pk.n.clone() },
+                &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
             );
-
-    let t_p2 = SystemTime::now();
-    let mut nizks_ct: Vec<spb::FSProof> = vec![];
-    let nizk_batches =
+        
+        //let t_p2 = SystemTime::now();
+        let mut nizks_ct: Vec<spb::FSProof> = vec![];
+        let nizk_batches =
             if params.crs_uses == 0 { 1 }
-            else { 2 + (params.crs_uses - 1) / params.lambda };
-
-    let lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
-
-    for i in 0..nizk_batches {
-        let batch_from = (i*params.lambda) as usize;
-        let batch_to = std::cmp::min((i+1)*params.lambda,
-                                     params.lambda + params.crs_uses) as usize;
-        let mut cts_inst = (&cts[batch_from..batch_to]).to_vec();
-        let mut ms_wit = (&chs[batch_from..batch_to]).to_vec();
-        let mut rs_wit = (&rs[batch_from..batch_to]).to_vec();
-
-        let pad_last_batch = params.crs_uses > 0 && i == nizk_batches - 1;
-        if pad_last_batch {
-            for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
-                ms_wit.push(BigInt::from(0));
-                rs_wit.push(BigInt::from(1));
-                cts_inst.push(paillier_enc_opt(&pk,Some(&sk),
-                                            &BigInt::from(0),
-                                            &BigInt::from(1)));
+        else { 2 + (params.crs_uses - 1) / params.lambda };
+        
+        let lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
+        
+        for i in 0..nizk_batches {
+            let batch_from = (i*params.lambda) as usize;
+            let batch_to = std::cmp::min((i+1)*params.lambda,
+                                         params.lambda + params.crs_uses) as usize;
+            let mut cts_inst = (&cts[batch_from..batch_to]).to_vec();
+            let mut ms_wit = (&chs[batch_from..batch_to]).to_vec();
+            let mut rs_wit = (&rs[batch_from..batch_to]).to_vec();
+            
+            let pad_last_batch = params.crs_uses > 0 && i == nizk_batches - 1;
+            if pad_last_batch {
+                for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
+                    ms_wit.push(BigInt::from(0));
+                    rs_wit.push(BigInt::from(1));
+                    cts_inst.push(paillier_enc_opt(&pk,Some(&sk),
+                                                   &BigInt::from(0),
+                                                   &BigInt::from(1)));
+                }
             }
+            
+            let params = if i == 0 { params.nizk_ct_params_1() }
+            else { params.nizk_ct_params_2() };
+            let inst = spb::Inst{cts: cts_inst};
+            let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
+            
+            nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
         }
 
-        let params = if i == 0 { params.nizk_ct_params_1() }
-                     else { params.nizk_ct_params_2() };
-        let inst = spb::Inst{cts: cts_inst};
-        let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
+        (Some(nizk_gcd), Some(nizks_ct))
+    };
 
-        nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
-    }
+    //let t_p3 = SystemTime::now();
 
-    let t_p3 = SystemTime::now();
-
-    let _t_delta1 = t_p1.duration_since(t_start).expect("error1");
-    let _t_delta2 = t_p2.duration_since(t_p1).expect("error2");
-    let _t_delta3 = t_p3.duration_since(t_p2).expect("error2");
-    let _t_total = t_p3.duration_since(t_start).expect("error2");
+    //let _t_delta1 = t_p1.duration_since(t_start).expect("error1");
+    //let _t_delta2 = t_p2.duration_since(t_p1).expect("error2");
+    //let _t_delta3 = t_p3.duration_since(t_p2).expect("error2");
+    //let _t_total = t_p3.duration_since(t_start).expect("error2");
     //println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
 
     (VPK{pk, cts, nizk_gcd, nizks_ct},VSK{sk, chs})
@@ -240,24 +247,29 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
 
 pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
 
+    if !params.malicious_setup {
+        return true
+    }
+
     let t_start = SystemTime::now();
 
     let res1 = n_gcd::verify(
         &params.nizk_gcd_params(),
         &n_gcd::Inst{ n: vpk.pk.n.clone() },
-        &vpk.nizk_gcd);
+        vpk.nizk_gcd.as_ref().expect("dv#verify_vpk: no nizk_gcd"));
     if !res1 { return false; }
 
     let t_p1 = SystemTime::now();
 
-    for i in 0..(vpk.nizks_ct.len() as u32) {
+    let nizks_ct = vpk.nizks_ct.as_ref().expect("dv#verify_vpk: no nizk_gcd");
+    for i in 0..(nizks_ct.len() as u32) {
         let batch_from = (i*params.lambda) as usize;
         let batch_to = std::cmp::min((i+1)*params.lambda,
                                      params.lambda + params.crs_uses) as usize;
 
         let mut cts_w = (&vpk.cts[batch_from..batch_to]).to_vec();
 
-        let pad_last_batch = params.crs_uses > 0 && i == (vpk.nizks_ct.len() as u32) - 1;
+        let pad_last_batch = params.crs_uses > 0 && i == (nizks_ct.len() as u32) - 1;
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 cts_w.push(
@@ -271,7 +283,7 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
         let inst = spb::Lang{ pk: vpk.pk.clone(), sk: None };
         let wit = spb::Inst{ cts: cts_w };
 
-        let res2 = spb::fs_verify(&params, &inst, &wit, &vpk.nizks_ct[i as usize]);
+        let res2 = spb::fs_verify(&params, &inst, &wit, &nizks_ct[i as usize]);
         if !res2 { return false; }
     }
 
@@ -313,9 +325,8 @@ pub fn sample_lang(params: &DVParams) -> DVLang {
     DVLang{pk,sk:Some(sk)}
 }
 
-pub fn sample_inst(lang: &DVLang, range: Option<&BigInt>) -> (DVInst,DVWit) {
-    let m_range = range.unwrap_or(&lang.pk.n);
-    let m = BigInt::sample_below(m_range);
+pub fn sample_inst(lang: &DVLang) -> (DVInst,DVWit) {
+    let m = BigInt::sample_below(&lang.pk.n);
     let r = BigInt::sample_below(&lang.pk.n);
     let ct = pe::encrypt_with_randomness_opt(&lang.pk,lang.sk.as_ref(),&m,&r);
     (DVInst{ct}, DVWit{m, r})
@@ -323,7 +334,7 @@ pub fn sample_inst(lang: &DVLang, range: Option<&BigInt>) -> (DVInst,DVWit) {
 
 pub fn sample_liw(params: &DVParams) -> (DVLang,DVInst,DVWit) {
     let lang = sample_lang(params);
-    let (inst,wit) = sample_inst(&lang,None);
+    let (inst,wit) = sample_inst(&lang);
     (lang,inst,wit)
 }
 
