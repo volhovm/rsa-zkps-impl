@@ -387,9 +387,10 @@ pub struct DVResp2 {
 
 pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
     let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
-    let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
-
     let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
+
+    // These will be used in the next steps
+    let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
 
     let a = pe::encrypt_with_randomness_opt(&lang.pk,lang.sk.as_ref(),&rm_m,&rr_m);

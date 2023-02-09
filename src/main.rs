@@ -73,16 +73,16 @@ fn estimate_proof_sizes() {
     estimate_size_schnorr::<sp::PLang>(
         &sch::ProofParams::new(lambda, 22),
         &sp::PLangParams{ n_bitlen, range: None });
-    estimate_size_schnorr::<sp::PLang>(
-        &sch::ProofParams::new_range(lambda),
-        &sp::PLangParams{ n_bitlen, range: Some(range.clone()) });
+    //estimate_size_schnorr::<sp::PLang>(
+    //    &sch::ProofParams::new_range(lambda),
+    //    &sp::PLangParams{ n_bitlen, range: Some(range.clone()) });
 
-    estimate_size_schnorr::<spe::PELang>(
-        &sch::ProofParams::new(lambda, 1),
-        &n_bitlen);
-    estimate_size_schnorr::<spe::PELang>(
-        &sch::ProofParams::new(lambda, 22),
-        &n_bitlen);
+    //estimate_size_schnorr::<spe::PELang>(
+    //    &sch::ProofParams::new(lambda, 1),
+    //    &n_bitlen);
+    //estimate_size_schnorr::<spe::PELang>(
+    //    &sch::ProofParams::new(lambda, 22),
+    //    &n_bitlen);
 
 
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, false, true));
@@ -90,10 +90,10 @@ fn estimate_proof_sizes() {
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
 
-    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
-    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
-    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
-    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
+    //estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
+    //estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
+    //estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
+    //estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
 
 }
 
@@ -132,11 +132,17 @@ fn test_dv() {
     let n_bitlen = 2048;
     let lambda = 128;
     let queries: usize = 32;
-    let malicious_setup = true;
+    let malicious_setup = false;
     let ggm_mode = true;
     let params = dv::DVParams::new(n_bitlen, lambda, queries as u32, malicious_setup, ggm_mode);
 
+    println!("n_bitlen: {}, vpk_n_bitlen: {}", n_bitlen, params.vpk_n_bitlen());
+    println!("max_ch_bitlen {}, max_ch_proven_bitlen {}",
+             params.max_ch_bitlen(),
+             params.max_ch_proven_bitlen());
+
     let (vpk,vsk) = dv::keygen(&params);
+
 
 
     for query_ix in 0..1 {
