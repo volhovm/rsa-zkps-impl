@@ -145,6 +145,28 @@ fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) 
     grp.finish();
 }
 
+fn bench_schnorr_paillier_batched_fs(c: &mut Criterion, params: &spb::ProofParams) {
+    let mut grp = c.benchmark_group(format!("Batched S-P FS {:?}", params));
+
+    grp.bench_function("fs_prove", |b| {
+        b.iter_batched(|| spb::sample_liw(params),
+                       |(lang,inst,wit)| spb::fs_prove(params,&lang,&inst,&wit),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("fs_verify", |b| {
+        b.iter_batched(
+            || { let (lang,inst,wit) = spb::sample_liw(params);
+                 let proof = spb::fs_prove(params,&lang,&inst,&wit);
+                 return (lang,inst,proof); },
+            |(lang,inst,proof)| spb::fs_verify(params,&lang,&inst,&proof),
+            BatchSize::LargeInput
+        );
+    });
+
+    grp.finish();
+}
+
 ////////////////////////////////////////////////////////////////////////////
 // DV
 ////////////////////////////////////////////////////////////////////////////
@@ -338,7 +360,7 @@ fn bench_schnorr_paillier_all(c: &mut Criterion) {
 
     let range_bits = 128;
     let params = spb::ProofParams::new(n_bitlen,lambda,lambda,range_bits);
-    bench_schnorr_paillier_batched(c, &params);
+    bench_schnorr_paillier_batched_fs(c, &params);
 }
 
 
