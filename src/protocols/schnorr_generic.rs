@@ -47,10 +47,13 @@ pub trait Lang: Serialize {
     type CoDom: Serialize + Eq + Clone + Debug;
 
     fn sample_lang(lparams: &Self::LangParams) -> Self;
+    fn to_public(&self) -> Self;
+    fn verify(&self, params: &ProofParams) -> bool;
+
     fn sample_wit(&self) -> Self::Dom;
+
     fn eval(&self, wit: &Self::Dom) -> Self::CoDom;
 
-    fn verify(&self, params: &ProofParams) -> bool;
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom;
     fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom;
     fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom;
@@ -146,7 +149,7 @@ fn fs_compute_challenge<L: Lang>(lang: &L,
                                  fs_com: &Commitment<L>) -> Challenge {
     use blake2::*;
     let b = fs_com.0.iter().map(|com:&L::CoDom| {
-        let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
+        let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang.to_public())).unwrap();
         // Use Digest::digest, but it asks for a fixed-sized slice?
         let mut hasher: Blake2b = Digest::new();
         hasher.update(&x);
@@ -189,14 +192,15 @@ pub fn generic_test_correctness<L: Lang>(params: &ProofParams, lparams: &L::Lang
 
     let resp = prove2(params,&lang,&wit,&ch,&cr);
     assert!(verify2(params,&lang,&inst,&com,&ch,&resp));
+    assert!(verify2(params,&lang.to_public(),&inst,&com,&ch,&resp));
 }
 
 pub fn generic_test_correctness_fs<L: Lang>(params: &ProofParams, lparams: &L::LangParams) {
     let (lang,inst,wit) = L::sample_liw(lparams);
 
     let proof = fs_prove(params,&lang,&inst,&wit);
-    let res = fs_verify(params,&lang,&inst,&proof);
-    assert!(res);
+    assert!(fs_verify(params,&lang,&inst,&proof));
+    assert!(fs_verify(params,&lang.to_public(),&inst,&proof));
 }
 
 ////////////////////////////////////////////////////////////////////////////

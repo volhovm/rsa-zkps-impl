@@ -35,6 +35,7 @@ pub struct ExpNLangCoDom {
     pub g: BigInt,
 }
 
+
 impl Lang for ExpNLang {
     type LangParams = u32;
     type Dom = ExpNLangDom;
@@ -47,6 +48,16 @@ impl Lang for ExpNLang {
         ExpNLang { n_bitlen: *n_bitlen, n, h }
     }
 
+    fn to_public(&self) -> Self { self.clone() }
+
+    fn verify(&self, params: &ProofParams) -> bool {
+        if params.ch_space_bitlen > 32 {
+            panic!("schnorr_exp: verify0: ch_space is too big: {:?} bits",
+                   params.ch_space_bitlen)
+        }
+        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.n)
+    }
+
     fn sample_wit(&self) -> Self::Dom {
         ExpNLangDom { x: BigInt::sample_below(&self.n) }
     }
@@ -55,16 +66,8 @@ impl Lang for ExpNLang {
         ExpNLangCoDom { g: BigInt::mod_pow(&self.h, &wit.x, &self.n) }
     }
 
-    fn verify(&self, params: &ProofParams) -> bool {
-        if params.ch_space_bitlen > 32 {
-            panic!("schnorr_exp: verify0: ch_space is too big: {:?} bits",
-                   params.ch_space_bitlen)
-        }
-        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.n) 
-    }
-
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom {
-        let x = BigInt::sample((self.n_bitlen + params.ch_space_bitlen + params.lambda) as usize); 
+        let x = BigInt::sample((self.n_bitlen + params.ch_space_bitlen + params.lambda) as usize);
         ExpNLangDom { x }
     }
 

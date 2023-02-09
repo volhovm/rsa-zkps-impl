@@ -66,6 +66,20 @@ impl Lang for PPLang {
         PPLang { n_bitlen: *n_bitlen, pk, sk: Some(sk), ch_ct  }
     }
 
+    fn to_public(&self) -> Self {
+        let mut other = self.clone();
+        other.sk = None;
+        return other
+    }
+
+    fn verify(&self, params: &ProofParams) -> bool {
+        if params.ch_space_bitlen > 32 {
+            panic!("schnorr_paillier_plus: verify0: ch_space is too big: {:?} bits",
+                   params.ch_space_bitlen)
+        }
+        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
+    }
+
     fn sample_wit(&self) -> Self::Dom {
         let m = BigInt::sample_below(&self.pk.n);
         let r = BigInt::sample_below(&self.pk.n);
@@ -78,14 +92,6 @@ impl Lang for PPLang {
     fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
         let si = compute_si(&self.pk, self.sk.as_ref(), &self.ch_ct, &wit.m, &wit.r, &wit.cexp);
         PPLangCoDom { si }
-    }
-
-    fn verify(&self, params: &ProofParams) -> bool {
-        if params.ch_space_bitlen > 32 {
-            panic!("schnorr_paillier_plus: verify0: ch_space is too big: {:?} bits",
-                   params.ch_space_bitlen)
-        }
-        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
     }
 
     fn sample_com_rand(&self, _params: &ProofParams) -> Self::Dom {

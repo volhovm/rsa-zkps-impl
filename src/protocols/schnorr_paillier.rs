@@ -56,6 +56,19 @@ impl Lang for PLang {
         PLang { lparams: lparams.clone(), pk, sk: Some(sk)  }
     }
 
+    fn to_public(&self) -> Self {
+        let mut other = self.clone();
+        other.sk = None;
+        return other
+    }
+
+    fn verify(&self, params: &ProofParams) -> bool {
+        if params.ch_space_bitlen > 32 {
+            panic!("schnorr_paillier_elgamal: verify0: ch_space is too big: {:?} bits",
+                   params.ch_space_bitlen)
+        }
+        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
+    }
 
     fn sample_wit(&self) -> Self::Dom {
         let m = match &self.lparams.range {
@@ -70,17 +83,10 @@ impl Lang for PLang {
         PLangDom { m, r }
     }
 
+
     fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
         let ct = paillier_enc_opt(&self.pk, self.sk.as_ref(), &wit.m, &wit.r);
         PLangCoDom { ct }
-    }
-
-    fn verify(&self, params: &ProofParams) -> bool {
-        if params.ch_space_bitlen > 32 {
-            panic!("schnorr_paillier_elgamal: verify0: ch_space is too big: {:?} bits",
-                   params.ch_space_bitlen)
-        }
-        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n) 
     }
 
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom {

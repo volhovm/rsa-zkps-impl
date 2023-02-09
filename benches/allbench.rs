@@ -16,14 +16,22 @@ use rsazkps::protocols::designated_range as dvr;
 // Schnorr generic
 ////////////////////////////////////////////////////////////////////////////
 
+fn format_params(params: &sch::ProofParams) -> String {
+    format!("λ={} log(Ch)={} reps={}, {}",
+            params.lambda,
+            params.ch_space_bitlen,
+            params.reps,
+            (if params.range_mode { "+range" } else { "norange" }))
+}
+
 fn bench_schnorr<L: sch::Lang>(c: &mut Criterion,
-                                   params: &sch::ProofParams,
-                                   lparams: &L::LangParams) {
-    let mut grp = c.benchmark_group(format!("Sch {:?} {:?}", params, lparams));
+                               params: &sch::ProofParams,
+                               lparams: &L::LangParams) {
+    let mut grp = c.benchmark_group(format!("Sch {} {:?}", format_params(params), lparams));
 
     grp.measurement_time(Duration::from_secs(120));
 
-    grp.bench_function("verify_lang", |b| {
+    grp.bench_function("lang_verify", |b| {
         b.iter_batched(|| L::sample_lang(lparams),
                        |lang| lang.verify(params),
                        BatchSize::LargeInput);
@@ -54,7 +62,7 @@ fn bench_schnorr<L: sch::Lang>(c: &mut Criterion,
                  let (com,cr) = sch::prove1(params,&lang);
                  let ch = sch::verify1(params);
                  let resp = sch::prove2(params,&lang,&wit,&ch,&cr);
-                 return (lang,inst,com,ch,resp); },
+                 return (lang.to_public(),inst,com,ch,resp); },
             |(lang,inst,com,ch,resp)| sch::verify2(params,&lang,&inst,&com,&ch,&resp),
             BatchSize::LargeInput
         );
@@ -66,26 +74,26 @@ fn bench_schnorr<L: sch::Lang>(c: &mut Criterion,
 fn bench_schnorr_fs<L: sch::Lang>(c: &mut Criterion,
                                   params: &sch::ProofParams,
                                   lparams: &L::LangParams) {
-    let mut grp = c.benchmark_group(format!("Sch FS {:?} {:?}", params, lparams));
+    let mut grp = c.benchmark_group(format!("Sch FS {} {:?}", format_params(params), lparams));
     grp.sample_size(10);
 
 
-    grp.bench_function("FS prove", |b| {
+    grp.bench_function("fs_prove", |b| {
         b.iter_batched(|| L::sample_liw(lparams),
                        |(lang,inst,wit)| sch::fs_prove(params,&lang,&inst,&wit),
                        BatchSize::LargeInput);
     });
 
-    grp.bench_function("FS verify_lang", |b| {
+    grp.bench_function("lang_verify", |b| {
         b.iter_batched(|| L::sample_lang(lparams),
                        |lang| lang.verify(params),
                        BatchSize::LargeInput);
     });
 
-    grp.bench_function("FS verify", |b| {
+    grp.bench_function("fs_verify", |b| {
         b.iter_batched(|| { let (lang,inst,wit) = L::sample_liw(lparams);
                             let proof = sch::fs_prove(params,&lang,&inst,&wit);
-                            (params,lang,inst,proof) },
+                            (params,lang.to_public(),inst,proof) },
                        |(params,lang,inst,proof)| sch::fs_verify(params,&lang,&inst,&proof),
                        BatchSize::LargeInput);
     });
@@ -313,18 +321,21 @@ fn bench_designated_range_fs(c: &mut Criterion, params: &dvr::DVRParams) {
 
 
 fn bench_schnorr_paillier_all(c: &mut Criterion) {
+    let lambda = 128;
+    let n_bitlen = 2048;
 
-    // q = 8, 7, 6, 5
+    // q = 128, 8, 7, 6, 5
     for i in [1, 16, 19, 22, 26] {
-        let params = sch::ProofParams::new(128,i);
-        let lparams = sp::PLangParams{ n_bitlen: 1024, range: None };
+        let params = sch::ProofParams::new(lambda,i);
+        let lparams = sp::PLangParams{ n_bitlen, range: None };
         bench_schnorr_fs::<sp::PLang>(c, &params, &lparams);
 
-        bench_schnorr::<spe::PELang>(c, &params, &1024);
-        bench_schnorr_fs::<spe::PELang>(c, &params, &1024);
+        bench_schnorr_fs::<spe::PELang>(c, &params, &n_bitlen);
+        //bench_schnorr::<spe::PELang>(c, &params, &n_bitlen);
     }
 
-    let params = spb::ProofParams::new(2048,128,128,128);
+    let range_bits = 128;
+    let params = spb::ProofParams::new(n_bitlen,lambda,lambda,range_bits);
     bench_schnorr_paillier_batched(c, &params);
 }
 
