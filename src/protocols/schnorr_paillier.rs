@@ -77,7 +77,8 @@ impl Lang for PLang {
             // [-R/2,R/2]
             Some(r) => super::utils::bigint_sample_below_sym(r),
         };
-        // We consider it safe to choose randomness from Z_N not from Z_N^2 for Paillier.
+        // The order of r^N will be less than N, so it is fine
+        // to sample this not from N^2
         let r = BigInt::sample_below(&self.pk.n);
 
         PLangDom { m, r }
@@ -91,7 +92,7 @@ impl Lang for PLang {
 
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom {
         let m = match &self.lparams.range {
-            // Perfect blinding, because response is computed mod N for Paillier
+            // Perfect blinding, because response is computed mod N
             None => BigInt::sample_below(&self.pk.n),
             // Statistical blinding, rand_range has (range * ch + lambda) bits, and in range
             // proof setting challenges are binary
@@ -100,18 +101,16 @@ impl Lang for PLang {
                 BigInt::sample_below(&rand_range)
             },
         };
-        // Statistical blinding, this must blind (r * ch) modulo n^2
-        let r = BigInt::sample(
-            (&self.lparams.n_bitlen + params.ch_space_bitlen + params.lambda) as usize);
+        // Perfect blinding, response is mod N
+        let r = BigInt::sample_below(&self.pk.n);
 
         PLangDom { m, r }
     }
 
     fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom {
         let n = &self.pk.n;
-        let n2 = &self.pk.nn;
         let m = BigInt::mod_add(&BigInt::mod_mul(&wit.m, ch, n), &rand.m, n);
-        let r = BigInt::mod_mul(&BigInt::mod_pow(&wit.r, ch, n2), &rand.r, n2);
+        let r = BigInt::mod_mul(&BigInt::mod_pow(&wit.r, ch, n), &rand.r, n);
         PLangDom { m, r }
     }
 

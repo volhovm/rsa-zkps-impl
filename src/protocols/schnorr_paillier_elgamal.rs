@@ -74,7 +74,7 @@ impl Lang for PELang {
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom {
         // Response is mod N
         let m = BigInt::sample_below(&self.pk.n);
-        // Response is over integers
+        // Response is additive over integers
         let r = BigInt::sample((self.n_bitlen + params.ch_space_bitlen + params.lambda) as usize);
         PELangDom { m, r }
     }

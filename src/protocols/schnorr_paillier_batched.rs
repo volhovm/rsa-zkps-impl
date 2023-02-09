@@ -17,7 +17,7 @@ pub struct ProofParams {
     pub n_bitlen: u32,
     /// Security parameter, also.
     pub lambda: u32,
-    /// Number of repeats n, usually =lambda
+    /// Number of repeats n, equal to the number of instances, usually =lambda
     pub reps_n: u32,
     /// m = 2 * n - 1
     pub reps_m: u32,
@@ -121,7 +121,8 @@ pub struct Response(Vec<BigInt>,Vec<BigInt>);
 pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let n: &BigInt = &lang.pk.n;
 
-    let rand_m_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::sample_below(&params.rand_range)).collect();
+    let rand_m_v: Vec<_> =
+        (0..params.reps_m).map(|_| BigInt::sample_below(&params.rand_range)).collect();
     let rand_r_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::sample_below(n)).collect();
     let com_v: Vec<_> =
         rand_m_v.iter().zip(rand_r_v.iter()).map(|(rm,rr)|
@@ -173,9 +174,9 @@ pub fn prove2(params: &ProofParams,
     let sr: Vec<BigInt> = (0..reps_m).map(|i| {
         let em =
             (0..reps_n)
-            .map(|j| BigInt::mod_pow(&wit.rs[j], &e_mat[i][j], &lang.pk.nn))
-            .fold(BigInt::from(1), |acc,x| BigInt::mod_mul(&acc,  &x, &lang.pk.nn));
-        BigInt::mod_mul(&em, &cr.1[i], &lang.pk.nn)
+            .map(|j| BigInt::mod_pow(&wit.rs[j], &e_mat[i][j], &lang.pk.n))
+            .fold(BigInt::from(1), |acc,x| BigInt::mod_mul(&acc,  &x, &lang.pk.n));
+        BigInt::mod_mul(&em, &cr.1[i], &lang.pk.n)
     }).collect();
 
     Response(sm, sr)

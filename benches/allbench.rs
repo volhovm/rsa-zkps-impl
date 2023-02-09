@@ -134,7 +134,9 @@ fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) 
                  let (com,cr) = spb::prove1(params,&lang);
                  let ch = spb::verify1(params);
                  let resp = spb::prove2(params,&lang,&wit,&ch,&cr);
-                 return (lang,inst,com,ch,resp); },
+                 let mut lang2 = lang.clone();
+                 lang2.sk = None;
+                 return (lang2,inst,com,ch,resp); },
             |(lang,inst,com,ch,resp)| spb::verify2(params,&lang,&inst,&com,&ch,&resp),
             BatchSize::LargeInput
         );

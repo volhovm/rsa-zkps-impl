@@ -83,7 +83,9 @@ impl Lang for PPLang {
     fn sample_wit(&self) -> Self::Dom {
         let m = BigInt::sample_below(&self.pk.n);
         let r = BigInt::sample_below(&self.pk.n);
-        // FIXME check, shouldn't this be n?
+        // Most generally this is N^2. However in DVRange, this number can be
+        // range-limited to smaller different numbers depending on the step.
+        // TODO probably can be optimised
         let cexp = BigInt::sample_below(&self.pk.nn);
 
         PPLangDom { m, r, cexp }
@@ -95,20 +97,22 @@ impl Lang for PPLang {
     }
 
     fn sample_com_rand(&self, _params: &ProofParams) -> Self::Dom {
-        let m =  BigInt::sample_below(&self.pk.n);
+        // Perfect blinding since response is computed mod N
+        let m = BigInt::sample_below(&self.pk.n);
+        // Perfect multiplicative blinding
         let r = BigInt::sample_below(&self.pk.n);
-        // FIXME check, shouldn't this be n^2?
-        let cexp = BigInt::sample_below(&self.pk.n);
+        // Must additively blind anything over N^2.
+        // TODO can be optimised if we know the witness is smaller.
+        let cexp = BigInt::sample_below(&self.pk.nn);
 
         PPLangDom { m, r, cexp }
     }
 
     fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom {
         let n = &self.pk.n;
-        let n2 = &self.pk.nn;
 
         let m = BigInt::mod_add(&rand.m, &BigInt::mod_mul(&wit.m, ch, n), n);
-        let r = BigInt::mod_mul(&rand.r, &BigInt::mod_pow(&wit.r, ch, n2), n2);
+        let r = BigInt::mod_mul(&rand.r, &BigInt::mod_pow(&wit.r, ch, n), n);
         let cexp = &wit.cexp * ch + &rand.cexp;
 
         PPLangDom { m, r, cexp }
