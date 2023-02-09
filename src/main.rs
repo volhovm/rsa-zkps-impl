@@ -5,6 +5,7 @@ use curv::BigInt;
 use curv::arithmetic::traits::BasicOps;
 use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
+use std::time::{SystemTime};
 
 use rsazkps::protocols::schnorr_generic as sch;
 use rsazkps::protocols::schnorr_paillier as sp;
@@ -127,9 +128,59 @@ fn test_dv_crs() {
     assert!(dv::verify_vpk(&params,&vpk));
 }
 
+fn test_dv() {
+    let n_bitlen = 2048;
+    let lambda = 128;
+    let queries: usize = 32;
+    let malicious_setup = true;
+    let ggm_mode = true;
+    let params = dv::DVParams::new(n_bitlen, lambda, queries as u32, malicious_setup, ggm_mode);
+
+    let (vpk,vsk) = dv::keygen(&params);
+
+
+    for query_ix in 0..1 {
+    let (lang,inst,wit) = dv::sample_liw(&params);
+
+    let t_1 = SystemTime::now();
+    let (com,cr) = dv::prove1(&params,&lang);
+    let t_2 = SystemTime::now();
+    let ch1 = dv::verify1(&params);
+    let t_3 = SystemTime::now();
+    let resp1 = dv::prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
+    let t_4 = SystemTime::now();
+    let ch2 = dv::verify2(&params);
+    let t_5 = SystemTime::now();
+    let resp2 = dv::prove3(&params,&vpk,&cr,&wit,ch2.as_ref());
+    let t_6 = SystemTime::now();
+
+    dv::verify3(&params,&vsk,&vpk,&lang,&inst,
+            &com,&ch1,ch2.as_ref(),&resp1,resp2.as_ref(),query_ix);
+    let t_7 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_5).unwrap();
+    let t_delta6 = t_7.duration_since(t_6).unwrap();
+    let t_total = t_7.duration_since(t_1).unwrap();
+    println!("DV (total {:?}):
+prove1   {:?}
+verify1  {:?}
+prove2   {:?}
+verify2  {:?}
+prove3   {:?}
+verify3  {:?}",
+             t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6);
+
+    }
+}
+
 
 fn main() {
     //rsazkps::protocols::designated_range::test_keygen_correctness();
     //test_dv_crs();
-    estimate_proof_sizes();
+    //estimate_proof_sizes();
+    test_dv();
 }

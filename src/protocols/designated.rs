@@ -187,7 +187,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let (nizk_gcd,nizks_ct) = if !params.malicious_setup {
         (None,None)
     } else {
-        
+
         //let t_p1 = SystemTime::now();
         let nizk_gcd: n_gcd::Proof =
             n_gcd::prove(
@@ -195,15 +195,15 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
                 &n_gcd::Inst{ n: pk.n.clone() },
                 &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
             );
-        
+
         //let t_p2 = SystemTime::now();
         let mut nizks_ct: Vec<spb::FSProof> = vec![];
         let nizk_batches =
             if params.crs_uses == 0 { 1 }
         else { 2 + (params.crs_uses - 1) / params.lambda };
-        
+
         let lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
-        
+
         for i in 0..nizk_batches {
             let batch_from = (i*params.lambda) as usize;
             let batch_to = std::cmp::min((i+1)*params.lambda,
@@ -211,7 +211,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
             let mut cts_inst = (&cts[batch_from..batch_to]).to_vec();
             let mut ms_wit = (&chs[batch_from..batch_to]).to_vec();
             let mut rs_wit = (&rs[batch_from..batch_to]).to_vec();
-            
+
             let pad_last_batch = params.crs_uses > 0 && i == nizk_batches - 1;
             if pad_last_batch {
                 for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
@@ -222,12 +222,12 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
                                                    &BigInt::from(1)));
                 }
             }
-            
+
             let params = if i == 0 { params.nizk_ct_params_1() }
             else { params.nizk_ct_params_2() };
             let inst = spb::Inst{cts: cts_inst};
             let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
-            
+
             nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
         }
 
@@ -427,10 +427,12 @@ pub fn prove2(params: &DVParams,
               query_ix: usize) -> DVResp1 {
     let n2: &BigInt = &vpk.pk.nn;
 
+    let t_1 = SystemTime::now();
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
         if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
     }
+    let t_2 = SystemTime::now();
 
     let ch_ct =
         BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
@@ -438,16 +440,38 @@ pub fn prove2(params: &DVParams,
                           .map(|&i| &vpk.cts[i])
                           .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2)),
                         n2);
+    let t_3 = SystemTime::now();
 
     let sm_ct = paillier_enc_opt(&vpk.pk, None, &cr.rm_m, &cr.rm_r);
+    let t_4 = SystemTime::now();
     let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, n2),
                              &sm_ct,
                              n2);
+    let t_5 = SystemTime::now();
 
     let sr_ct = paillier_enc_opt(&vpk.pk, None, &cr.rr_m, &cr.rr_r);
+    let t_6 = SystemTime::now();
     let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, n2),
                              &sr_ct,
                              n2);
+    let t_7 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_5).unwrap();
+    let t_delta6 = t_7.duration_since(t_6).unwrap();
+    let t_total = t_7.duration_since(t_1).unwrap();
+    println!("DV prove2 (total {:?}):
+active bits  {:?}
+prod chall   {:?}
+enc 1        {:?}
+hom_comp 1   {:?}
+enc 2        {:?}
+hom_comp 2   {:?}",
+             t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6);
+
 
     if params.ggm_mode {
         DVResp1{sm, sr, tm: None, tr: None}
@@ -527,6 +551,7 @@ pub fn verify3(params: &DVParams,
                resp2_opt: Option<&DVResp2>,
                query_ix: usize) -> bool {
 
+    let t_1 = SystemTime::now();
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
         if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
@@ -537,21 +562,27 @@ pub fn verify3(params: &DVParams,
         ch1_active_bits.iter()
         .map(|&i| &vsk.chs[i])
         .fold(BigInt::from(0), |acc,x| acc + x );
+    let t_2 = SystemTime::now();
 
     let sr = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sr)).0.into_owned();
     let sm = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sm)).0.into_owned();
+    let t_3 = SystemTime::now();
+
 
     // a Y^c = Enc_psi(s_m,s_r)
     {
+
         let pe::PECiphertext{ct1:x1,ct2:x2} =
             pe::encrypt_with_randomness_opt(&lang.pk, None, &sm, &sr);
 
+        let t_4 = SystemTime::now();
         let tmp1 =
             BigInt::mod_mul(
                 &u::bigint_mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.n2),
                 &com.a.ct1,
                 &lang.pk.n2);
         if tmp1 != x1 { return false; }
+        let t_5 = SystemTime::now();
 
         let tmp2 =
             BigInt::mod_mul(
@@ -559,6 +590,23 @@ pub fn verify3(params: &DVParams,
                 &com.a.ct2,
                 &lang.pk.n2);
         if tmp2 != x2 { return false; }
+        let t_6 = SystemTime::now();
+
+        let t_delta1 = t_2.duration_since(t_1).unwrap();
+        let t_delta2 = t_3.duration_since(t_2).unwrap();
+        let t_delta3 = t_4.duration_since(t_3).unwrap();
+        let t_delta4 = t_5.duration_since(t_4).unwrap();
+        let t_delta5 = t_6.duration_since(t_5).unwrap();
+        let t_total = t_6.duration_since(t_1).unwrap();
+
+
+        println!("DV verify3 (total {:?}):
+prod chal    {:?}
+decrypt      {:?}
+enc 1        {:?}
+hom_comp 1   {:?}
+hom_comp 2   {:?}",
+                 t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5);
     }
 
 
