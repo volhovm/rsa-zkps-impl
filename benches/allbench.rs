@@ -373,6 +373,7 @@ fn bench_designated_range_all(c: &mut Criterion) {
 
 
 //criterion_group!(benches, bench_designated_all, bench_designated_range_all);
+criterion_group!(benches, bench_designated_all);
 //criterion_group!(benches, bench_designated_range_all);
-criterion_group!(benches, bench_schnorr_paillier_all);
+//criterion_group!(benches, bench_schnorr_paillier_all);
 criterion_main!(benches);

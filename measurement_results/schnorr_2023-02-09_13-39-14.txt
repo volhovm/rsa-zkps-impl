@@ -1,0 +1,79 @@
+Sch FS λ=128 log(Ch)=1 reps=128, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [341.79 ms 342.76 ms 343.78 ms]
+Sch FS λ=128 log(Ch)=1 reps=128, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [953.57 ns 978.55 ns 1.0012 µs]
+Sch FS λ=128 log(Ch)=1 reps=128, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [1.1537 s 1.1616 s 1.1711 s]
+
+Sch FS λ=128 log(Ch)=1 reps=128, norange 2048/fs_prove
+                        time:   [1.3736 s 1.3762 s 1.3788 s]
+Sch FS λ=128 log(Ch)=1 reps=128, norange 2048/lang_verify
+                        time:   [1.6149 µs 2.6297 µs 3.7002 µs]
+Sch FS λ=128 log(Ch)=1 reps=128, norange 2048/fs_verify
+                        time:   [2.4350 s 2.4431 s 2.4526 s]
+
+Sch FS λ=128 log(Ch)=16 reps=8, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [21.539 ms 21.633 ms 21.756 ms]
+Sch FS λ=128 log(Ch)=16 reps=8, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [3.9237 ms 3.9329 ms 3.9524 ms]
+Sch FS λ=128 log(Ch)=16 reps=8, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [72.523 ms 73.018 ms 73.402 ms]
+
+Sch FS λ=128 log(Ch)=16 reps=8, norange 2048/fs_prove
+                        time:   [86.626 ms 86.771 ms 86.923 ms]
+Sch FS λ=128 log(Ch)=16 reps=8, norange 2048/lang_verify
+                        time:   [3.9244 ms 3.9304 ms 3.9395 ms]
+Sch FS λ=128 log(Ch)=16 reps=8, norange 2048/fs_verify
+                        time:   [157.35 ms 158.08 ms 158.78 ms]
+
+Sch FS λ=128 log(Ch)=19 reps=7, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [18.862 ms 18.909 ms 18.972 ms]
+Sch FS λ=128 log(Ch)=19 reps=7, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [36.365 ms 36.430 ms 36.482 ms]
+Sch FS λ=128 log(Ch)=19 reps=7, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [63.876 ms 64.155 ms 64.485 ms]
+
+Sch FS λ=128 log(Ch)=19 reps=7, norange 2048/fs_prove
+                        time:   [76.146 ms 76.459 ms 76.991 ms]
+Sch FS λ=128 log(Ch)=19 reps=7, norange 2048/lang_verify
+                        time:   [36.419 ms 36.483 ms 36.551 ms]
+Sch FS λ=128 log(Ch)=19 reps=7, norange 2048/fs_verify
+                        time:   [134.00 ms 134.28 ms 134.58 ms]
+
+Sch FS λ=128 log(Ch)=22 reps=6, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [16.240 ms 16.271 ms 16.314 ms]
+Sch FS λ=128 log(Ch)=22 reps=6, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [338.32 ms 339.14 ms 340.00 ms]
+Sch FS λ=128 log(Ch)=22 reps=6, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [54.522 ms 55.259 ms 56.307 ms]
+
+Sch FS λ=128 log(Ch)=22 reps=6, norange 2048/fs_prove
+                        time:   [65.251 ms 65.368 ms 65.445 ms]
+Sch FS λ=128 log(Ch)=22 reps=6, norange 2048/lang_verify
+                        time:   [337.89 ms 341.57 ms 346.78 ms]
+Sch FS λ=128 log(Ch)=22 reps=6, norange 2048/fs_verify
+                        time:   [115.28 ms 115.49 ms 115.70 ms]
+
+Sch FS λ=128 log(Ch)=26 reps=5, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [13.514 ms 13.554 ms 13.598 ms]
+Sch FS λ=128 log(Ch)=26 reps=5, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [6.5214 s 6.5352 s 6.5557 s]
+Sch FS λ=128 log(Ch)=26 reps=5, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [45.559 ms 45.863 ms 46.135 ms]
+
+Sch FS λ=128 log(Ch)=26 reps=5, norange 2048/fs_prove
+                        time:   [54.388 ms 54.469 ms 54.517 ms]
+Sch FS λ=128 log(Ch)=26 reps=5, norange 2048/lang_verify
+                        time:   [6.5446 s 6.5725 s 6.6044 s]
+Sch FS λ=128 log(Ch)=26 reps=5, norange 2048/fs_verify
+                        time:   [96.316 ms 96.709 ms 97.130 ms]
+
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366.../prove1
+                        time:   [680.23 ms 683.35 ms 687.61 ms]
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #2/verify1
+                        time:   [1.7239 µs 1.7274 µs 1.7307 µs]
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #3/prove2
+                        time:   [12.017 ms 12.136 ms 12.299 ms]
+Batched S-P ProofParams { n_bitlen: 2048, lambda: 128, reps_n: 128, reps_m: 255, ch_space: 340282366... #4/verify2
+                        time:   [2.3217 s 2.3282 s 2.3349 s]
+
