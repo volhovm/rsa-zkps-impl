@@ -10,6 +10,8 @@ use std::fmt;
 
 use super::paillier::paillier_enc_opt;
 
+const PROFILE_SPB: bool = true;
+
 // Common parameters for the proof system.
 #[derive(Clone, PartialEq, Debug)]
 pub struct ProofParams {
@@ -77,6 +79,12 @@ pub struct Wit {
 pub fn sample_lang(params: &ProofParams) -> Lang {
     let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys();
     Lang { pk: pk, sk: Some(sk) }
+}
+
+pub fn to_public(lang: &Lang) -> Lang {
+    let mut other = lang.clone();
+    other.sk = None;
+    other
 }
 
 pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
@@ -171,7 +179,7 @@ pub fn prove2(params: &ProofParams,
     }).collect();
 
     // TODO This can be optimised when factorization of n is known.
-    // Not sure if it's efficient, exponents are binary?
+    // It's very much not a bottleneck though.
     let sr: Vec<BigInt> = (0..reps_m).map(|i| {
         let em =
             (0..reps_n)
@@ -189,10 +197,19 @@ pub fn verify2(params: &ProofParams,
                com: &Commitment,
                ch: &Challenge,
                resp: &Response) -> bool {
+    let t_1 = SystemTime::now();
+
     let reps_n = params.reps_n as usize;
     let reps_m = params.reps_m as usize;
     let e_mat = challenge_e_mat(reps_m,reps_n,&ch.0);
 
+    let t_2 = SystemTime::now();
+    let t_3 = SystemTime::now();
+    let t_4 = SystemTime::now();
+
+
+    let mut t_delta2 = t_3.duration_since(t_2).unwrap();
+    let mut t_delta3 = t_4.duration_since(t_3).unwrap();
     for i in 0..(params.reps_m as usize) {
         let a = &com.0[i];
         let s_m = &resp.0[i];
@@ -200,13 +217,16 @@ pub fn verify2(params: &ProofParams,
 
         if s_m >= &params.rand_range { return false; }
 
+        let t_2 = SystemTime::now();
         let ct_e =
                 (0..params.reps_n as usize)
                 .map(|j| BigInt::mod_pow(&inst.cts[j], &e_mat[i][j], &lang.pk.nn))
                 .fold(BigInt::from(1), |acc,x| BigInt::mod_mul(&acc, &x, &lang.pk.nn));
         let lhs = BigInt::mod_mul(&a, &ct_e, &lang.pk.nn);
+        let t_3 = SystemTime::now();
 
         let rhs = paillier_enc_opt(&lang.pk, lang.sk.as_ref(), s_m, s_r);
+        let t_4 = SystemTime::now();
 //        let rhs_doublecheck =
 //            BigInt::mod_mul(
 //                &BigInt::mod_pow(&(&lang.pk.n + 1), &s_m, &lang.pk.nn),
@@ -215,10 +235,25 @@ pub fn verify2(params: &ProofParams,
 //
 //        assert!(rhs == rhs_doublecheck);
 
+        t_delta2 = t_delta2 + t_3.duration_since(t_2).unwrap();
+        t_delta3 = t_delta3 + t_4.duration_since(t_3).unwrap();
+
 
         if lhs != rhs {
             return false; }
     }
+    let t_5 = SystemTime::now();
+
+    let t_total = t_5.duration_since(t_1).unwrap();
+
+    if PROFILE_SPB {
+        println!("Sch batched verify2 (total {:?}):
+  lhs        total {:?}
+  rhs (enc)  total {:?}",
+                 t_total, t_delta2, t_delta3);
+    }
+
+
     return true;
 }
 

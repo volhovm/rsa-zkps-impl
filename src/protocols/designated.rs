@@ -20,6 +20,8 @@ use super::n_gcd as n_gcd;
 use super::paillier_elgamal as pe;
 
 
+const PROFILE_DV: bool = true;
+
 ////////////////////////////////////////////////////////////////////////////
 // Params
 ////////////////////////////////////////////////////////////////////////////
@@ -159,13 +161,14 @@ pub struct VPK {
 
 
 pub fn keygen(params: &DVParams) -> (VPK, VSK) {
-    //let t_start = SystemTime::now();
 
+    let t_1 = SystemTime::now();
     // This can be more effective in terms of move/copy
     // e.g. Inst/Wit could contain references inside?
     let (pk,sk) =
         Paillier::keypair_with_modulus_size(params.vpk_n_bitlen() as usize).keys();
 
+    let t_2 = SystemTime::now();
     let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen());
     let ch_range_2 = BigInt::pow(&BigInt::from(2), params.ch_big_bitlen());
     let mut chs: Vec<BigInt> = vec![];
@@ -184,11 +187,14 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         .map(|(ch,r)| paillier_enc_opt(&pk,Some(&sk),ch,r))
         .collect();
 
+    let t_3 = SystemTime::now();
+
+    let mut t_4 = SystemTime::now();
+
     let (nizk_gcd,nizks_ct) = if !params.malicious_setup {
         (None,None)
     } else {
 
-        //let t_p1 = SystemTime::now();
         let nizk_gcd: n_gcd::Proof =
             n_gcd::prove(
                 &params.nizk_gcd_params(),
@@ -196,7 +202,8 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
                 &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
             );
 
-        //let t_p2 = SystemTime::now();
+        t_4 = SystemTime::now();
+
         let mut nizks_ct: Vec<spb::FSProof> = vec![];
         let nizk_batches =
             if params.crs_uses == 0 { 1 }
@@ -234,13 +241,22 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         (Some(nizk_gcd), Some(nizks_ct))
     };
 
-    //let t_p3 = SystemTime::now();
+    let t_5 = SystemTime::now();
 
-    //let _t_delta1 = t_p1.duration_since(t_start).expect("error1");
-    //let _t_delta2 = t_p2.duration_since(t_p1).expect("error2");
-    //let _t_delta3 = t_p3.duration_since(t_p2).expect("error2");
-    //let _t_total = t_p3.duration_since(t_start).expect("error2");
-    //println!("Keygen prove time (total {:?}): cts: {:?}, nizk_gcd {:?}; nizk_ct: {:?}",t_total, t_delta1, t_delta2, t_delta3);
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_total = t_5.duration_since(t_1).unwrap();
+
+    if PROFILE_DV {
+        println!("Keygen prove time (total {:?}):
+  keygen    {:?}
+  cts       {:?}
+  nizk_gcd  {:?}
+  nizk_ct   {:?}",
+                 t_total, t_delta1, t_delta2, t_delta3, t_delta4);
+    }
 
     (VPK{pk, cts, nizk_gcd, nizks_ct},VSK{sk, chs})
 }
@@ -251,7 +267,7 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
         return true
     }
 
-    let t_start = SystemTime::now();
+    let t_1 = SystemTime::now();
 
     let res1 = n_gcd::verify(
         &params.nizk_gcd_params(),
@@ -259,7 +275,7 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
         vpk.nizk_gcd.as_ref().expect("dv#verify_vpk: no nizk_gcd"));
     if !res1 { return false; }
 
-    let t_p1 = SystemTime::now();
+    let t_2 = SystemTime::now();
 
     let nizks_ct = vpk.nizks_ct.as_ref().expect("dv#verify_vpk: no nizk_gcd");
     for i in 0..(nizks_ct.len() as u32) {
@@ -287,11 +303,17 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
         if !res2 { return false; }
     }
 
-    let t_p2 = SystemTime::now();
-    let _t_delta1 = t_p1.duration_since(t_start).expect("error1");
-    let _t_delta2 = t_p2.duration_since(t_p1).expect("error2");
-    let _t_total = t_p2.duration_since(t_start).expect("error3");
-    //println!("Keygen verify time (total {:?}): nizk_gcd {:?}; nizk_ct: {:?}", t_total,t_delta1, t_delta2);
+    let t_3 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_total = t_3.duration_since(t_1).unwrap();
+    if PROFILE_DV {
+        println!("Keygen verify time (total {:?}):
+  nizk_gcd {:?}
+  nizk_ct: {:?}",
+                 t_total,t_delta1, t_delta2);
+    }
 
     return true;
 }
@@ -386,20 +408,20 @@ pub struct DVResp2 {
 
 
 pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
+    let t_1 = SystemTime::now();
     let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
     let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
 
-    // TODO check these sizes make sense
     // These will be used in the next steps
+    // TODO check these sizes make sense
     let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
 
     let a = pe::encrypt_with_randomness_opt(&lang.pk,lang.sk.as_ref(),&rm_m,&rr_m);
+    let t_2 = SystemTime::now();
 
-    if params.ggm_mode {
-        (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r,
-                             tm1: None, tm2: None, tm3: None,
-                             tr1: None, tr2: None, tr3: None})
+    let (tm1, tm2, tm3, tr1, tr2, tr3) = if params.ggm_mode {
+        (None, None, None, None, None, None)
     } else {
         let tm1 = BigInt::sample(params.vpk_n_bitlen() as usize);
         let tm2 = BigInt::sample(params.vpk_n_bitlen() as usize);
@@ -409,11 +431,25 @@ pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
         let tr2 = BigInt::sample(params.vpk_n_bitlen() as usize);
         let tr3 = BigInt::sample(params.vpk_n_bitlen() as usize);
 
+        (Some(tm1), Some(tm2), Some(tm3), Some(tr1), Some(tr2), Some(tr3))
+    };
 
-        (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r,
-                             tm1: Some(tm1), tm2: Some(tm2), tm3: Some(tm3),
-                             tr1: Some(tr1), tr2: Some(tr2), tr3: Some(tr3)})
+    let t_3 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_total = t_3.duration_since(t_1).unwrap();
+
+    if PROFILE_DV {
+        println!("DV prove1 (total {:?}):
+  sample & commit  {:?}
+  GGM pre-sample   {:?}",
+                 t_total,t_delta1,t_delta2);
     }
+
+    (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r,
+                         tm1, tm2, tm3, tr1, tr2, tr3})
+
 }
 
 pub fn verify1(params: &DVParams) -> DVChallenge1 {
@@ -458,25 +494,9 @@ pub fn prove2(params: &DVParams,
                              nn);
     let t_7 = SystemTime::now();
 
-    let t_delta1 = t_2.duration_since(t_1).unwrap();
-    let t_delta2 = t_3.duration_since(t_2).unwrap();
-    let t_delta3 = t_4.duration_since(t_3).unwrap();
-    let t_delta4 = t_5.duration_since(t_4).unwrap();
-    let t_delta5 = t_6.duration_since(t_5).unwrap();
-    let t_delta6 = t_7.duration_since(t_6).unwrap();
-    let t_total = t_7.duration_since(t_1).unwrap();
-    println!("DV prove2 (total {:?}):
-active bits  {:?}
-prod chall   {:?}
-enc 1        {:?}
-hom_comp 1   {:?}
-enc 2        {:?}
-hom_comp 2   {:?}",
-             t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6);
 
-
-    if params.ggm_mode {
-        DVResp1{sm, sr, tm: None, tr: None}
+    let (tm,tr) = if params.ggm_mode {
+        (None,None)
     } else {
         let tm1 = cr.tm1.as_ref().expect("designated#prove2: tm1 must be Some");
         let tm2 = cr.tm2.as_ref().expect("designated#prove2: tm2 must be Some");
@@ -495,8 +515,33 @@ hom_comp 2   {:?}",
                                  &tr_ct,
                                  nn);
 
-        DVResp1{sm, sr, tm: Some(tm), tr: Some(tr)}
+        (Some(tm), Some(tr))
+    };
+    let t_8 = SystemTime::now();
+
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_5).unwrap();
+    let t_delta6 = t_7.duration_since(t_6).unwrap();
+    let t_delta7 = t_8.duration_since(t_7).unwrap();
+    let t_total = t_8.duration_since(t_1).unwrap();
+    if PROFILE_DV {
+        println!("DV prove2 (total {:?}):
+  active bits      {:?}
+  prod chall       {:?}
+  enc 1            {:?}
+  hom_comp 1       {:?}
+  enc 2            {:?}
+  hom_comp 2       {:?}
+  ggm enc+resp x2  {:?}",
+                 t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6, t_delta7);
     }
+
+
+    DVResp1{sm, sr, tm, tr}
 }
 
 pub fn verify2(params: &DVParams) -> Option<DVChallenge2> {
@@ -602,13 +647,14 @@ pub fn verify3(params: &DVParams,
         let t_total = t_6.duration_since(t_1).unwrap();
 
 
+        if PROFILE_DV {
         println!("DV verify3 (total {:?}):
-prod chal    {:?}
-decrypt      {:?}
-enc 1        {:?}
-hom_comp 1   {:?}
-hom_comp 2   {:?}",
-                 t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5);
+  prod chal    {:?}
+  decrypt      {:?}
+  enc 1        {:?}
+  hom_comp 1   {:?}
+  hom_comp 2   {:?}",
+                 t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5);}
     }
 
 

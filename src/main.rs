@@ -10,9 +10,12 @@ use std::time::{SystemTime};
 use rsazkps::protocols::schnorr_generic as sch;
 use rsazkps::protocols::schnorr_paillier as sp;
 use rsazkps::protocols::schnorr_paillier_elgamal as spe;
+use rsazkps::protocols::schnorr_paillier_batched as spb;
 
 use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
+
+use rsazkps::protocols::utils as utils;
 
 fn estimate_size<T: Serialize>(x: &T) -> usize {
     let x: Vec<u8> = rmp_serde::to_vec(x).unwrap();
@@ -60,7 +63,7 @@ fn estimate_size_schnorr<L: sch::Lang>(params: &sch::ProofParams, lparams: &L::L
 fn estimate_proof_sizes() {
     let n_bitlen = 2048;
     let lambda = 128;
-    let queries = 32;
+    let queries = 128;
     let range_bitlen = 256;
     let range = BigInt::pow(&BigInt::from(2), range_bitlen);
 
@@ -121,18 +124,12 @@ fn check_correct_ciphertext_proof() {
     println!("Bogus proof verification gives: {:?}", res2);
 }
 
-fn test_dv_crs() {
-    let params = dv::DVParams::new(2048, 128, 32, false, false);
-    println!("{:?}", params);
-    let (vpk,_vsk) = dv::keygen(&params);
-    assert!(dv::verify_vpk(&params,&vpk));
-}
 
 fn profile_dv() {
     let n_bitlen = 2048;
     let lambda = 128;
-    let queries: usize = 32;
-    let malicious_setup = false;
+    let queries: usize = 128;
+    let malicious_setup = true;
     let ggm_mode = true;
     let params = dv::DVParams::new(n_bitlen, lambda, queries as u32, malicious_setup, ggm_mode);
 
@@ -143,7 +140,7 @@ fn profile_dv() {
 
     let (vpk,vsk) = dv::keygen(&params);
 
-
+    assert!(dv::verify_vpk(&params,&vpk));
 
     for query_ix in 0..1 {
     let (lang,inst,wit) = dv::sample_liw(&params);
@@ -172,12 +169,12 @@ fn profile_dv() {
     let t_delta6 = t_7.duration_since(t_6).unwrap();
     let t_total = t_7.duration_since(t_1).unwrap();
     println!("DV (total {:?}):
-prove1   {:?}
-verify1  {:?}
-prove2   {:?}
-verify2  {:?}
-prove3   {:?}
-verify3  {:?}",
+  prove1   {:?}
+  verify1  {:?}
+  prove2   {:?}
+  verify2  {:?}
+  prove3   {:?}
+  verify3  {:?}",
              t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6);
 
     }
@@ -226,11 +223,50 @@ fn profile_schnorr() {
         &n_bitlen);
 }
 
+fn profile_schnorr_batched() {
+    let n_bitlen = 2700;
+    let lambda = 128;
+    let range_bits = 256;
+    let reps_number = 128;
+    let params = spb::ProofParams::new(n_bitlen,lambda,reps_number,range_bits);
+
+    let (lang,inst,wit) = spb::sample_liw(&params);
+
+    // This difference is
+    //let range_bits = lambda;
+    let range_bits = 2 * lambda + utils::log2ceil(lambda);
+
+    let t_1 = SystemTime::now();
+    let (com,cr) = spb::prove1(&params,&lang);
+    let t_2 = SystemTime::now();
+    let ch = spb::verify1(&params);
+
+    let t_3 = SystemTime::now();
+    let resp = spb::prove2(&params,&lang,&wit,&ch,&cr);
+    let t_4 = SystemTime::now();
+    assert!(spb::verify2(&params,&spb::to_public(&lang),&inst,&com,&ch,&resp));
+    let t_5 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_total = t_5.duration_since(t_1).unwrap();
+
+    println!("Schnorr Paillier Batched (total {:?}):
+prove1   {:?}
+verify1  {:?}
+prove2   {:?}
+verify2  {:?}",
+             t_total,t_delta1, t_delta2, t_delta3, t_delta4);
+
+
+}
 
 fn main() {
     //rsazkps::protocols::designated_range::test_keygen_correctness();
-    //test_dv_crs();
     //estimate_proof_sizes();
     //profile_dv();
-    profile_schnorr();
+    //profile_schnorr();
+    profile_schnorr_batched();
 }

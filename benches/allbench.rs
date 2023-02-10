@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use curv::arithmetic::traits::{Samplable, BasicOps};
+use curv::arithmetic::traits::{Samplable, BasicOps, BitManipulation};
 use curv::BigInt;
 use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use std::time::Duration;
@@ -163,8 +163,19 @@ fn bench_schnorr_fs<L: sch::Lang>(c: &mut Criterion,
 // Schnorr Paillier Batched
 ////////////////////////////////////////////////////////////////////////////
 
+fn format_spb_params(params: &spb::ProofParams) -> String {
+    format!("λ={} n_bitlen={} inst_num={} range_bits={}",
+            params.lambda,
+            params.n_bitlen,
+            params.reps_n,
+            (params.range.bit_length()))
+}
+
 fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) {
-    let mut grp = c.benchmark_group(format!("Batched S-P {:?}", params));
+    let mut grp = c.benchmark_group(format!("Batched S-P {}", format_spb_params(params)));
+
+    grp.sample_size(10);
+    //grp.measurement_time(Duration::from_secs(30));
 
     grp.bench_function("prove1", |b| {
         b.iter_batched(|| spb::sample_liw(params).0,
@@ -191,9 +202,7 @@ fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) 
                  let (com,cr) = spb::prove1(params,&lang);
                  let ch = spb::verify1(params);
                  let resp = spb::prove2(params,&lang,&wit,&ch,&cr);
-                 let mut lang2 = lang.clone();
-                 lang2.sk = None;
-                 return (lang2,inst,com,ch,resp); },
+                 return (spb::to_public(&lang),inst,com,ch,resp); },
             |(lang,inst,com,ch,resp)| spb::verify2(params,&lang,&inst,&com,&ch,&resp),
             BatchSize::LargeInput
         );
@@ -216,7 +225,7 @@ fn bench_schnorr_paillier_batched_fs(c: &mut Criterion, params: &spb::ProofParam
             || { let (lang,inst,wit) = spb::sample_liw(params);
                  let proof = spb::fs_prove(params,&lang,&inst,&wit);
                  return (lang,inst,proof); },
-            |(lang,inst,proof)| spb::fs_verify(params,&lang,&inst,&proof),
+            |(lang,inst,proof)| spb::fs_verify(params,&spb::to_public(&lang),&inst,&proof),
             BatchSize::LargeInput
         );
     });
@@ -254,7 +263,6 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
 
     //grp.measurement_time(Duration::from_secs(30));
     //grp.sample_size(2);
-
 
     // This could be precomputed for each benchmark, but it's quite expensive?...
     let (vpk,vsk) = dv::keygen(&params);
@@ -405,19 +413,20 @@ fn bench_schnorr_paillier_all(c: &mut Criterion) {
     let lambda = 128;
     let n_bitlen = 2048;
 
-    // q = 128, 8, 7, 6, 5
-    for i in [1, 16, 19, 22, 26] {
-        let params = sch::ProofParams::new(lambda,i);
-        let lparams = sp::PLangParams{ n_bitlen, range: None };
-        bench_schnorr_fs::<sp::PLang>(c, &params, &lparams);
+    //// q = 128, 8, 7, 6, 5
+    //for i in [1, 16, 19, 22, 26] {
+    //    let params = sch::ProofParams::new(lambda,i);
+    //    let lparams = sp::PLangParams{ n_bitlen, range: None };
+    //    bench_schnorr_fs::<sp::PLang>(c, &params, &lparams);
 
-        bench_schnorr_fs::<spe::PELang>(c, &params, &n_bitlen);
-        //bench_schnorr::<spe::PELang>(c, &params, &n_bitlen);
-    }
+    //    bench_schnorr_fs::<spe::PELang>(c, &params, &n_bitlen);
+    //    //bench_schnorr::<spe::PELang>(c, &params, &n_bitlen);
+    //}
 
-    let range_bits = 128;
-    let params = spb::ProofParams::new(n_bitlen,lambda,lambda,range_bits);
-    bench_schnorr_paillier_batched_fs(c, &params);
+    let range_bits = 256;
+    let reps_number = 128;
+    let params = spb::ProofParams::new(n_bitlen,lambda,reps_number,range_bits);
+    bench_schnorr_paillier_batched(c, &params);
 }
 
 
@@ -454,6 +463,6 @@ fn bench_designated_range_all(c: &mut Criterion) {
 //criterion_group!(benches, bench_designated_all, bench_designated_range_all);
 //criterion_group!(benches, bench_designated_all);
 //criterion_group!(benches, bench_designated_range_all);
-//criterion_group!(benches, bench_schnorr_paillier_all);
-criterion_group!(benches, bench_paillier, bench_paillier_elgamal);
+criterion_group!(benches, bench_schnorr_paillier_all);
+//criterion_group!(benches, bench_paillier, bench_paillier_elgamal);
 criterion_main!(benches);
