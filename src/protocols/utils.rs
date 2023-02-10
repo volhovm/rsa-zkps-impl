@@ -44,6 +44,16 @@ pub fn bigint_mod_pow(a: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt
     bigint_mod_pow_explicit(a, &BigInt::mod_inv(a, modulus).unwrap(), exponent, modulus)
 }
 
+/// Computes m such that m = vp mod p & m = vq mod q.
+pub fn crt_recombine(vp: &BigInt,
+                 vq: &BigInt,
+                 p: &BigInt,
+                 q: &BigInt,
+                 p_inv_q: &BigInt) -> BigInt {
+    let diff = BigInt::mod_sub(vq, vp, q);
+    let u = (&diff * p_inv_q) % q;
+    vp + &u * p
+}
 
 
 /// Log2, ceiled.

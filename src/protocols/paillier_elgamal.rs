@@ -14,7 +14,7 @@ use paillier::{Paillier, EncryptionKey, DecryptionKey,
                KeyGeneration,
                Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
 
-use super::utils::bigint_mod_pow_explicit;
+use super::utils::{bigint_mod_pow_explicit, crt_recombine};
 
 
 #[derive(PartialEq, Eq, Clone, Debug, Serialize)]
@@ -92,15 +92,7 @@ pub fn encrypt_with_randomness(pk: &PEPublicKey,
     PECiphertext{ ct1, ct2 }
 }
 
-fn crt_recombine(vp: &BigInt,
-                 vq: &BigInt,
-                 p: &BigInt,
-                 q: &BigInt,
-                 pinv: &BigInt) -> BigInt {
-    let diff = BigInt::mod_sub(vq, vp, q);
-    let u = (&diff * pinv) % q;
-    vp + &u * p
-}
+
 
 pub fn encrypt_with_randomness_sk(pk: &PEPublicKey,
                                   sk: &PESecretKey,

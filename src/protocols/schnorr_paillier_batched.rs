@@ -162,7 +162,6 @@ pub fn prove2(params: &ProofParams,
 
     let e_mat = challenge_e_mat(reps_m,reps_n,&ch.0);
 
-
     let sm: Vec<BigInt> = (0..reps_m).map(|i| {
         let em =
             (0..reps_n)
@@ -171,8 +170,8 @@ pub fn prove2(params: &ProofParams,
         em + &cr.0[i]
     }).collect();
 
-    // TODO This can be optimised when factorization of n is known. Here exponent can
-    // be quite big, so it might make sense.
+    // TODO This can be optimised when factorization of n is known.
+    // Not sure if it's efficient, exponents are binary?
     let sr: Vec<BigInt> = (0..reps_m).map(|i| {
         let em =
             (0..reps_n)
