@@ -407,7 +407,7 @@ pub struct DVResp2 {
 }
 
 
-pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
+pub fn prove1(params: &DVParams, vpk: &VPK, lang: &DVLang) -> (DVCom,DVComRand) {
     let t_1 = SystemTime::now();
     let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
     let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
@@ -423,13 +423,16 @@ pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
     let (tm1, tm2, tm3, tr1, tr2, tr3) = if params.ggm_mode {
         (None, None, None, None, None, None)
     } else {
-        let tm1 = BigInt::sample(params.vpk_n_bitlen() as usize);
-        let tm2 = BigInt::sample(params.vpk_n_bitlen() as usize);
-        let tm3 = BigInt::sample(params.vpk_n_bitlen() as usize);
+        // These must blind, over Z, the product d*w, and d*r, where d is lambda
+        // bits and both w and r are n_bitlen bits.
+        let tm1 = BigInt::sample((params.psi_n_bitlen + 2 * params.lambda) as usize);
+        let tr1 = BigInt::sample((params.psi_n_bitlen + 2 * params.lambda) as usize);
 
-        let tr1 = BigInt::sample(params.vpk_n_bitlen() as usize);
-        let tr2 = BigInt::sample(params.vpk_n_bitlen() as usize);
-        let tr3 = BigInt::sample(params.vpk_n_bitlen() as usize);
+        let tm2 = BigInt::sample_below(&vpk.pk.n);
+        let tr2 = BigInt::sample_below(&vpk.pk.n);
+
+        let tm3 = BigInt::sample_below(&vpk.pk.n);
+        let tr3 = BigInt::sample_below(&vpk.pk.n);
 
         (Some(tm1), Some(tm2), Some(tm3), Some(tr1), Some(tr2), Some(tr3))
     };
@@ -562,7 +565,7 @@ pub fn prove3(params: &DVParams,
         None
     } else {
 
-        let nn: &BigInt = &vpk.pk.nn;
+        let n: &BigInt = &vpk.pk.n;
 
         let ch2 = ch2_opt.expect("designated#prove3: ch2 must be Some");
         let d: &BigInt = &ch2.0;
@@ -574,13 +577,15 @@ pub fn prove3(params: &DVParams,
         let tr2 = cr.tr2.as_ref().expect("designated#prove3: tr2 must be Some");
         let tr3 = cr.tr3.as_ref().expect("designated#prove3: tr3 must be Some");
 
-        let um1 = BigInt::mod_add(&BigInt::mod_mul(&wit.m, d, nn), tm1, nn);
-        let um2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rm_m, d, nn), tm2, nn);
-        let um3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rm_r, d, nn), tm3, nn);
+        // These are over integers because we don't know the order of C.
+        let um1 = &wit.m * d + tm1;
+        let ur1 = &wit.r * d + tr1;
 
-        let ur1 = BigInt::mod_add(&BigInt::mod_mul(&wit.r, d, nn), tr1, nn);
-        let ur2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rr_m, d, nn), tr2, nn);
-        let ur3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rr_r, d, nn), tr3, nn);
+        let um2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rm_m, d, n), tm2, n);
+        let ur2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rr_m, d, n), tr2, n);
+
+        let um3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rm_r, d, n), tm3, n);
+        let ur3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rr_r, d, n), tr3, n);
 
         Some(DVResp2{um1, um2, um3, ur1, ur2, ur3})
     }
@@ -659,28 +664,54 @@ pub fn verify3(params: &DVParams,
 
 
     if !params.ggm_mode {
+        let nn = &vpk.pk.nn;
         let ch2: &DVChallenge2 = ch2_opt.expect("designated#verify3: ch2 must be Some");
         let resp2: &DVResp2 = resp2_opt.expect("designated#verify3: resp2 must be Some");
         let ch1_ct =
             BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
                             &ch1_active_bits.iter()
                               .map(|&i| &vpk.cts[i])
-                              .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, &vpk.pk.nn)),
-                            &vpk.pk.nn);
+                              .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, nn)),
+                            nn);
+
+        let tm = resp1.tm.as_ref().expect("designated#verify3: tm must be Some");
+        let tr = resp1.tr.as_ref().expect("designated#verify3: tr must be Some");
+
+        let p = &vsk.sk.p;
+        let q = &vsk.sk.q;
+        let pp = p * p;
+        let qq = q * q;
+        let pp_inv_qq = BigInt::mod_inv(&pp, &qq).unwrap();
 
         {
             let ct = paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &resp2.um3);
-            let tm = resp1.tm.as_ref().expect("designated#verify3: tm must be Some");
-            let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.um1, &vpk.pk.nn), &ct, &vpk.pk.nn);
-            let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sm, &ch2.0, &vpk.pk.nn), tm, &vpk.pk.nn);
+            let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.um1, &pp);
+            let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.um1, &qq);
+            let exp1 = u::crt_recombine(&exp1_pp, &exp1_qq, &pp, &qq, &pp_inv_qq);
+            let rhs = &BigInt::mod_mul(&exp1, &ct, nn);
+
+
+            let exp2_pp = &BigInt::mod_pow(&resp1.sm, &ch2.0, &pp);
+            let exp2_qq = &BigInt::mod_pow(&resp1.sm, &ch2.0, &qq);
+            let exp2 = u::crt_recombine(&exp2_pp, &exp2_qq, &pp, &qq, &pp_inv_qq);
+            let lhs = &BigInt::mod_mul(&exp2, tm, nn);
+
             if lhs != rhs { return false; }
         }
 
         {
             let ct = paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &resp2.ur3);
-            let tr = resp1.tr.as_ref().expect("designated#verify3: tr must be Some");
-            let rhs = &BigInt::mod_mul(&BigInt::mod_pow(&ch1_ct, &resp2.ur1, &vpk.pk.nn), &ct, &vpk.pk.nn);
-            let lhs = &BigInt::mod_mul(&BigInt::mod_pow(&resp1.sr, &ch2.0, &vpk.pk.nn), tr, &vpk.pk.nn);
+
+            let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &pp);
+            let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &qq);
+            let exp1 = u::crt_recombine(&exp1_pp, &exp1_qq, &pp, &qq, &pp_inv_qq);
+            let rhs = &BigInt::mod_mul(&exp1, &ct, nn);
+
+            let exp2_pp = &BigInt::mod_pow(&resp1.sr, &ch2.0, &pp);
+            let exp2_qq = &BigInt::mod_pow(&resp1.sr, &ch2.0, &qq);
+            let exp2 = u::crt_recombine(&exp2_pp, &exp2_qq, &pp, &qq, &pp_inv_qq);
+            let lhs = &BigInt::mod_mul(&exp2, tr, nn);
+
             if lhs != rhs { return false; }
         }
     }
@@ -745,7 +776,7 @@ pub fn fs_prove(params: &DVParams,
                 inst: &DVInst,
                 wit: &DVWit,
                 query_ix: usize) -> FSDVProof {
-    let (com,cr) = prove1(params,lang);
+    let (com,cr) = prove1(params,vpk,lang);
     let ch1 = fs_compute_challenge_1(params,lang,inst,&com);
     let resp1 = prove2(params,vpk,&cr,wit,&ch1,query_ix);
     let ch2 = fs_compute_challenge_2(&params,lang,inst,&com,&ch1,&resp1);
@@ -811,8 +842,8 @@ mod tests {
     #[test]
     fn test_correctness() {
         for ggm_mode in [false,true] {
-        for _i in 0..10 {
-            let queries:usize = 60;
+        for _i in 0..5 {
+            let queries:usize = 128;
             let params = DVParams::new(256, 16, queries as u32, true, ggm_mode);
 
             let (vpk,vsk) = keygen(&params);
@@ -821,7 +852,7 @@ mod tests {
             for query_ix in 0..queries {
                 let (lang,inst,wit) = sample_liw(&params);
 
-                let (com,cr) = prove1(&params,&lang);
+                let (com,cr) = prove1(&params,&vpk,&lang);
                 let ch1 = verify1(&params);
                 let resp1 = prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
                 let ch2 = verify2(&params);
@@ -838,8 +869,8 @@ mod tests {
     #[test]
     fn test_correctness_fs() {
         for ggm_mode in [false,true] {
-        for _i in 0..10 {
-            let queries:usize = 60;
+        for _i in 0..5 {
+            let queries:usize = 128;
             let params = DVParams::new(256, 16, queries as u32, true, ggm_mode);
 
             let (vpk,vsk) = keygen(&params);

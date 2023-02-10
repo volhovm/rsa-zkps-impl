@@ -269,7 +269,7 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
 
     grp.bench_function("prove1", |b| {
         b.iter_batched(|| dv::sample_liw(params).0,
-                       |lang| dv::prove1(params,&lang),
+                       |lang| dv::prove1(params,&vpk,&lang),
                        BatchSize::LargeInput);
     });
 
@@ -278,7 +278,7 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
     grp.bench_function("prove2", |b| {
         b.iter_batched(
             || { let (lang,_,wit) = dv::sample_liw(params);
-                 let (_,cr) = dv::prove1(params,&lang);
+                 let (_,cr) = dv::prove1(params,&vpk,&lang);
                  let ch = dv::verify1(params);
                  return (wit,ch,cr); },
             |(wit,ch,cr)| dv::prove2(params,&vpk,&cr,&wit,&ch,0),
@@ -291,7 +291,7 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
     grp.bench_function("prove3", |b| {
         b.iter_batched(
             || { let (lang,_,wit) = dv::sample_liw(params);
-                 let (_,cr) = dv::prove1(params,&lang);
+                 let (_,cr) = dv::prove1(params,&vpk,&lang);
                  let ch2 = dv::verify2(params);
                  return (wit,cr,ch2); },
             |(wit,cr,ch2)| dv::prove3(params,&vpk,&cr,&wit,ch2.as_ref()),
@@ -303,7 +303,7 @@ fn bench_designated(c: &mut Criterion, params: &dv::DVParams) {
     grp.bench_function("verify3", |b| {
         b.iter_batched(
             || { let (lang,inst,wit) = dv::sample_liw(params);
-                 let (com,cr) = dv::prove1(params,&lang);
+                 let (com,cr) = dv::prove1(params,&vpk,&lang);
                  let ch1 = dv::verify1(params);
                  let resp1 = dv::prove2(params,&vpk,&cr,&wit,&ch1,0);
                  let ch2 = dv::verify2(params);

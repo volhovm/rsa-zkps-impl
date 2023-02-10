@@ -146,7 +146,7 @@ fn profile_dv() {
     let (lang,inst,wit) = dv::sample_liw(&params);
 
     let t_1 = SystemTime::now();
-    let (com,cr) = dv::prove1(&params,&lang);
+    let (com,cr) = dv::prove1(&params,&vpk,&lang);
     let t_2 = SystemTime::now();
     let ch1 = dv::verify1(&params);
     let t_3 = SystemTime::now();
