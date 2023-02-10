@@ -4,7 +4,10 @@ use curv::arithmetic::traits::{Samplable, BasicOps};
 use curv::BigInt;
 use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use std::time::Duration;
+use paillier::{KeyGeneration};
+use paillier::Paillier;
 
+use rsazkps::protocols::paillier::paillier_enc_opt;
 use rsazkps::protocols::paillier_elgamal as pe;
 
 use rsazkps::protocols::schnorr_generic as sch;
@@ -17,6 +20,30 @@ use rsazkps::protocols::designated_range as dvr;
 ////////////////////////////////////////////////////////////////////////////
 // Paillier (-Elgamal)
 ////////////////////////////////////////////////////////////////////////////
+
+
+fn bench_paillier(c: &mut Criterion) {
+    let n_bitlen = 2048;
+    let mut grp = c.benchmark_group(format!("Paillier log(N)={}", n_bitlen));
+
+    let (pk,sk) = Paillier::keypair_with_modulus_size(n_bitlen as usize).keys();
+
+    grp.bench_function("encrypt_crt", |b| {
+        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+                            let r = BigInt::sample_below(&pk.n);
+                            (m,r) },
+                       |(m,r)| paillier_enc_opt(&pk,Some(&sk),&m,&r),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("encrypt_naive", |b| {
+        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+                            let r = BigInt::sample_below(&pk.n);
+                            (m,r) },
+                       |(m,r)| paillier_enc_opt(&pk,None,&m,&r),
+                       BatchSize::LargeInput);
+    });
+}
 
 fn bench_paillier_elgamal(c: &mut Criterion) {
     let n_bitlen = 2048;
@@ -39,7 +66,6 @@ fn bench_paillier_elgamal(c: &mut Criterion) {
                        |(m,r)| pe::encrypt_with_randomness_opt(&pk,None,&m,&r),
                        BatchSize::LargeInput);
     });
-
 }
 
 
@@ -429,5 +455,5 @@ fn bench_designated_range_all(c: &mut Criterion) {
 //criterion_group!(benches, bench_designated_all);
 //criterion_group!(benches, bench_designated_range_all);
 //criterion_group!(benches, bench_schnorr_paillier_all);
-criterion_group!(benches, bench_paillier_elgamal);
+criterion_group!(benches, bench_paillier, bench_paillier_elgamal);
 criterion_main!(benches);
