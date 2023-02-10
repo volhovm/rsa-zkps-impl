@@ -110,6 +110,7 @@ impl Lang for PLang {
     fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom {
         let n = &self.pk.n;
         let m = BigInt::mod_add(&BigInt::mod_mul(&wit.m, ch, n), &rand.m, n);
+        // TODO This can be optimised when factorization of n is known
         let r = BigInt::mod_mul(&BigInt::mod_pow(&wit.r, ch, n), &rand.r, n);
         PLangDom { m, r }
     }

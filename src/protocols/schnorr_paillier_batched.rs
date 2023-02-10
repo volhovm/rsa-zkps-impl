@@ -171,6 +171,8 @@ pub fn prove2(params: &ProofParams,
         em + &cr.0[i]
     }).collect();
 
+    // TODO This can be optimised when factorization of n is known. Here exponent can
+    // be quite big, so it might make sense.
     let sr: Vec<BigInt> = (0..reps_m).map(|i| {
         let em =
             (0..reps_n)

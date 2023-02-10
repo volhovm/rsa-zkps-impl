@@ -128,7 +128,7 @@ fn test_dv_crs() {
     assert!(dv::verify_vpk(&params,&vpk));
 }
 
-fn test_dv() {
+fn profile_dv() {
     let n_bitlen = 2048;
     let lambda = 128;
     let queries: usize = 32;
@@ -183,10 +183,54 @@ verify3  {:?}",
     }
 }
 
+fn profile_schnorr_generic<L: sch::Lang>(params: &sch::ProofParams, lparams: &L::LangParams) {
+    let (lang,inst,wit) = L::sample_liw(lparams);
+
+    let t_1 = SystemTime::now();
+    let (com,cr) = sch::prove1(params,&lang);
+    let t_2 = SystemTime::now();
+    let ch = sch::verify1(params);
+    let t_3 = SystemTime::now();
+    let resp = sch::prove2(params,&lang,&wit,&ch,&cr);
+    let t_4 = SystemTime::now();
+    sch::verify2(params,&lang.to_public(),&inst,&com,&ch,&resp);
+    let t_5 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_total = t_5.duration_since(t_1).unwrap();
+
+
+    println!("Schnorr (total {:?}):
+prove1   {:?}
+verify1  {:?}
+prove2   {:?}
+verify2  {:?}",
+             t_total,t_delta1, t_delta2, t_delta3, t_delta4);
+
+}
+
+fn profile_schnorr() {
+    let n_bitlen = 2048;
+    let lambda = 128;
+    let ch_space_bitlen = 16;
+
+    profile_schnorr_generic::<sp::PLang>(
+        &sch::ProofParams::new(lambda, ch_space_bitlen),
+        &sp::PLangParams{ n_bitlen, range: None });
+
+    profile_schnorr_generic::<spe::PELang>(
+        &sch::ProofParams::new(lambda, ch_space_bitlen),
+        &n_bitlen);
+}
+
 
 fn main() {
     //rsazkps::protocols::designated_range::test_keygen_correctness();
     //test_dv_crs();
     //estimate_proof_sizes();
-    test_dv();
+    //profile_dv();
+    profile_schnorr();
 }

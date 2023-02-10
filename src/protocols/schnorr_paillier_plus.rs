@@ -113,6 +113,7 @@ impl Lang for PPLang {
         let n = &self.pk.n;
 
         let m = BigInt::mod_add(&rand.m, &BigInt::mod_mul(&wit.m, ch, n), n);
+        // TODO This can be optimised when factorization of n is known
         let r = BigInt::mod_mul(&rand.r, &BigInt::mod_pow(&wit.r, ch, n), n);
         let cexp = &wit.cexp * ch + &rand.cexp;
 
