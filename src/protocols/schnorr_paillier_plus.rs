@@ -51,6 +51,7 @@ pub fn compute_si(pk: &EncryptionKey,
     // TODO This can be further optimised when N^2 is known.
     BigInt::mod_mul(
         &paillier_enc_opt(pk,sk,m,r),
+        // TODO Can we avoid inverting here?
         &super::utils::bigint_mod_pow(ch_ct, cexp, &pk.nn),
         &pk.nn)
 }
@@ -119,8 +120,8 @@ impl Lang for PPLang {
     }
 
     fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom {
-        let n2 = &self.pk.nn;
-        let si = BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, n2), &com.si, n2);
+        let nn = &self.pk.nn;
+        let si = BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, nn), &com.si, nn);
         PPLangCoDom { si }
     }
 

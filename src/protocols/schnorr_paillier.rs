@@ -115,8 +115,8 @@ impl Lang for PLang {
     }
 
     fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom {
-        let n2 = &self.pk.nn;
-        let ct = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct, ch, n2), &com.ct, n2);
+        let nn = &self.pk.nn;
+        let ct = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct, ch, nn), &com.ct, nn);
         PLangCoDom { ct }
     }
 

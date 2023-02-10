@@ -632,13 +632,13 @@ pub fn prove2(params: &DVRParams,
         if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
     }
 
-    let vpk_n2: &BigInt = &vpk.pk.nn;
+    let vpk_nn: &BigInt = &vpk.pk.nn;
     let ch_ct =
         BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
                         &ch1_active_bits.iter()
                           .map(|&i| &vpk.cts[i])
-                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_n2)),
-                        vpk_n2);
+                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_nn)),
+                        vpk_nn);
 
     // Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
     let p2_generic = |rand: &BigInt,enc_arg: &BigInt,ct_exp: &BigInt|
@@ -792,13 +792,13 @@ pub fn prove3(params: &DVRParams,
         if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
     }
 
-    let vpk_n2: &BigInt = &vpk.pk.nn;
+    let vpk_nn: &BigInt = &vpk.pk.nn;
     let ch_ct =
         BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
                         &ch1_active_bits.iter()
                           .map(|&i| &vpk.cts[i])
-                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_n2)),
-                        vpk_n2);
+                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_nn)),
+                        vpk_nn);
 
     //// Running the sub-proof
     let spp_params = params.spp_params();
@@ -912,13 +912,13 @@ pub fn verify3(params: &DVRParams,
         if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
     }
 
-    let vpk_n2: &BigInt = &vpk.pk.nn;
+    let vpk_nn: &BigInt = &vpk.pk.nn;
     let ch_ct =
         BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
                         &ch1_active_bits.iter()
                           .map(|&i| &vpk.cts[i])
-                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_n2)),
-                        vpk_n2);
+                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_nn)),
+                        vpk_nn);
 
     let ch_raw: BigInt =
         &vsk.chs[(params.lambda as usize) + query_ix] +
@@ -1045,12 +1045,12 @@ pub fn verify3(params: &DVRParams,
             BigInt::mod_mul(&com.alpha1,
                             &u::bigint_mod_pow(
                                 &BigInt::mod_mul(
-                                    &BigInt::mod_inv(&inst.ct.ct1,&lang.pk.n2).unwrap(),
+                                    &BigInt::mod_inv(&inst.ct.ct1,&lang.pk.nn).unwrap(),
                                     &psi_range_1,
-                                    &lang.pk.n2),
+                                    &lang.pk.nn),
                                 &ch_raw,
-                                &lang.pk.n2),
-                            &lang.pk.n2);
+                                &lang.pk.nn),
+                            &lang.pk.nn);
 
         if lhs_1 != rhs_1 {
             println!("DVRange#verify3: alpha 1");
@@ -1060,12 +1060,12 @@ pub fn verify3(params: &DVRParams,
             BigInt::mod_mul(&com.alpha2,
                             &u::bigint_mod_pow(
                                 &BigInt::mod_mul(
-                                    &BigInt::mod_inv(&inst.ct.ct2,&lang.pk.n2).unwrap(),
+                                    &BigInt::mod_inv(&inst.ct.ct2,&lang.pk.nn).unwrap(),
                                     &psi_range_2,
-                                    &lang.pk.n2),
+                                    &lang.pk.nn),
                                 &ch_raw,
-                                &lang.pk.n2),
-                            &lang.pk.n2);
+                                &lang.pk.nn),
+                            &lang.pk.nn);
 
         if lhs_2 != rhs_2 {
             println!("DVRange#verify3: alpha 2");
@@ -1328,7 +1328,7 @@ mod tests {
     #[test]
     fn test_keygen_correctness() {
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams::new(1024, 32, range, 5, false, false);
+        let params = DVRParams::new(1024, 32, range, 5, true, false);
 
         let (vpk,_vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
@@ -1348,10 +1348,15 @@ mod tests {
             println!("Query #{:?}", query_ix);
             let (lang,inst,wit) = sample_liw(&params);
 
+            println!("Prove1");
             let (com,cr) = prove1(&params,&vpk,&lang,&wit);
+            println!("Verify1");
             let ch1 = verify1(&params);
+            println!("Prove2");
             let (resp1,resp1rand) = prove2(&params,&vpk,&wit,&ch1,&cr,query_ix);
+            println!("Verify2");
             let ch2 = verify2(&params);
+            println!("Prove3");
             let resp2 = prove3(&params,&vpk,&wit,&ch1,&cr,&resp1rand,ch2.as_ref(),query_ix);
 
             assert!(verify3(&params,&vsk,&vpk,&lang,&inst,

@@ -29,14 +29,22 @@ pub fn bigint_in_range_sym(r: &BigInt, x: &BigInt, n: &BigInt) -> bool {
 }
 
 /// Mod_pow which allows exponents to be negative.
-pub fn bigint_mod_pow(a: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
+pub fn bigint_mod_pow_explicit(a: &BigInt, a_inv: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
     if BigInt::is_negative(exponent) {
-        let inv: Option<BigInt> = BigInt::mod_inv(a, modulus);
-        BigInt::mod_pow(&inv.unwrap(),&-exponent,modulus)
+        BigInt::mod_pow(a_inv,&-exponent,modulus)
     } else {
         BigInt::mod_pow(a,exponent,modulus)
     }
 }
+
+// TODO This should not be used thoughtlessly: consider precomputing the inverse exponent
+// if possible
+/// Same as bigint_mod_pow, but computing the inverse on the fly.
+pub fn bigint_mod_pow(a: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
+    bigint_mod_pow_explicit(a, &BigInt::mod_inv(a, modulus).unwrap(), exponent, modulus)
+}
+
+
 
 /// Log2, ceiled.
 pub fn log2ceil(x: u32) -> u32 {

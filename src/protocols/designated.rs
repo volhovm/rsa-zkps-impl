@@ -389,6 +389,7 @@ pub fn prove1(params: &DVParams, lang: &DVLang) -> (DVCom,DVComRand) {
     let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
     let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
 
+    // TODO check these sizes make sense
     // These will be used in the next steps
     let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
@@ -426,7 +427,7 @@ pub fn prove2(params: &DVParams,
               wit: &DVWit,
               ch1: &DVChallenge1,
               query_ix: usize) -> DVResp1 {
-    let n2: &BigInt = &vpk.pk.nn;
+    let nn: &BigInt = &vpk.pk.nn;
 
     let t_1 = SystemTime::now();
     let mut ch1_active_bits: Vec<usize> = vec![];
@@ -439,22 +440,22 @@ pub fn prove2(params: &DVParams,
         BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
                         &ch1_active_bits.iter()
                           .map(|&i| &vpk.cts[i])
-                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, n2)),
-                        n2);
+                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, nn)),
+                        nn);
     let t_3 = SystemTime::now();
 
     let sm_ct = paillier_enc_opt(&vpk.pk, None, &cr.rm_m, &cr.rm_r);
     let t_4 = SystemTime::now();
-    let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, n2),
+    let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, nn),
                              &sm_ct,
-                             n2);
+                             nn);
     let t_5 = SystemTime::now();
 
     let sr_ct = paillier_enc_opt(&vpk.pk, None, &cr.rr_m, &cr.rr_r);
     let t_6 = SystemTime::now();
-    let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, n2),
+    let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, nn),
                              &sr_ct,
-                             n2);
+                             nn);
     let t_7 = SystemTime::now();
 
     let t_delta1 = t_2.duration_since(t_1).unwrap();
@@ -485,14 +486,14 @@ hom_comp 2   {:?}",
         let tr3 = cr.tr3.as_ref().expect("designated#prove2: tr3 must be Some");
 
         let tm_ct = paillier_enc_opt(&vpk.pk, None, tm2, tm3);
-        let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tm1, n2),
+        let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tm1, nn),
                                  &tm_ct,
-                                 n2);
+                                 nn);
 
         let tr_ct = paillier_enc_opt(&vpk.pk, None, tr2, tr3);
-        let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tr1, n2),
+        let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tr1, nn),
                                  &tr_ct,
-                                 n2);
+                                 nn);
 
         DVResp1{sm, sr, tm: Some(tm), tr: Some(tr)}
     }
@@ -516,7 +517,7 @@ pub fn prove3(params: &DVParams,
         None
     } else {
 
-        let n2: &BigInt = &vpk.pk.nn;
+        let nn: &BigInt = &vpk.pk.nn;
 
         let ch2 = ch2_opt.expect("designated#prove3: ch2 must be Some");
         let d: &BigInt = &ch2.0;
@@ -528,13 +529,13 @@ pub fn prove3(params: &DVParams,
         let tr2 = cr.tr2.as_ref().expect("designated#prove3: tr2 must be Some");
         let tr3 = cr.tr3.as_ref().expect("designated#prove3: tr3 must be Some");
 
-        let um1 = BigInt::mod_add(&BigInt::mod_mul(&wit.m, d, n2), tm1, n2);
-        let um2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rm_m, d, n2), tm2, n2);
-        let um3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rm_r, d, n2), tm3, n2);
+        let um1 = BigInt::mod_add(&BigInt::mod_mul(&wit.m, d, nn), tm1, nn);
+        let um2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rm_m, d, nn), tm2, nn);
+        let um3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rm_r, d, nn), tm3, nn);
 
-        let ur1 = BigInt::mod_add(&BigInt::mod_mul(&wit.r, d, n2), tr1, n2);
-        let ur2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rr_m, d, n2), tr2, n2);
-        let ur3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rr_r, d, n2), tr3, n2);
+        let ur1 = BigInt::mod_add(&BigInt::mod_mul(&wit.r, d, nn), tr1, nn);
+        let ur2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rr_m, d, nn), tr2, nn);
+        let ur3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rr_r, d, nn), tr3, nn);
 
         Some(DVResp2{um1, um2, um3, ur1, ur2, ur3})
     }
@@ -579,17 +580,17 @@ pub fn verify3(params: &DVParams,
         let t_4 = SystemTime::now();
         let tmp1 =
             BigInt::mod_mul(
-                &u::bigint_mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.n2),
+                &u::bigint_mod_pow(&inst.ct.ct1, &ch1_raw, &lang.pk.nn),
                 &com.a.ct1,
-                &lang.pk.n2);
+                &lang.pk.nn);
         if tmp1 != x1 { return false; }
         let t_5 = SystemTime::now();
 
         let tmp2 =
             BigInt::mod_mul(
-                &u::bigint_mod_pow(&inst.ct.ct2, &ch1_raw, &lang.pk.n2),
+                &u::bigint_mod_pow(&inst.ct.ct2, &ch1_raw, &lang.pk.nn),
                 &com.a.ct2,
-                &lang.pk.n2);
+                &lang.pk.nn);
         if tmp2 != x2 { return false; }
         let t_6 = SystemTime::now();
 

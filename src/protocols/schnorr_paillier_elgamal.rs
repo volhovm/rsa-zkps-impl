@@ -87,9 +87,9 @@ impl Lang for PELang {
     }
 
     fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom {
-        let n2 = &self.pk.n2;
-        let ct1 = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct.ct1, ch, n2), &com.ct.ct1, n2);
-        let ct2 = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct.ct2, ch, n2), &com.ct.ct2, n2);
+        let nn = &self.pk.nn;
+        let ct1 = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct.ct1, ch, nn), &com.ct.ct1, nn);
+        let ct2 = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct.ct2, ch, nn), &com.ct.ct2, nn);
         PELangCoDom { ct: pe::PECiphertext{ ct1, ct2 } }
     }
 
