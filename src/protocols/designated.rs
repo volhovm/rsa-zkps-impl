@@ -15,12 +15,11 @@ use rand::distributions::{Distribution, Uniform};
 
 use super::paillier::paillier_enc_opt;
 use super::utils as u;
+use super::utils::PROFILE_DV;
 use super::schnorr_paillier_batched as spb;
 use super::n_gcd as n_gcd;
 use super::paillier_elgamal as pe;
 
-
-const PROFILE_DV: bool = true;
 
 ////////////////////////////////////////////////////////////////////////////
 // Params

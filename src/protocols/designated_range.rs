@@ -139,6 +139,9 @@ impl DVRParams {
 
     /// Parameters for the schnorr-paillier+ sub-protocol
     pub fn spp_params(&self) -> sch::ProofParams {
+        // We can assume lambda-bit challenge space (and thus 1 repetition only)
+        // because these non-GGM proofs are w.r.t. N_V controlled by the extractor,
+        // which is trusted for soundness. And ZK is preserved anyway.
         sch::ProofParams::new(self.lambda, self.lambda)
     }
 

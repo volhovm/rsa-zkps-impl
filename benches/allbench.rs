@@ -433,7 +433,7 @@ fn bench_schnorr_paillier_all(c: &mut Criterion) {
 fn bench_designated_all(c: &mut Criterion) {
     let n_bitlen = 2048;
     let lambda = 128;
-    let queries = 32;
+    let queries = 128;
 
     bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
     bench_designated_vpk(c,&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
@@ -447,7 +447,7 @@ fn bench_designated_all(c: &mut Criterion) {
 fn bench_designated_range_all(c: &mut Criterion) {
     let n_bitlen = 2048;
     let lambda = 128;
-    let queries = 32;
+    let queries = 128;
     let range = BigInt::pow(&BigInt::from(2), 256);
 
     bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
@@ -460,9 +460,9 @@ fn bench_designated_range_all(c: &mut Criterion) {
 }
 
 
-//criterion_group!(benches, bench_designated_all, bench_designated_range_all);
+criterion_group!(benches, bench_designated_all, bench_designated_range_all);
 //criterion_group!(benches, bench_designated_all);
 //criterion_group!(benches, bench_designated_range_all);
-criterion_group!(benches, bench_schnorr_paillier_all);
+//criterion_group!(benches, bench_schnorr_paillier_all);
 //criterion_group!(benches, bench_paillier, bench_paillier_elgamal);
 criterion_main!(benches);

@@ -4,6 +4,9 @@ use curv::BigInt;
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, NumberTests};
 
 
+pub const PROFILE_DV: bool = true;
+pub const PROFILE_SPB: bool = true;
+
 /// Checks whether n is divisible by any prime p <= upto.
 pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
     use primes::{Sieve, PrimeSet};
@@ -38,7 +41,7 @@ pub fn bigint_mod_pow_explicit(a: &BigInt, a_inv: &BigInt, exponent: &BigInt, mo
 }
 
 // TODO This should not be used thoughtlessly: consider precomputing the inverse exponent
-// if possible
+// if possible. However this is cheap, so maybe using this thoughtlessly is not too bad.
 /// Same as bigint_mod_pow, but computing the inverse on the fly.
 pub fn bigint_mod_pow(a: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
     bigint_mod_pow_explicit(a, &BigInt::mod_inv(a, modulus).unwrap(), exponent, modulus)

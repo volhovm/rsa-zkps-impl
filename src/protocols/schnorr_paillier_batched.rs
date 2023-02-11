@@ -8,9 +8,9 @@ use serde::{Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fmt;
 
+use super::utils::PROFILE_SPB;
 use super::paillier::paillier_enc_opt;
 
-const PROFILE_SPB: bool = true;
 
 // Common parameters for the proof system.
 #[derive(Clone, PartialEq, Debug)]
