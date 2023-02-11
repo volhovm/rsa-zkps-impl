@@ -10,6 +10,7 @@ use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
+use super::utils as u;
 use crate::protocols::schnorr_generic::*;
 
 
@@ -21,6 +22,9 @@ pub struct ExpNLang {
     pub n: BigInt,
     /// Randomly sampled from Z_N
     pub h: BigInt,
+
+    pub p: Option<BigInt>,
+    pub q: Option<BigInt>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize)]
@@ -43,9 +47,11 @@ impl Lang for ExpNLang {
 
     fn sample_lang(n_bitlen: &Self::LangParams) -> Self {
         use paillier::*;
-        let n = Paillier::keypair_with_modulus_size(*n_bitlen as usize).keys().0.n;
+        let (pk,sk) = Paillier::keypair_with_modulus_size(*n_bitlen as usize).keys();
+        let n = pk.n;
         let h = BigInt::sample_below(&n);
-        ExpNLang { n_bitlen: *n_bitlen, n, h }
+        ExpNLang { n_bitlen: *n_bitlen, n, h, p: Some(sk.p.clone()), q: Some(sk.q.clone())
+        }
     }
 
     fn to_public(&self) -> Self { self.clone() }
@@ -63,7 +69,18 @@ impl Lang for ExpNLang {
     }
 
     fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
-        ExpNLangCoDom { g: BigInt::mod_pow(&self.h, &wit.x, &self.n) }
+        let g = match self.p.as_ref() {
+            None => BigInt::mod_pow(&self.h, &wit.x, &self.n),
+            Some(p) => {
+                let q = self.q.as_ref().expect("schnorr_exp: p is Some, q is not!");
+                let p_inv_q = BigInt::mod_inv(p, q).unwrap();
+                let g_p = BigInt::mod_pow(&self.h, &wit.x, p);
+                let g_q = BigInt::mod_pow(&self.h, &wit.x, q);
+                u::crt_recombine(&g_p, &g_q, p, q, &p_inv_q)
+            },
+        };
+
+        ExpNLangCoDom { g }
     }
 
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom {
@@ -101,7 +118,9 @@ mod tests {
 
     #[test]
     fn test_correctness_fs() {
-        let params = ProofParams::new(128, 16);
-        generic_test_correctness_fs::<ExpNLang>(&params,&1024);
+        for _i in [0..10] {
+            let params = ProofParams::new(128, 16);
+            generic_test_correctness_fs::<ExpNLang>(&params,&1024);
+        }
     }
 }

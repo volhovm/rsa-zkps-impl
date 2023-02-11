@@ -125,60 +125,7 @@ fn check_correct_ciphertext_proof() {
 }
 
 
-fn profile_dv() {
-    let n_bitlen = 2048;
-    let lambda = 128;
-    let queries: usize = 128;
-    let malicious_setup = true;
-    let ggm_mode = true;
-    let params = dv::DVParams::new(n_bitlen, lambda, queries as u32, malicious_setup, ggm_mode);
 
-    println!("n_bitlen: {}, vpk_n_bitlen: {}", n_bitlen, params.vpk_n_bitlen());
-    println!("max_ch_bitlen {}, max_ch_proven_bitlen {}",
-             params.max_ch_bitlen(),
-             params.max_ch_proven_bitlen());
-
-    let (vpk,vsk) = dv::keygen(&params);
-
-    assert!(dv::verify_vpk(&params,&vpk));
-
-    for query_ix in 0..1 {
-    let (lang,inst,wit) = dv::sample_liw(&params);
-
-    let t_1 = SystemTime::now();
-    let (com,cr) = dv::prove1(&params,&vpk,&lang);
-    let t_2 = SystemTime::now();
-    let ch1 = dv::verify1(&params);
-    let t_3 = SystemTime::now();
-    let resp1 = dv::prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
-    let t_4 = SystemTime::now();
-    let ch2 = dv::verify2(&params);
-    let t_5 = SystemTime::now();
-    let resp2 = dv::prove3(&params,&vpk,&cr,&wit,ch2.as_ref());
-    let t_6 = SystemTime::now();
-
-    dv::verify3(&params,&vsk,&vpk,&lang,&inst,
-            &com,&ch1,ch2.as_ref(),&resp1,resp2.as_ref(),query_ix);
-    let t_7 = SystemTime::now();
-
-    let t_delta1 = t_2.duration_since(t_1).unwrap();
-    let t_delta2 = t_3.duration_since(t_2).unwrap();
-    let t_delta3 = t_4.duration_since(t_3).unwrap();
-    let t_delta4 = t_5.duration_since(t_4).unwrap();
-    let t_delta5 = t_6.duration_since(t_5).unwrap();
-    let t_delta6 = t_7.duration_since(t_6).unwrap();
-    let t_total = t_7.duration_since(t_1).unwrap();
-    println!("DV (total {:?}):
-  prove1   {:?}
-  verify1  {:?}
-  prove2   {:?}
-  verify2  {:?}
-  prove3   {:?}
-  verify3  {:?}",
-             t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6);
-
-    }
-}
 
 fn profile_schnorr_generic<L: sch::Lang>(params: &sch::ProofParams, lparams: &L::LangParams) {
     let (lang,inst,wit) = L::sample_liw(lparams);
@@ -263,10 +210,122 @@ verify2  {:?}",
 
 }
 
+fn profile_dv() {
+    let n_bitlen = 2048;
+    let lambda = 128;
+    let queries: usize = 128;
+    let malicious_setup = true;
+    let ggm_mode = true;
+    let params = dv::DVParams::new(n_bitlen, lambda, queries as u32, malicious_setup, ggm_mode);
+
+    println!("n_bitlen: {}, vpk_n_bitlen: {}", n_bitlen, params.vpk_n_bitlen());
+    println!("max_ch_bitlen {}, max_ch_proven_bitlen {}",
+             params.max_ch_bitlen(),
+             params.max_ch_proven_bitlen());
+
+    let (vpk,vsk) = dv::keygen(&params);
+
+    assert!(dv::verify_vpk(&params,&vpk));
+
+    for query_ix in 0..1 {
+    let (lang,inst,wit) = dv::sample_liw(&params);
+
+    let t_1 = SystemTime::now();
+    let (com,cr) = dv::prove1(&params,&vpk,&lang);
+    let t_2 = SystemTime::now();
+    let ch1 = dv::verify1(&params);
+    let t_3 = SystemTime::now();
+    let resp1 = dv::prove2(&params,&vpk,&cr,&wit,&ch1,query_ix);
+    let t_4 = SystemTime::now();
+    let ch2 = dv::verify2(&params);
+    let t_5 = SystemTime::now();
+    let resp2 = dv::prove3(&params,&vpk,&cr,&wit,ch2.as_ref());
+    let t_6 = SystemTime::now();
+
+    dv::verify3(&params,&vsk,&vpk,&lang,&inst,
+            &com,&ch1,ch2.as_ref(),&resp1,resp2.as_ref(),query_ix);
+    let t_7 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_5).unwrap();
+    let t_delta6 = t_7.duration_since(t_6).unwrap();
+    let t_total = t_7.duration_since(t_1).unwrap();
+    println!("DV (total {:?}):
+  prove1   {:?}
+  verify1  {:?}
+  prove2   {:?}
+  verify2  {:?}
+  prove3   {:?}
+  verify3  {:?}",
+             t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6);
+
+    }
+}
+
+fn profile_dv_range() {
+    let n_bitlen = 2048;
+    let lambda = 128;
+    let queries: usize = 128;
+    let range = BigInt::pow(&BigInt::from(2), 256);
+    let malicious_setup = true;
+    let ggm_mode = true;
+    let params = dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, malicious_setup, ggm_mode);
+
+    println!("n_bitlen: {}, vpk_n_bitlen: {}", n_bitlen, params.vpk_n_bitlen());
+    println!("max_ch_bitlen {}, max_ch_proven_bitlen {}",
+             params.max_ch_bitlen(),
+             params.max_ch_proven_bitlen());
+
+    let (vpk,vsk) = dvr::keygen(&params);
+
+    assert!(dvr::verify_vpk(&params,&vpk));
+
+    for query_ix in 0..1 {
+    let (lang,inst,wit) = dvr::sample_liw(&params);
+
+    let t_1 = SystemTime::now();
+    let (com,cr) = dvr::prove1(&params,&vpk,&lang,&wit);
+    let t_2 = SystemTime::now();
+    let ch1 = dvr::verify1(&params);
+    let t_3 = SystemTime::now();
+    let (resp1,resp1rand) = dvr::prove2(&params,&vpk,&wit,&ch1,&cr,query_ix);
+    let t_4 = SystemTime::now();
+    let ch2 = dvr::verify2(&params);
+    let t_5 = SystemTime::now();
+    let resp2 = dvr::prove3(&params,&vpk,&wit,&ch1,&cr,&resp1rand,ch2.as_ref(),query_ix);
+    let t_6 = SystemTime::now();
+
+    dvr::verify3(&params,&vsk,&vpk,&lang,&inst,
+            &com,&ch1,&resp1,ch2.as_ref(),resp2.as_ref(),query_ix);
+    let t_7 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_5).unwrap();
+    let t_delta6 = t_7.duration_since(t_6).unwrap();
+    let t_total = t_7.duration_since(t_1).unwrap();
+    println!("DV Range (total {:?}):
+  prove1   {:?}
+  verify1  {:?}
+  prove2   {:?}
+  verify2  {:?}
+  prove3   {:?}
+  verify3  {:?}",
+             t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6);
+
+    }
+}
+
 fn main() {
     //rsazkps::protocols::designated_range::test_keygen_correctness();
     //estimate_proof_sizes();
-    //profile_dv();
     //profile_schnorr();
-    profile_schnorr_batched();
+    //profile_schnorr_batched();
+    //profile_dv();
+    profile_dv_range();
 }

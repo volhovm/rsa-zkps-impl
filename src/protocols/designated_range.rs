@@ -11,6 +11,7 @@ use rand::distributions::{Distribution, Uniform};
 
 use super::paillier::paillier_enc_opt;
 use super::utils as u;
+use super::utils::PROFILE_DVR;
 use super::schnorr_generic as sch;
 use super::schnorr_paillier_batched as spb;
 use super::schnorr_paillier_plus as spp;
@@ -54,6 +55,7 @@ impl DVRParams {
 
     /// Parameters for the Gen g/h NIZK proof.
     pub fn nizk_se_params(&self) -> sch::ProofParams {
+        // This gives 6 reps.
         let ch_space_bitlen = 16;
         sch::ProofParams::new(self.lambda, ch_space_bitlen)
     }
@@ -227,17 +229,32 @@ pub struct VPK {
     pub h: BigInt,
 
     /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
-    pub nizk_gcd: n_gcd::Proof,
+    pub nizk_gcd: Option<n_gcd::Proof>,
     /// Proofs of correctness+range of cts.
-    pub nizks_ct: Vec<spb::FSProof>,
+    pub nizks_ct: Option<Vec<spb::FSProof>>,
     /// Schnorr proof of g/h
-    pub nizk_gen: sch::FSProof<se::ExpNLang>,
+    pub nizk_gen: Option<sch::FSProof<se::ExpNLang>>,
 }
 
 
 pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
+    let t_1 = SystemTime::now();
     let (pk,sk) =
         Paillier::keypair_with_modulus_size(params.vpk_n_bitlen() as usize).keys();
+
+
+    let (pk_,sk_) =
+        Paillier::keypair_with_modulus_size(params.n_bitlen() as usize).keys();
+    let n = pk_.n.clone();
+    let p = sk_.p.clone();
+    let q = sk_.q.clone();
+    
+    let h = BigInt::sample_below(&n);
+    let phi = (&p-1) * (&q-1);
+    let f = BigInt::sample_below(&phi);
+    let g = u::bigint_mod_pow(&h, &f, &n);
+
+    let t_2 = SystemTime::now();
 
     let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen());
     let ch_range_2 = BigInt::pow(&BigInt::from(2), params.ch_big_bitlen());
@@ -256,63 +273,89 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
         chs.iter().zip(rs.iter())
         .map(|(ch,r)| paillier_enc_opt(&pk, Some(&sk), &ch, &r))
         .collect();
+    let t_3 = SystemTime::now();
 
-    let lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
-
-    let nizk_gcd: n_gcd::Proof =
-        n_gcd::prove(
-            &params.nizk_gcd_params(),
-            &n_gcd::Inst{ n: pk.n.clone() },
-            &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
+    let mut t_4 = SystemTime::now();
+    let mut t_5 = SystemTime::now();
+    let (nizk_gcd,nizks_ct,nizk_gen) = if !params.malicious_setup {
+        (None,None,None)
+    } else {
+        let nizk_gcd: n_gcd::Proof =
+            n_gcd::prove(
+                &params.nizk_gcd_params(),
+                &n_gcd::Inst{ n: pk.n.clone() },
+                &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
             );
+        t_4 = SystemTime::now();
 
-    let mut nizks_ct: Vec<spb::FSProof> = vec![];
-    let nizk_batches =
+        let spb_lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
+        let mut nizks_ct: Vec<spb::FSProof> = vec![];
+        let nizk_batches =
             if params.crs_uses == 0 { 1 }
-            else { 2 + (params.crs_uses - 1) / params.lambda };
+        else { 2 + (params.crs_uses - 1) / params.lambda };
 
-    for i in 0..nizk_batches {
-        let batch_from = (i*params.lambda) as usize;
-        let batch_to = std::cmp::min((i+1)*params.lambda,
-                                     params.lambda + params.crs_uses) as usize;
-        let mut cts_inst = (&cts[batch_from..batch_to]).to_vec();
-        let mut ms_wit = (&chs[batch_from..batch_to]).to_vec();
-        let mut rs_wit = (&rs[batch_from..batch_to]).to_vec();
+        for i in 0..nizk_batches {
+            let batch_from = (i*params.lambda) as usize;
+            let batch_to = std::cmp::min((i+1)*params.lambda,
+                                         params.lambda + params.crs_uses) as usize;
+            let mut cts_inst = (&cts[batch_from..batch_to]).to_vec();
+            let mut ms_wit = (&chs[batch_from..batch_to]).to_vec();
+            let mut rs_wit = (&rs[batch_from..batch_to]).to_vec();
 
-        let pad_last_batch = params.crs_uses > 0 && i == nizk_batches - 1;
-        if pad_last_batch {
-            for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
-                ms_wit.push(BigInt::from(0));
-                rs_wit.push(BigInt::from(1));
-                cts_inst.push(
-                    paillier_enc_opt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(1)));
+            let pad_last_batch = params.crs_uses > 0 && i == nizk_batches - 1;
+            if pad_last_batch {
+                for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
+                    ms_wit.push(BigInt::from(0));
+                    rs_wit.push(BigInt::from(1));
+                    cts_inst.push(
+                        paillier_enc_opt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(1)));
+                }
             }
+
+            let params = if i == 0 { params.nizk_ct_params_1() }
+            else { params.nizk_ct_params_2() };
+            let inst = spb::Inst{cts: cts_inst};
+            let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
+
+            nizks_ct.push(spb::fs_prove(&params, &spb_lang, &inst, &wit));
         }
 
-        let params = if i == 0 { params.nizk_ct_params_1() }
-                     else { params.nizk_ct_params_2() };
-        let inst = spb::Inst{cts: cts_inst};
-        let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
+        t_5 = SystemTime::now();
+        
 
-        nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
+        let nizk_gen = sch::fs_prove(
+            &params.nizk_se_params(),
+            &se::ExpNLang{n_bitlen: params.psi_n_bitlen,
+                          n: n.clone(),
+                          h: h.clone(),
+                          p: Some(p.clone()),
+                          q: Some(q.clone())},
+            &se::ExpNLangCoDom{g: g.clone()},
+            &se::ExpNLangDom{x: f.clone()});
+
+        (Some(nizk_gcd),Some(nizks_ct),Some(nizk_gen))
+    };
+
+    let t_6 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_4).unwrap();
+    let t_total = t_6.duration_since(t_1).unwrap();
+
+    if PROFILE_DVR {
+        println!("DVR Keygen prove time (total {:?}):
+  keygen    {:?}
+  cts       {:?}
+  nizk_gcd  {:?}
+  nizk_ct   {:?}
+  nizk_exp  {:?}",
+                 t_total, t_delta1, t_delta2, t_delta3, t_delta4, t_delta5);
     }
 
 
-    let (pk_,sk_) =
-        Paillier::keypair_with_modulus_size(params.n_bitlen() as usize).keys();
-    let n = pk_.n.clone();
-    let p = sk_.p.clone();
-    let q = sk_.q.clone();
-
-    let h = BigInt::sample_below(&n);
-    let phi = (&p-1) * (&q-1);
-    let f = BigInt::sample_below(&phi);
-    let g = u::bigint_mod_pow(&h, &f, &n);
-    let nizk_gen = sch::fs_prove(
-        &params.nizk_se_params(),
-        &se::ExpNLang{n_bitlen: params.psi_n_bitlen, n: n.clone(), h: h.clone()},
-        &se::ExpNLangCoDom{g: g.clone()},
-        &se::ExpNLangDom{x: f.clone()});
 
     let vsk = VSK{f, p, q, sk, chs};
     let vpk = VPK{n, g, h, nizk_gen, pk, cts, nizk_gcd, nizks_ct};
@@ -321,20 +364,30 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
 
 
 pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
+    if !params.malicious_setup {
+        return true;
+    }
+    let t_1 = SystemTime::now();
+
+    println!("verify_vpk 1");
+
     let res1 = n_gcd::verify(
         &params.nizk_gcd_params(),
         &n_gcd::Inst{ n: vpk.pk.n.clone() },
-        &vpk.nizk_gcd);
+        vpk.nizk_gcd.as_ref().expect("dvr::verify_vpk: nizk_gcd must be Some"));
     if !res1 { return false; }
+    let t_2 = SystemTime::now();
+    println!("verify_vpk 2");
 
-    for i in 0..(vpk.nizks_ct.len() as u32) {
+    let nizks_ct = vpk.nizks_ct.as_ref().expect("dvr::verify_vpk: nizks_ct must be Some");
+    for i in 0..(nizks_ct.len() as u32) {
         let batch_from = (i*params.lambda) as usize;
         let batch_to = std::cmp::min((i+1)*params.lambda,
                                      params.lambda + params.crs_uses) as usize;
 
         let mut cts_w = (&vpk.cts[batch_from..batch_to]).to_vec();
 
-        let pad_last_batch = params.crs_uses > 0 && i == (vpk.nizks_ct.len() as u32) - 1;
+        let pad_last_batch = params.crs_uses > 0 && i == (nizks_ct.len() as u32) - 1;
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 cts_w.push(
@@ -348,19 +401,45 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
         let inst = spb::Lang{ pk: vpk.pk.clone(), sk: None };
         let wit = spb::Inst{ cts: cts_w };
 
-        let res2 = spb::fs_verify(&params, &inst, &wit, &vpk.nizks_ct[i as usize]);
+        let res2 = spb::fs_verify(&params, &inst, &wit, &nizks_ct[i as usize]);
         if !res2 { return false; }
     }
+    let t_3 = SystemTime::now();
+    println!("verify_vpk 3");
 
     let se_params = &params.nizk_se_params();
-    let se_lang = se::ExpNLang{n_bitlen: params.psi_n_bitlen, n: vpk.n.clone(), h: vpk.h.clone()};
+    let se_lang = se::ExpNLang{n_bitlen: params.psi_n_bitlen,
+                               n: vpk.n.clone(), h: vpk.h.clone(),
+                               p: None, q: None };
     // FIXME I'm not sure it's needed, and I'm not sure I
     // haven't missed lang. verification anywhere else
     if !sch::Lang::verify(&se_lang,&se_params) { return false; }
+    println!("verify_vpk 4");
     if !sch::fs_verify(&se_params,
                        &se_lang,
                        &se::ExpNLangCoDom{g: vpk.g.clone()},
-                       &vpk.nizk_gen) { return false; }
+                       vpk.nizk_gen.as_ref().expect("dvr::verify_vpk: nizk_gen must be Some")) {
+        return false;
+    }
+    println!("verify_vpk 5");
+
+    let t_4 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_total = t_3.duration_since(t_1).unwrap();
+
+    if PROFILE_DVR {
+        println!("DVR Keygen verify time (total {:?}):
+  nizk_gcd  {:?}
+  nizk_ct   {:?}
+  nizk_exp  {:?}",
+                 t_total,t_delta1, t_delta2, t_delta3);
+    }
+
+
+
 
     true
 }

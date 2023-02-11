@@ -4,8 +4,10 @@ use curv::BigInt;
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, NumberTests};
 
 
-pub const PROFILE_DV: bool = true;
-pub const PROFILE_SPB: bool = true;
+pub const PROFILE_DV: bool = false;
+pub const PROFILE_SPB: bool = false;
+pub const PROFILE_DVR: bool = true;
+
 
 /// Checks whether n is divisible by any prime p <= upto.
 pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
