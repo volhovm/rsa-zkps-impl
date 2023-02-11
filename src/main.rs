@@ -275,7 +275,7 @@ fn profile_dv_range() {
     let lambda = 128;
     let queries: usize = 128;
     let range = BigInt::pow(&BigInt::from(2), 256);
-    let malicious_setup = true;
+    let malicious_setup = false;
     let ggm_mode = true;
     let params = dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, malicious_setup, ggm_mode);
 

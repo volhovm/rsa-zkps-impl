@@ -93,13 +93,8 @@ impl DVRParams {
 
 
     /// Bit length of the modulus N_V used by the verifier.
-    // M should be bigger than r + cw, but r should hide cw perfectly;
-    // so cw is always negligibly smaller than r. We could just take M
-    // to be n and achieve statistical completeness in this respect,
-    // but adding one extra bit will give us perfect completeness,
-    // because now r + cw < 2 r.
     pub fn vpk_n_bitlen(&self) -> u32 {
-        // It basically needs to hide tau
+        // It basically needs to hide tau (sapled in the first round)
         self.max_ch_proven_bitlen() + 2*self.lambda + self.n_bitlen() +
             (BigInt::bit_length(&(BigInt::from(7) * &self.range)) as u32)
         //u::log2ceil(self.lambda) + 5 * self.lambda + self.crs_uses - 1 +
@@ -596,6 +591,8 @@ fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
 
 pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (DVRCom,DVRComRand) {
 
+    let t_1 = SystemTime::now();
+
     // maximum challenge possible, c
     let max_ch = BigInt::pow(&BigInt::from(2),params.max_ch_proven_bitlen());
     // 2^{λ-1}N
@@ -611,6 +608,8 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     // must blind c*(3*xi*ti-4Rt) <= c * 7 R t
     let tau_range = &max_ch * &BigInt::from(7) * &t_range * &params.range;
 
+
+    let t_2 = SystemTime::now();
     ////// For the message, wit.m first
 
     // Compute com
@@ -628,9 +627,14 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     //println!("sigma_m: {:?}", &sigma_m);
     let beta_m = pedersen_commit(&vpk, &r_m, &sigma_m);
 
+
+    let t_3 = SystemTime::now();
+
     // Decompose 4 m (R - wit.m) + 1
     let decomp_target = &BigInt::from(4) * &wit.m * (&params.range - &wit.m) + &BigInt::from(1);
     let (x1_m,x2_m,x3_m) = super::squares_decomp::three_squares_decompose(&decomp_target);
+
+    let t_4 = SystemTime::now();
 
     // Compute commitments to xi
     let t1_m = u::bigint_sample_below_sym(&t_range);
@@ -639,6 +643,8 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     let com2_m = pedersen_commit(&vpk, &x2_m, &t2_m);
     let t3_m = u::bigint_sample_below_sym(&t_range);
     let com3_m = pedersen_commit(&vpk, &x3_m, &t3_m);
+
+    let t_5 = SystemTime::now();
 
     // Compute beta_i
     let r1_m = u::bigint_sample_below_sym(&ri_range);
@@ -650,6 +656,8 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     let r3_m = u::bigint_sample_below_sym(&ri_range);
     let sigma3_m = u::bigint_sample_below_sym(&sigmai_range);
     let beta3_m = pedersen_commit(&vpk, &r3_m, &sigma3_m);
+
+    let t_6 = SystemTime::now();
 
     // Compute tau/beta_4
     let tau_m = u::bigint_sample_below_sym(&tau_range);
@@ -664,6 +672,8 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
         beta4_m_args.iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n));
 
 
+    let t_7 = SystemTime::now();
+
     ////// For the randomness, wit.r
 
     // Compute com
@@ -672,9 +682,11 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
 
     let r_r = u::bigint_sample_below_sym(&r_range);
 
+
     //// alpha1 and alpha_2
     let pe::PECiphertext{ct1:alpha1,ct2:alpha2} =
             pe::encrypt_with_randomness_opt(&lang.pk, lang.sk.as_ref(), &r_m, &r_r);
+
 
     // Commitment and commitment randomness
     let com = DVRCom {
@@ -687,6 +699,28 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
         sigma_m, sigma1_m, sigma2_m, sigma3_m, tau_m,
         r_r, t_r,
     };
+    let t_8 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_5).unwrap();
+    let t_delta6 = t_7.duration_since(t_6).unwrap();
+    let t_delta7 = t_8.duration_since(t_7).unwrap();
+    let t_total = t_8.duration_since(t_1).unwrap();
+    if PROFILE_DVR {
+        println!("DVR prove1 (total {:?}):
+  sample ranges    {:?}
+  com & beta       {:?}
+  square-decomp    {:?}
+  xi coms          {:?}
+  beta_i           {:?}
+  tau/beta_4       {:?}
+  for wit.r        {:?}",
+                 t_total,t_delta1, t_delta2, t_delta3, t_delta4, t_delta5, t_delta6, t_delta7);
+    }
+
 
     (com, comrand)
 }
