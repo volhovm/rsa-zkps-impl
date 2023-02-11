@@ -11,6 +11,7 @@ use rsazkps::protocols::schnorr_generic as sch;
 use rsazkps::protocols::schnorr_paillier as sp;
 use rsazkps::protocols::schnorr_paillier_elgamal as spe;
 use rsazkps::protocols::schnorr_paillier_batched as spb;
+use rsazkps::protocols::schnorr_exp as se;
 
 use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
@@ -166,6 +167,10 @@ fn profile_schnorr() {
         &sp::PLangParams{ n_bitlen, range: None });
 
     profile_schnorr_generic::<spe::PELang>(
+        &sch::ProofParams::new(lambda, ch_space_bitlen),
+        &n_bitlen);
+
+    profile_schnorr_generic::<se::ExpNLang>(
         &sch::ProofParams::new(lambda, ch_space_bitlen),
         &n_bitlen);
 }

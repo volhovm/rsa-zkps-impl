@@ -228,12 +228,12 @@ pub struct VPK {
     /// Second generator w.r.t. N, h = g^f mod N, where f is secret.
     pub h: BigInt,
 
+    /// Schnorr proof of g/h
+    pub nizk_gen: sch::FSProof<se::ExpNLang>,
     /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
     pub nizk_gcd: Option<n_gcd::Proof>,
     /// Proofs of correctness+range of cts.
     pub nizks_ct: Option<Vec<spb::FSProof>>,
-    /// Schnorr proof of g/h
-    pub nizk_gen: Option<sch::FSProof<se::ExpNLang>>,
 }
 
 
@@ -252,7 +252,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let h = BigInt::sample_below(&n);
     let phi = (&p-1) * (&q-1);
     let f = BigInt::sample_below(&phi);
-    let g = u::bigint_mod_pow(&h, &f, &n);
+    let g = BigInt::mod_pow(&h, &f, &n);
 
     let t_2 = SystemTime::now();
 
@@ -275,10 +275,20 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
         .collect();
     let t_3 = SystemTime::now();
 
-    let mut t_4 = SystemTime::now();
+    let nizk_gen = sch::fs_prove(
+        &params.nizk_se_params(),
+        &se::ExpNLang{n_bitlen: params.n_bitlen(),
+                      n: n.clone(),
+                      h: h.clone(),
+                      p: Some(p.clone()),
+                      q: Some(q.clone())},
+        &se::ExpNLangCoDom{g: g.clone()},
+        &se::ExpNLangDom{x: f.clone()});
+
+    let t_4 = SystemTime::now();
     let mut t_5 = SystemTime::now();
-    let (nizk_gcd,nizks_ct,nizk_gen) = if !params.malicious_setup {
-        (None,None,None)
+    let (nizk_gcd,nizks_ct) = if !params.malicious_setup {
+        (None,None)
     } else {
         let nizk_gcd: n_gcd::Proof =
             n_gcd::prove(
@@ -286,7 +296,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
                 &n_gcd::Inst{ n: pk.n.clone() },
                 &n_gcd::Wit{ p: sk.p.clone(), q: sk.q.clone() }
             );
-        t_4 = SystemTime::now();
+        t_5 = SystemTime::now();
 
         let spb_lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
         let mut nizks_ct: Vec<spb::FSProof> = vec![];
@@ -320,20 +330,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
             nizks_ct.push(spb::fs_prove(&params, &spb_lang, &inst, &wit));
         }
 
-        t_5 = SystemTime::now();
-        
-
-        let nizk_gen = sch::fs_prove(
-            &params.nizk_se_params(),
-            &se::ExpNLang{n_bitlen: params.psi_n_bitlen,
-                          n: n.clone(),
-                          h: h.clone(),
-                          p: Some(p.clone()),
-                          q: Some(q.clone())},
-            &se::ExpNLangCoDom{g: g.clone()},
-            &se::ExpNLangDom{x: f.clone()});
-
-        (Some(nizk_gcd),Some(nizks_ct),Some(nizk_gen))
+        (Some(nizk_gcd),Some(nizks_ct))
     };
 
     let t_6 = SystemTime::now();
@@ -342,16 +339,16 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let t_delta2 = t_3.duration_since(t_2).unwrap();
     let t_delta3 = t_4.duration_since(t_3).unwrap();
     let t_delta4 = t_5.duration_since(t_4).unwrap();
-    let t_delta5 = t_6.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_5).unwrap();
     let t_total = t_6.duration_since(t_1).unwrap();
 
     if PROFILE_DVR {
         println!("DVR Keygen prove time (total {:?}):
   keygen    {:?}
   cts       {:?}
+  nizk_exp  {:?}
   nizk_gcd  {:?}
-  nizk_ct   {:?}
-  nizk_exp  {:?}",
+  nizk_ct   {:?}",
                  t_total, t_delta1, t_delta2, t_delta3, t_delta4, t_delta5);
     }
 
@@ -364,20 +361,36 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
 
 
 pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
+    let t_1 = SystemTime::now();
+
+    let se_params = &params.nizk_se_params();
+    let se_lang = se::ExpNLang{n_bitlen: params.n_bitlen(),
+                               n: vpk.n.clone(), h: vpk.h.clone(),
+                               p: None, q: None };
+    // FIXME I'm not sure it's needed, and I'm not sure I
+    // haven't missed lang. verification anywhere else
+    if !sch::Lang::verify(&se_lang,&se_params) { return false; }
+    if !sch::fs_verify(&se_params,
+                       &se_lang,
+                       &se::ExpNLangCoDom{g: vpk.g.clone()},
+                       &vpk.nizk_gen) {
+        return false;
+    }
+
     if !params.malicious_setup {
         return true;
     }
-    let t_1 = SystemTime::now();
 
-    println!("verify_vpk 1");
+
+    let t_2 = SystemTime::now();
 
     let res1 = n_gcd::verify(
         &params.nizk_gcd_params(),
         &n_gcd::Inst{ n: vpk.pk.n.clone() },
         vpk.nizk_gcd.as_ref().expect("dvr::verify_vpk: nizk_gcd must be Some"));
     if !res1 { return false; }
-    let t_2 = SystemTime::now();
-    println!("verify_vpk 2");
+
+    let t_3 = SystemTime::now();
 
     let nizks_ct = vpk.nizks_ct.as_ref().expect("dvr::verify_vpk: nizks_ct must be Some");
     for i in 0..(nizks_ct.len() as u32) {
@@ -404,24 +417,7 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
         let res2 = spb::fs_verify(&params, &inst, &wit, &nizks_ct[i as usize]);
         if !res2 { return false; }
     }
-    let t_3 = SystemTime::now();
-    println!("verify_vpk 3");
 
-    let se_params = &params.nizk_se_params();
-    let se_lang = se::ExpNLang{n_bitlen: params.psi_n_bitlen,
-                               n: vpk.n.clone(), h: vpk.h.clone(),
-                               p: None, q: None };
-    // FIXME I'm not sure it's needed, and I'm not sure I
-    // haven't missed lang. verification anywhere else
-    if !sch::Lang::verify(&se_lang,&se_params) { return false; }
-    println!("verify_vpk 4");
-    if !sch::fs_verify(&se_params,
-                       &se_lang,
-                       &se::ExpNLangCoDom{g: vpk.g.clone()},
-                       vpk.nizk_gen.as_ref().expect("dvr::verify_vpk: nizk_gen must be Some")) {
-        return false;
-    }
-    println!("verify_vpk 5");
 
     let t_4 = SystemTime::now();
 
@@ -432,13 +428,11 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
 
     if PROFILE_DVR {
         println!("DVR Keygen verify time (total {:?}):
+  nizk_exp  {:?}
   nizk_gcd  {:?}
-  nizk_ct   {:?}
-  nizk_exp  {:?}",
+  nizk_ct   {:?}",
                  t_total,t_delta1, t_delta2, t_delta3);
     }
-
-
 
 
     true
@@ -1410,7 +1404,10 @@ mod tests {
     #[test]
     fn test_keygen_correctness() {
         let range = BigInt::pow(&BigInt::from(2), 256);
-        let params = DVRParams::new(1024, 32, range, 5, true, false);
+        let n_bitlen = 1024;
+        let lambda = 64;
+        let crs_uses = lambda;
+        let params = DVRParams::new(n_bitlen, crs_uses, range, crs_uses, true, false);
 
         let (vpk,_vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));

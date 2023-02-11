@@ -54,8 +54,13 @@ impl Lang for ExpNLang {
         }
     }
 
-    fn to_public(&self) -> Self { self.clone() }
-
+    fn to_public(&self) -> Self {
+        let mut other = self.clone();
+        other.p = None;
+        other.q = None;
+        return other
+    }
+    
     fn verify(&self, params: &ProofParams) -> bool {
         if params.ch_space_bitlen > 32 {
             panic!("schnorr_exp: verify0: ch_space is too big: {:?} bits",
@@ -110,11 +115,15 @@ mod tests {
     use crate::protocols::schnorr_exp::*;
     use crate::protocols::schnorr_generic::*;
 
+    use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Roots, Converter};
+    use curv::BigInt;
+
     #[test]
     fn test_correctness() {
         let params = ProofParams::new(128, 16);
         generic_test_correctness::<ExpNLang>(&params,&1024);
     }
+
 
     #[test]
     fn test_correctness_fs() {
