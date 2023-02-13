@@ -780,6 +780,7 @@ pub fn prove2(params: &DVRParams,
               ch1: &DVRChallenge1,
               cr: &DVRComRand,
               query_ix: usize) -> (DVRResp1,DVRResp1Rand) {
+    let t_1 = SystemTime::now();
 
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
@@ -798,6 +799,7 @@ pub fn prove2(params: &DVRParams,
     let p2_generic = |rand: &BigInt,enc_arg: &BigInt,ct_exp: &BigInt|
             super::schnorr_paillier_plus::compute_si(&vpk.pk,None,&ch_ct,enc_arg,rand,ct_exp);
 
+    let t_2 = SystemTime::now();
     ////// For wit.m
 
     // u, v
@@ -837,6 +839,7 @@ pub fn prove2(params: &DVRParams,
     let u_r_r = BigInt::sample(params.vpk_n_bitlen as usize);
     let u_r = p2_generic(&u_r_r, &cr.r_r, &-&wit.r);
 
+    let t_3 = SystemTime::now();
 
     let (plus_com,plus_comrand) = if params.ggm_mode { (None,None) } else {
         //// Running the sub-proof
@@ -895,6 +898,26 @@ pub fn prove2(params: &DVRParams,
             u_r_r,
             plus_comrand,
                 };
+
+
+
+    let t_4 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_total = t_4.duration_since(t_1).unwrap();
+
+
+    if PROFILE_DVR {
+        println!("DVR prove2 (total {:?}):
+  challenge      {:?}
+  hom responses  {:?}
+  non-ggm/prove  {:?}",
+                 t_total, t_delta1, t_delta2, t_delta3);
+    }
+
+
 
     (resp1,resp1_rand)
 }
@@ -1356,7 +1379,7 @@ pub fn verify3(params: &DVRParams,
   decryptions   {:?}
   com checks    {:?}
   alpha checks  {:?}
-  non-ggm  {:?}",
+  non-ggm       {:?}",
                  t_total, t_delta1, t_delta2, t_delta3, t_delta4, t_delta5);
     }
 
