@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use curv::arithmetic::traits::{Samplable, BasicOps, BitManipulation};
+use curv::arithmetic::traits::{Samplable, BitManipulation};
 use curv::BigInt;
 use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use std::time::Duration;
@@ -413,15 +413,15 @@ fn bench_schnorr_paillier_all(c: &mut Criterion) {
     let lambda = 128;
     let n_bitlen = 2048;
 
-    //// q = 128, 8, 7, 6, 5
-    //for i in [1, 16, 19, 22, 26] {
-    //    let params = sch::ProofParams::new(lambda,i);
-    //    let lparams = sp::PLangParams{ n_bitlen, range: None };
-    //    bench_schnorr_fs::<sp::PLang>(c, &params, &lparams);
+    // q = 128, 8, 7, 6, 5
+    for i in [1, 16, 19, 22, 26] {
+        let params = sch::ProofParams::new(lambda,i);
+        let lparams = sp::PLangParams{ n_bitlen, range: None };
+        bench_schnorr_fs::<sp::PLang>(c, &params, &lparams);
 
-    //    bench_schnorr_fs::<spe::PELang>(c, &params, &n_bitlen);
-    //    //bench_schnorr::<spe::PELang>(c, &params, &n_bitlen);
-    //}
+        bench_schnorr_fs::<spe::PELang>(c, &params, &n_bitlen);
+        //bench_schnorr::<spe::PELang>(c, &params, &n_bitlen);
+    }
 
     let range_bitlen = 256;
     let reps_number = 128;

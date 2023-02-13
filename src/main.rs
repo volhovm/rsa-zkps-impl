@@ -2,7 +2,6 @@
 
 use serde::{Serialize};
 use curv::BigInt;
-use curv::arithmetic::traits::BasicOps;
 use paillier::*;
 use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 use std::time::{SystemTime};
@@ -16,7 +15,6 @@ use rsazkps::protocols::schnorr_exp as se;
 use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
 
-use rsazkps::protocols::utils as utils;
 
 fn estimate_size<T: Serialize>(x: &T) -> usize {
     let x: Vec<u8> = rmp_serde::to_vec(x).unwrap();
@@ -185,7 +183,7 @@ fn profile_schnorr_batched() {
 
     // This difference is
     //let range_bits = lambda;
-    let range_bits = 2 * lambda + utils::log2ceil(lambda);
+    //let range_bits = 2 * lambda + utils::log2ceil(lambda);
 
     let t_1 = SystemTime::now();
     let (com,cr) = spb::prove1(&params,&lang);

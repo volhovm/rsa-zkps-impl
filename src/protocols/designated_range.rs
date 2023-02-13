@@ -57,8 +57,8 @@ impl DVRParams {
 
     /// Parameters for the Gen g/h NIZK proof.
     pub fn nizk_se_params(&self) -> sch::ProofParams {
-        // This gives 6 reps.
-        let ch_space_bitlen = 16;
+        // This gives 7 reps, which is optimal for a 1-shot proof.
+        let ch_space_bitlen = 19;
         sch::ProofParams::new(self.lambda, ch_space_bitlen)
     }
 
@@ -90,12 +90,16 @@ impl DVRParams {
 
     /// Bit length of the third N, wrt which VPK.n is constructed.
     pub fn n_bitlen(&self) -> u32 {
-        self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda + 2
+        // FIXME Double check the value
+        // This length should only depend on lambda, not psi;
+        // but I'm assuming psi_n_bitlen is already in sync with lambda.
+        self.psi_n_bitlen
+        //self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda + 2
     }
 
-    // FIXME the order of h is less than N, why this? For uniformness?
     // 2^λ N
     pub fn t_range_bitlen(&self) -> u32 {
+        // TODO Can't this be just n_bitlen? we need lambda for uniformness?
         self.n_bitlen() + self.lambda
     }
     // same as for t
@@ -118,13 +122,11 @@ impl DVRParams {
     pub fn sigmai_range_bitlen(&self) -> u32 {
         self.sigma_range_bitlen()
     }
-    // must blind c*(3*xi*ti-4Rt) <= c * (- 4 R t + 3 sqrt(R) t)
-    // |- 4 R t + 3 sqrt(R) t | <= 4 R t_max
+    // must blind c*(3*xi*ti-4Rt) <= c * (3 R t - 4 R t) <= c * 7 R t
     pub fn tau_range_bitlen(&self) -> u32 {
         self.max_ch_proven_bitlen() +
-            (self.t_range_bitlen() + self.range_bitlen + 2) +
-            self.lambda +
-            1
+            (self.t_range_bitlen() + self.range_bitlen + 4) +
+            self.lambda
     }
     // FIXME I need confirmation on how this value is computed.
     // for now I will just assume it is equal to the r_i blinder.
@@ -135,8 +137,8 @@ impl DVRParams {
     /// Bit length of the modulus N_V used by the verifier.
     pub fn vpk_n_bitlen(&self) -> u32 {
         // It basically needs to hide tau, which is the biggest encrypted message.
-        // FIXME why +3? Does not work with +2 but works with +3?
-        self.tau_range_bitlen() + 3
+        // FIXME why +3? Does not work with +2 but works with +3? Or sometimes with +2?
+        self.tau_range_bitlen() + 2
     }
 
     /// Params for the first batch, for challenges of lambda bits.
@@ -160,7 +162,7 @@ impl DVRParams {
     pub fn nizk_gcd_params(&self) -> n_gcd::ProofParams {
         n_gcd::ProofParams{ n_bitlen: self.psi_n_bitlen as usize,
                             lambda: self.lambda,
-                            pmax: 10000 }
+                            pmax: 2_u64.pow(19) }
     }
 
     /// Range slack of the batched range proof.
@@ -798,13 +800,12 @@ pub fn prove2(params: &DVRParams,
 
     // u4
     let u4_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let u4_m_exp = &cr.x1_m * &cr.t1_m +
+                   &cr.x2_m * &cr.t2_m +
+                   &cr.x3_m * &cr.t3_m -
+                   &BigInt::from(4) * (&params.range - &wit.m) * &cr.t_m;
     let u4_m =
-        p2_generic(&u4_r_m, &cr.tau_m,
-                   &(&cr.x1_m * &cr.t1_m +
-                     &cr.x2_m * &cr.t2_m +
-                     &cr.x3_m * &cr.t3_m -
-                     &BigInt::from(4) * (&params.range - &wit.m) * &cr.t_m));
-
+        p2_generic(&u4_r_m, &cr.tau_m, &u4_m_exp);
 
     ////// For wit.r
 
