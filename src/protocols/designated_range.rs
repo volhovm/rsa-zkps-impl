@@ -250,6 +250,8 @@ pub struct VSK {
     pub q: BigInt,
     /// The secret exponent
     pub f: BigInt,
+    /// p^{-1} mod q, for convenience
+    pub p_inv_q: BigInt
 }
 
 
@@ -290,6 +292,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let n = pk_.n.clone();
     let p = sk_.p.clone();
     let q = sk_.q.clone();
+    let p_inv_q = BigInt::mod_inv(&p, &q).unwrap();
 
     let h = BigInt::sample_below(&n);
     let phi = (&p-1) * (&q-1);
@@ -395,7 +398,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
 
 
 
-    let vsk = VSK{f, p, q, sk, chs};
+    let vsk = VSK{f, p, q, sk, chs, p_inv_q};
     let vpk = VPK{n, g, h, nizk_gen, pk, cts, nizk_gcd, nizks_ct};
     (vpk,vsk)
 }
@@ -627,11 +630,22 @@ pub struct DVRResp2 {
 
 
 
-fn pedersen_commit(vpk: &VPK, msg: &BigInt, r: &BigInt) -> BigInt {
-    BigInt::mod_mul(
-        &u::bigint_mod_pow(&vpk.g, msg, &vpk.n),
-        &u::bigint_mod_pow(&vpk.h, r, &vpk.n),
-        &vpk.n)
+fn pedersen_commit(vpk: &VPK, vsk: Option<&VSK>, msg: &BigInt, r: &BigInt) -> BigInt {
+    match vsk.as_ref() {
+        None => BigInt::mod_mul(&u::bigint_mod_pow(&vpk.g, msg, &vpk.n),
+                                &u::bigint_mod_pow(&vpk.h, r, &vpk.n),
+                                &vpk.n),
+        Some(vsk) => {
+            let res_p = BigInt::mod_mul(&u::bigint_mod_pow(&vpk.g, msg, &vsk.p),
+                                        &u::bigint_mod_pow(&vpk.h, r, &vsk.p),
+                                        &vsk.p);
+            let res_q = BigInt::mod_mul(&u::bigint_mod_pow(&vpk.g, msg, &vsk.q),
+                                        &u::bigint_mod_pow(&vpk.h, r, &vsk.q),
+                                        &vsk.q);
+            u::crt_recombine(&res_p,&res_q,&vsk.p,&vsk.q,&vsk.p_inv_q)
+        }
+    }
+
 }
 
 
@@ -644,7 +658,7 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
 
     // Compute com
     let t_m = u::bigint_sample_sym(params.t_range_bitlen);
-    let com_m = pedersen_commit(&vpk, &wit.m, &t_m);
+    let com_m = pedersen_commit(&vpk, None, &wit.m, &t_m);
 
     //println!("t_m: {:?}", &t_m);
     //println!("wit_m: {:?}", &wit.m);
@@ -655,7 +669,7 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
 
     //println!("r_m: {:?}", &r_m);
     //println!("sigma_m: {:?}", &sigma_m);
-    let beta_m = pedersen_commit(&vpk, &r_m, &sigma_m);
+    let beta_m = pedersen_commit(&vpk, None, &r_m, &sigma_m);
 
 
     let t_3 = SystemTime::now();
@@ -668,24 +682,24 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
 
     // Compute commitments to xi
     let t1_m = u::bigint_sample_sym(params.t_range_bitlen);
-    let com1_m = pedersen_commit(&vpk, &x1_m, &t1_m);
+    let com1_m = pedersen_commit(&vpk, None, &x1_m, &t1_m);
     let t2_m = u::bigint_sample_sym(params.t_range_bitlen);
-    let com2_m = pedersen_commit(&vpk, &x2_m, &t2_m);
+    let com2_m = pedersen_commit(&vpk, None, &x2_m, &t2_m);
     let t3_m = u::bigint_sample_sym(params.t_range_bitlen);
-    let com3_m = pedersen_commit(&vpk, &x3_m, &t3_m);
+    let com3_m = pedersen_commit(&vpk, None, &x3_m, &t3_m);
 
     let t_5 = SystemTime::now();
 
     // Compute beta_i
     let r1_m = u::bigint_sample_sym(params.r_range_bitlen);
     let sigma1_m = u::bigint_sample_sym(params.sigma_range_bitlen);
-    let beta1_m = pedersen_commit(&vpk, &r1_m, &sigma1_m);
+    let beta1_m = pedersen_commit(&vpk, None, &r1_m, &sigma1_m);
     let r2_m = u::bigint_sample_sym(params.r_range_bitlen);
     let sigma2_m = u::bigint_sample_sym(params.sigma_range_bitlen);
-    let beta2_m = pedersen_commit(&vpk, &r2_m, &sigma2_m);
+    let beta2_m = pedersen_commit(&vpk, None, &r2_m, &sigma2_m);
     let r3_m = u::bigint_sample_sym(params.r_range_bitlen);
     let sigma3_m = u::bigint_sample_sym(params.sigma_range_bitlen);
-    let beta3_m = pedersen_commit(&vpk, &r3_m, &sigma3_m);
+    let beta3_m = pedersen_commit(&vpk, None, &r3_m, &sigma3_m);
 
     let t_6 = SystemTime::now();
 
@@ -708,7 +722,7 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
 
     // Compute com
     let t_r = u::bigint_sample_sym(params.t_range_bitlen);
-    let com_r = pedersen_commit(&vpk, &wit.r, &t_r);
+    let com_r = pedersen_commit(&vpk, None, &wit.r, &t_r);
 
     let r_r = u::bigint_sample_sym(params.r_range_bitlen);
 
@@ -1072,27 +1086,22 @@ pub fn verify3(params: &DVRParams,
         if &res >= &(&vpk.pk.n / BigInt::from(2)) { &res - &vpk.pk.n } else { res }
     };
 
-    let t_2 = SystemTime::now();
 
+    let t_2 = SystemTime::now();
     let u_m_plain = paillier_decrypt(&resp1.u_m);
+    let v_m_plain  = paillier_decrypt(&resp1.v_m);
+    let u1_m_plain = paillier_decrypt(&resp1.u1_m);
+    let v1_m_plain = paillier_decrypt(&resp1.v1_m);
+    let u2_m_plain = paillier_decrypt(&resp1.u2_m);
+    let v2_m_plain = paillier_decrypt(&resp1.v2_m);
+    let u3_m_plain = paillier_decrypt(&resp1.u3_m);
+    let v3_m_plain = paillier_decrypt(&resp1.v3_m);
+    let u4_m_plain = paillier_decrypt(&resp1.u4_m);
+    let u_r_plain = paillier_decrypt(&resp1.u_r);
+    let t_3 = SystemTime::now();
 
     // Perform the _m checks
     {
-        let v_m_plain  = paillier_decrypt(&resp1.v_m);
-        let u1_m_plain = paillier_decrypt(&resp1.u1_m);
-        let v1_m_plain = paillier_decrypt(&resp1.v1_m);
-        let u2_m_plain = paillier_decrypt(&resp1.u2_m);
-        let v2_m_plain = paillier_decrypt(&resp1.v2_m);
-        let u3_m_plain = paillier_decrypt(&resp1.u3_m);
-        let v3_m_plain = paillier_decrypt(&resp1.v3_m);
-        let u4_m_plain = paillier_decrypt(&resp1.u4_m);
-
-
-        //println!("ch_raw   : {:?}", &ch_raw);
-        //println!("range    : {:?}", &ui_range);
-        //println!("u_m      : {:?}", &u_m_plain);
-        //println!("v_m      : {:?}", &v_m_plain);
-
         let ui_range = BigInt::pow(&BigInt::from(2),params.ui_range_bitlen);
         if !u::bigint_in_range_sym(&ui_range,&u1_m_plain) ||
             !u::bigint_in_range_sym(&ui_range,&u2_m_plain) ||
@@ -1106,62 +1115,97 @@ pub fn verify3(params: &DVRParams,
                 return false;
             }
 
-        let eq1_lhs =
+        let com_m_inv = BigInt::mod_inv(&com.com_m,&vpk.n).unwrap();
+        let eq1_lhs_p =
             BigInt::mod_mul(
                 &com.beta_m,
                 &u::bigint_mod_pow(
-                    &(&BigInt::mod_inv(&com.com_m,&vpk.n).unwrap() *
-                      &u::bigint_mod_pow(&vpk.g,&params.range,&vpk.n)),
+                    &(&com_m_inv *
+                      &u::bigint_mod_pow(&vpk.g,&params.range,&vsk.p)),
                     &ch_raw,
-                    &vpk.n),
-                &vpk.n);
-        let eq1_rhs = pedersen_commit(&vpk, &u_m_plain, &v_m_plain);
+                    &vsk.p),
+                &vsk.p);
+        let eq1_lhs_q =
+            BigInt::mod_mul(
+                &com.beta_m,
+                &u::bigint_mod_pow(
+                    &(&com_m_inv *
+                      &u::bigint_mod_pow(&vpk.g,&params.range,&vsk.q)),
+                    &ch_raw,
+                    &vsk.q),
+                &vsk.q);
+        let eq1_lhs = u::crt_recombine(&eq1_lhs_p,&eq1_lhs_q,&vsk.p,&vsk.q,&vsk.p_inv_q);
+        let eq1_rhs = pedersen_commit(&vpk, Some(&vsk), &u_m_plain, &v_m_plain);
         if eq1_lhs != eq1_rhs {
             println!("DVRange#verify3: 1 eq1");
             return false;
         }
 
-        //println!("beta1_m   : {:?}", &com.beta1_m);
-        //println!("u1_m      : {:?}", &u1_m_plain);
-        //println!("v1_m      : {:?}", &v1_m_plain);
 
-        let eq21_lhs = BigInt::mod_mul(&com.beta1_m,
-                                       &u::bigint_mod_pow(&com.com1_m,&ch_raw,&vpk.n),
-                                       &vpk.n);
-        let eq21_rhs = pedersen_commit(&vpk, &u1_m_plain, &v1_m_plain);
+        let eq21_lhs_p =
+            BigInt::mod_mul(&com.beta1_m,
+                            &u::bigint_mod_pow(&com.com1_m,&ch_raw,&vsk.p),
+                            &vsk.p);
+        let eq21_lhs_q =
+            BigInt::mod_mul(&com.beta1_m,
+                            &u::bigint_mod_pow(&com.com1_m,&ch_raw,&vsk.q),
+                            &vsk.q);
+        let eq21_lhs = u::crt_recombine(&eq21_lhs_p,&eq21_lhs_q,&vsk.p,&vsk.q,&vsk.p_inv_q);
+        let eq21_rhs = pedersen_commit(&vpk, Some(&vsk), &u1_m_plain, &v1_m_plain);
         if eq21_lhs != eq21_rhs {
             println!("DVRange#verify3: 1 eq21");
             return false;
         }
 
-        let eq22_lhs = BigInt::mod_mul(&com.beta2_m,
-                                       &u::bigint_mod_pow(&com.com2_m,&ch_raw,&vpk.n),
-                                       &vpk.n);
-        let eq22_rhs = pedersen_commit(&vpk, &u2_m_plain, &v2_m_plain);
+        let eq22_lhs_p =
+            BigInt::mod_mul(&com.beta2_m,
+                            &u::bigint_mod_pow(&com.com2_m,&ch_raw,&vsk.p),
+                            &vsk.p);
+        let eq22_lhs_q =
+            BigInt::mod_mul(&com.beta2_m,
+                            &u::bigint_mod_pow(&com.com2_m,&ch_raw,&vsk.q),
+                            &vsk.q);
+        let eq22_lhs = u::crt_recombine(&eq22_lhs_p,&eq22_lhs_q,&vsk.p,&vsk.q,&vsk.p_inv_q);
+        let eq22_rhs = pedersen_commit(&vpk, Some(&vsk), &u2_m_plain, &v2_m_plain);
         if eq22_lhs != eq22_rhs {
             println!("DVRange#verify3: 1 eq22");
             return false;
         }
 
-        let eq23_lhs = BigInt::mod_mul(&com.beta3_m,
-                                       &u::bigint_mod_pow(&com.com3_m,&ch_raw,&vpk.n),
-                                       &vpk.n);
-        let eq23_rhs = pedersen_commit(&vpk, &u3_m_plain, &v3_m_plain);
+        let eq23_lhs_p =
+            BigInt::mod_mul(&com.beta3_m,
+                            &u::bigint_mod_pow(&com.com3_m,&ch_raw,&vsk.p),
+                            &vsk.p);
+        let eq23_lhs_q =
+            BigInt::mod_mul(&com.beta3_m,
+                            &u::bigint_mod_pow(&com.com3_m,&ch_raw,&vsk.q),
+                            &vsk.q);
+        let eq23_lhs = u::crt_recombine(&eq23_lhs_p,&eq23_lhs_q,&vsk.p,&vsk.q,&vsk.p_inv_q);
+        let eq23_rhs = pedersen_commit(&vpk, Some(&vsk), &u3_m_plain, &v3_m_plain);
         if eq23_lhs != eq23_rhs {
             println!("DVRange#verify3: 1 eq23");
             return false;
         }
 
-        let eq3_lhs =
+        let eq3_lhs_p =
             BigInt::mod_mul(
                 &com.beta4_m,
-                &([&u::bigint_mod_pow(&com.com1_m,&u1_m_plain,&vpk.n),
-                   &u::bigint_mod_pow(&com.com2_m,&u2_m_plain,&vpk.n),
-                   &u::bigint_mod_pow(&com.com3_m,&u3_m_plain,&vpk.n),
-                ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vpk.n))),
-                &vpk.n);
+                &([&u::bigint_mod_pow(&com.com1_m,&u1_m_plain,&vsk.p),
+                   &u::bigint_mod_pow(&com.com2_m,&u2_m_plain,&vsk.p),
+                   &u::bigint_mod_pow(&com.com3_m,&u3_m_plain,&vsk.p),
+                ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vsk.p))),
+                &vsk.p);
+        let eq3_lhs_q =
+            BigInt::mod_mul(
+                &com.beta4_m,
+                &([&u::bigint_mod_pow(&com.com1_m,&u1_m_plain,&vsk.q),
+                   &u::bigint_mod_pow(&com.com2_m,&u2_m_plain,&vsk.q),
+                   &u::bigint_mod_pow(&com.com3_m,&u3_m_plain,&vsk.q),
+                ].iter().fold(BigInt::from(1), |x,y| BigInt::mod_mul(&x, y, &vsk.q))),
+                &vsk.q);
+        let eq3_lhs = u::crt_recombine(&eq3_lhs_p,&eq3_lhs_q,&vsk.p,&vsk.q,&vsk.p_inv_q);
         let eq3_rhs = BigInt::mod_mul(
-            &pedersen_commit(&vpk, &ch_raw, &u4_m_plain),
+            &pedersen_commit(&vpk, Some(&vsk), &ch_raw, &u4_m_plain),
             &u::bigint_mod_pow(&com.com_m,&(BigInt::from(4) * &u_m_plain),&vpk.n),
             &vpk.n
         );
@@ -1171,9 +1215,8 @@ pub fn verify3(params: &DVRParams,
         }
 
     }
-    let t_3 = SystemTime::now();
+    let t_4 = SystemTime::now();
 
-    let u_r_plain = paillier_decrypt(&resp1.u_r);
 
     // perform the alpha check
     {
@@ -1215,7 +1258,7 @@ pub fn verify3(params: &DVRParams,
             println!("DVRange#verify3: alpha 2");
             return false; }
     }
-    let t_4 = SystemTime::now();
+    let t_5 = SystemTime::now();
 
 
     // Check the sub-protocol replies, for the schnorr-paillier plus
@@ -1297,22 +1340,24 @@ pub fn verify3(params: &DVRParams,
     }
 
 
-    let t_5 = SystemTime::now();
+    let t_6 = SystemTime::now();
 
     let t_delta1 = t_2.duration_since(t_1).unwrap();
     let t_delta2 = t_3.duration_since(t_2).unwrap();
     let t_delta3 = t_4.duration_since(t_3).unwrap();
     let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_delta5 = t_6.duration_since(t_5).unwrap();
     let t_total = t_5.duration_since(t_1).unwrap();
 
 
     if PROFILE_DVR {
         println!("DVR verify3 (total {:?}):
   challenge     {:?}
+  decryptions   {:?}
   com checks    {:?}
   alpha checks  {:?}
   non-ggm  {:?}",
-                 t_total, t_delta1, t_delta2, t_delta3, t_delta4);
+                 t_total, t_delta1, t_delta2, t_delta3, t_delta4, t_delta5);
     }
 
 
