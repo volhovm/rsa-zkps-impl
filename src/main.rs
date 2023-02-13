@@ -276,11 +276,11 @@ fn profile_dv_range() {
     let ggm_mode = true;
     let params = dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, malicious_setup, ggm_mode);
 
-    println!("n_bitlen: {}, vpk_n_bitlen: {}", n_bitlen, params.vpk_n_bitlen());
+    println!("n_bitlen: {}, vpk_n_bitlen: {}", n_bitlen, params.vpk_n_bitlen);
     println!("max_ch_bitlen {}, max_ch_proven_bitlen {}",
-             params.max_ch_bitlen(),
-             params.max_ch_proven_bitlen());
-    println!("tau range: {}", params.tau_range_bitlen());
+             params.max_ch_bitlen,
+             params.max_ch_proven_bitlen);
+    println!("tau range: {}", params.tau_range_bitlen);
 
     let (vpk,vsk) = dvr::keygen(&params);
 

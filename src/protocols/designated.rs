@@ -49,10 +49,6 @@ impl DVParams {
         DVParams{psi_n_bitlen, lambda, crs_uses, malicious_setup, ggm_mode}
     }
 
-    /// Range slack of the batched range proof.
-    pub fn range_slack_bitlen(&self) -> u32 {
-        2 * self.lambda + u::log2ceil(self.lambda) - 1
-    }
 
     /// The size of honestly generated challenges (first λ).
     fn ch_small_bitlen(&self) -> u32 { self.lambda }
@@ -63,23 +59,23 @@ impl DVParams {
     /// Maximum size of the summed-up challenge, real.
     pub fn max_ch_bitlen(&self) -> u32 {
         if self.crs_uses == 0 {
+            // sum of lambda (small challenges with slack)
             self.lambda + u::log2ceil(self.lambda)
         } else {
-            2 * self.lambda + u::log2ceil(self.lambda)
+            // a single big challenge 
+            self.ch_big_bitlen()
         }
     }
 
     /// Maximum size of the summed-up challenge
     pub fn max_ch_proven_bitlen(&self) -> u32 {
-        let slack = if self.malicious_setup { self.range_slack_bitlen() } else { 0 };
-        if self.crs_uses == 0 {
-            // sum of lambda (small challenges with slack)
-            (self.ch_small_bitlen() + slack)
-                + u::log2ceil(self.lambda)
-        } else {
-            // a single big challenge with slack
-            self.ch_big_bitlen() + slack + 1
-        }
+        // Range slack of the batched range proof.
+        let range_slack_bitlen =
+            2 * self.lambda + u::log2ceil(self.lambda) - 1;
+
+        self.max_ch_bitlen() +
+            if self.malicious_setup { range_slack_bitlen } else { 0 } +
+            1
     }
 
     pub fn rand_m_bitlen(&self) -> u32 {
@@ -805,25 +801,6 @@ pub fn fs_verify(params: &DVParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
-pub fn test_keygen_correctness() {
-    for ggm_mode in [true,false] {
-        for malicious_vpk in [false,true] {
-            let params = DVParams::new(2048, 128, 32, malicious_vpk, ggm_mode);
-
-            let t_start = SystemTime::now();
-            let (vpk,_vsk) = keygen(&params);
-            let t_2 = SystemTime::now();
-            if malicious_vpk { verify_vpk(&params,&vpk); };
-            let t_end = SystemTime::now();
-
-            let t_delta1 = t_2.duration_since(t_start).expect("error1");
-            let t_delta2 = t_end.duration_since(t_2).expect("error2");
-            println!("{:?}", params);
-            println!("keygen: {:?}, verify: {:?}", t_delta1, t_delta2);
-        }
-    }
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -831,15 +808,15 @@ mod tests {
     use crate::protocols::designated::*;
 
     #[test]
-    fn test_correctness_keygen() {
-        let params = DVParams::new(1024, 32, 5, false, false);
+    fn keygen_correctness() {
+        let params = DVParams::new(1024, 32, 5, true, false);
 
         let (vpk,_vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
     }
 
     #[test]
-    fn test_correctness() {
+    fn correctness() {
         for ggm_mode in [false,true] {
         for _i in 0..5 {
             let queries:usize = 128;
@@ -866,7 +843,7 @@ mod tests {
 
 
     #[test]
-    fn test_correctness_fs() {
+    fn fs_correctness() {
         for ggm_mode in [false,true] {
         for _i in 0..5 {
             let queries:usize = 128;

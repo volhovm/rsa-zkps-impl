@@ -41,6 +41,32 @@ pub struct DVRParams {
     pub malicious_setup: bool,
     /// Whether the GGM mode is enabled, which omits certain proof parts
     pub ggm_mode: bool,
+
+
+
+    /// The size of honestly generated challenges (first λ).
+    pub ch_small_bitlen: u32,
+    /// The size of honestly generated challenges (λ+1 ... λ+Q) for Q number of queries.
+    pub ch_big_bitlen: u32,
+    /// Maximum size of the summed-up challenge, real.
+    pub max_ch_bitlen: u32,
+    /// Maximum size of the summed-up challenge, after considering VPK proof slack.
+    pub max_ch_proven_bitlen: u32,
+    /// Bit length of the third N, wrt which VPK.n is constructed.
+    pub n_bitlen: u32,
+
+    // A bunch of parameters defining how to sample in prove1
+    pub t_range_bitlen: u32,
+    pub r_range_bitlen: u32,
+    pub sigma_range_bitlen: u32,
+    pub tau_range_bitlen: u32,
+
+    /// A parameter we check u_i range w.r.t.
+    pub ui_range_bitlen: u32,
+
+    /// Bit length of the modulus N_V used by the verifier.
+    pub vpk_n_bitlen: u32,
+
 }
 
 impl DVRParams {
@@ -52,7 +78,71 @@ impl DVRParams {
                malicious_setup: bool,
                ggm_mode: bool) -> DVRParams {
         let range = BigInt::pow(&BigInt::from(2), range_bitlen);
-        DVRParams{psi_n_bitlen, lambda, range_bitlen, range, crs_uses, malicious_setup, ggm_mode}
+
+        let ch_small_bitlen = lambda;
+        // lambda bits more than sum of lambda small challenges
+        let ch_big_bitlen = 
+            ch_small_bitlen + u::log2ceil(lambda) + lambda;
+        let max_ch_bitlen = 
+            if crs_uses == 0 {
+                // because we sum ch_small_bitlen lambda times
+                ch_small_bitlen + u::log2ceil(lambda)
+            } else {
+                // Just ch_big_bitlen, because it masks ch_small_bitlen fully.
+                ch_big_bitlen
+            };
+        // Range slack of the batched range proof.
+        let range_slack_bitlen = 2 * lambda + u::log2ceil(lambda) - 1;
+        let max_ch_proven_bitlen =
+            max_ch_bitlen + 
+            if malicious_setup { range_slack_bitlen } else { 0 } +
+            1;
+        // FIXME Double check the value
+        // This length should only depend on lambda, not psi;
+        // but I'm assuming psi_n_bitlen is already in sync with lambda.
+        let n_bitlen = psi_n_bitlen;
+
+        // TODO Can't this be just n_bitlen? we need lambda for uniformness?
+        // 2^λ N
+        let t_range_bitlen = n_bitlen + lambda;
+        // r must blind c*(R-m)
+        // r_i is the same -- it must blind c*x_i,
+        //   where each x_i is at most R, because they decompose ~R^2
+        let r_range_bitlen = max_ch_proven_bitlen + range_bitlen + lambda;
+        // sigma must blind c*t
+        // sigma_i must blind c*t_i, t_i are same as t
+        let sigma_range_bitlen = max_ch_proven_bitlen + t_range_bitlen + lambda;
+        // must blind c*(3*xi*ti-4Rt) <= c * (3 R t - 4 R t) <= c * 7 R t
+        let tau_range_bitlen =
+            max_ch_proven_bitlen +
+            (t_range_bitlen + range_bitlen + 4) +
+            lambda;
+
+        // FIXME I need confirmation on how this value is computed.
+        // for now I will just assume it is equal to the r_i blinder.
+        let ui_range_bitlen = r_range_bitlen + 1;
+        
+        // It basically needs to hide tau, which is the biggest encrypted message.
+        // FIXME why +3? Does not work with +2 but works with +3? Or sometimes with +2?
+        let vpk_n_bitlen = tau_range_bitlen + 2;
+
+        DVRParams{psi_n_bitlen, lambda, range_bitlen,
+                  range, crs_uses, malicious_setup, ggm_mode,
+
+                  ch_small_bitlen,
+                  ch_big_bitlen,
+                  max_ch_bitlen,
+                  max_ch_proven_bitlen,
+                  n_bitlen,
+
+                  t_range_bitlen,
+                  r_range_bitlen,
+                  sigma_range_bitlen,
+                  tau_range_bitlen,
+
+                  ui_range_bitlen,
+                  vpk_n_bitlen,
+        }
     }
 
     /// Parameters for the Gen g/h NIZK proof.
@@ -62,88 +152,10 @@ impl DVRParams {
         sch::ProofParams::new(self.lambda, ch_space_bitlen)
     }
 
-    /// The size of honestly generated challenges (first λ).
-    fn ch_small_bitlen(&self) -> u32 { self.lambda }
-
-    /// The size of honestly generated challenges (λ+1 ... λ+Q) for Q number of queries.
-    fn ch_big_bitlen(&self) -> u32 {
-        // lambda bits more than sum of lambda small challenges
-        self.lambda + self.ch_small_bitlen() + u::log2ceil(self.lambda)
-    }
-
-    /// Maximum size of the summed-up challenge, real.
-    pub fn max_ch_bitlen(&self) -> u32 {
-        if self.crs_uses == 0 {
-            // because we sum ch_small_bitlen lambda times
-            self.ch_small_bitlen() + u::log2ceil(self.lambda)
-        } else {
-            // Just ch_big_bitlen, because it masks ch_small_bitlen fully.
-            self.ch_big_bitlen()
-        }
-    }
-
-    /// Maximum size of the summed-up challenge, after considering VPK proof slack.
-    pub fn max_ch_proven_bitlen(&self) -> u32 {
-        let slack = if self.malicious_setup { self.range_slack_bitlen() } else { 0 };
-        self.max_ch_bitlen() + slack + 1
-    }
-
-    /// Bit length of the third N, wrt which VPK.n is constructed.
-    pub fn n_bitlen(&self) -> u32 {
-        // FIXME Double check the value
-        // This length should only depend on lambda, not psi;
-        // but I'm assuming psi_n_bitlen is already in sync with lambda.
-        self.psi_n_bitlen
-        //self.psi_n_bitlen + self.max_ch_proven_bitlen() + self.lambda + 2
-    }
-
-    // 2^λ N
-    pub fn t_range_bitlen(&self) -> u32 {
-        // TODO Can't this be just n_bitlen? we need lambda for uniformness?
-        self.n_bitlen() + self.lambda
-    }
-    // same as for t
-    pub fn ti_range_bitlen(&self) -> u32 {
-        self.t_range_bitlen()
-    }
-    // must blind c*(R-m)
-    pub fn r_range_bitlen(&self) -> u32 {
-        self.max_ch_proven_bitlen() + self.range_bitlen + self.lambda
-    }
-    // must blind c*x_i, where each x_i is at most R, because they decompose ~R^2
-    pub fn ri_range_bitlen(&self) -> u32 {
-        self.r_range_bitlen()
-    }
-    // must blind c*t
-    pub fn sigma_range_bitlen(&self) -> u32 {
-        self.max_ch_proven_bitlen() + self.t_range_bitlen() + self.lambda
-    }
-    // must blind c*t_i, t_i are same as t
-    pub fn sigmai_range_bitlen(&self) -> u32 {
-        self.sigma_range_bitlen()
-    }
-    // must blind c*(3*xi*ti-4Rt) <= c * (3 R t - 4 R t) <= c * 7 R t
-    pub fn tau_range_bitlen(&self) -> u32 {
-        self.max_ch_proven_bitlen() +
-            (self.t_range_bitlen() + self.range_bitlen + 4) +
-            self.lambda
-    }
-    // FIXME I need confirmation on how this value is computed.
-    // for now I will just assume it is equal to the r_i blinder.
-    pub fn ui_range_bitlen(&self) -> u32 {
-        self.ri_range_bitlen() + 1
-    }
-
-    /// Bit length of the modulus N_V used by the verifier.
-    pub fn vpk_n_bitlen(&self) -> u32 {
-        // It basically needs to hide tau, which is the biggest encrypted message.
-        // FIXME why +3? Does not work with +2 but works with +3? Or sometimes with +2?
-        self.tau_range_bitlen() + 2
-    }
 
     /// Params for the first batch, for challenges of lambda bits.
     pub fn nizk_ct_params_1(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.vpk_n_bitlen(),
+        spb::ProofParams::new(self.vpk_n_bitlen,
                               self.lambda,
                               self.lambda,
                               self.lambda)
@@ -152,7 +164,7 @@ impl DVRParams {
     /// Params for the second+ batches, for challenges of 2 * lambda +
     /// log lambda bits.
     pub fn nizk_ct_params_2(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.vpk_n_bitlen(),
+        spb::ProofParams::new(self.vpk_n_bitlen,
                               self.lambda,
                               self.lambda,
                               2 * self.lambda + u::log2ceil(self.lambda))
@@ -165,10 +177,6 @@ impl DVRParams {
                             pmax: 2_u64.pow(19) }
     }
 
-    /// Range slack of the batched range proof.
-    pub fn range_slack_bitlen(&self) -> u32 {
-        2 * self.lambda + u::log2ceil(self.lambda) - 1
-    }
 
     /// Parameters for the schnorr-paillier+ sub-protocol
     pub fn spp_params(&self) -> sch::ProofParams {
@@ -270,12 +278,15 @@ pub struct VPK {
 
 pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let t_1 = SystemTime::now();
+    // These two are suspiciously slow, taking 300ms both for 2048 bit+
     let (pk,sk) =
-        Paillier::keypair_with_modulus_size(params.vpk_n_bitlen() as usize).keys();
-
+        Paillier::keypair_with_modulus_size(params.vpk_n_bitlen as usize).keys();
 
     let (pk_,sk_) =
-        Paillier::keypair_with_modulus_size(params.n_bitlen() as usize).keys();
+        Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys();
+    let t_2 = SystemTime::now();
+
+
     let n = pk_.n.clone();
     let p = sk_.p.clone();
     let q = sk_.q.clone();
@@ -285,10 +296,9 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let f = BigInt::sample_below(&phi);
     let g = BigInt::mod_pow(&h, &f, &n);
 
-    let t_2 = SystemTime::now();
 
-    let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen());
-    let ch_range_2 = BigInt::pow(&BigInt::from(2), params.ch_big_bitlen());
+    let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen);
+    let ch_range_2 = BigInt::pow(&BigInt::from(2), params.ch_big_bitlen);
     let mut chs: Vec<BigInt> = vec![];
     for _i in 0..params.lambda {
         chs.push(u::bigint_sample_below_sym(&ch_range_1)); }
@@ -308,7 +318,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
 
     let nizk_gen = sch::fs_prove(
         &params.nizk_se_params(),
-        &se::ExpNLang{n_bitlen: params.n_bitlen(),
+        &se::ExpNLang{n_bitlen: params.n_bitlen,
                       n: n.clone(),
                       h: h.clone(),
                       p: Some(p.clone()),
@@ -395,7 +405,7 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
     let t_1 = SystemTime::now();
 
     let se_params = &params.nizk_se_params();
-    let se_lang = se::ExpNLang{n_bitlen: params.n_bitlen(),
+    let se_lang = se::ExpNLang{n_bitlen: params.n_bitlen,
                                n: vpk.n.clone(), h: vpk.h.clone(),
                                p: None, q: None };
     // FIXME I'm not sure it's needed, and I'm not sure I
@@ -633,15 +643,15 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     ////// For the message, wit.m first
 
     // Compute com
-    let t_m = u::bigint_sample_sym(params.t_range_bitlen());
+    let t_m = u::bigint_sample_sym(params.t_range_bitlen);
     let com_m = pedersen_commit(&vpk, &wit.m, &t_m);
 
     //println!("t_m: {:?}", &t_m);
     //println!("wit_m: {:?}", &wit.m);
 
     // Compute beta
-    let r_m = u::bigint_sample_sym(params.r_range_bitlen());
-    let sigma_m = u::bigint_sample_sym(params.sigma_range_bitlen());
+    let r_m = u::bigint_sample_sym(params.r_range_bitlen);
+    let sigma_m = u::bigint_sample_sym(params.sigma_range_bitlen);
 
     //println!("r_m: {:?}", &r_m);
     //println!("sigma_m: {:?}", &sigma_m);
@@ -657,30 +667,30 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     let t_4 = SystemTime::now();
 
     // Compute commitments to xi
-    let t1_m = u::bigint_sample_sym(params.ti_range_bitlen());
+    let t1_m = u::bigint_sample_sym(params.t_range_bitlen);
     let com1_m = pedersen_commit(&vpk, &x1_m, &t1_m);
-    let t2_m = u::bigint_sample_sym(params.ti_range_bitlen());
+    let t2_m = u::bigint_sample_sym(params.t_range_bitlen);
     let com2_m = pedersen_commit(&vpk, &x2_m, &t2_m);
-    let t3_m = u::bigint_sample_sym(params.ti_range_bitlen());
+    let t3_m = u::bigint_sample_sym(params.t_range_bitlen);
     let com3_m = pedersen_commit(&vpk, &x3_m, &t3_m);
 
     let t_5 = SystemTime::now();
 
     // Compute beta_i
-    let r1_m = u::bigint_sample_sym(params.ri_range_bitlen());
-    let sigma1_m = u::bigint_sample_sym(params.sigmai_range_bitlen());
+    let r1_m = u::bigint_sample_sym(params.r_range_bitlen);
+    let sigma1_m = u::bigint_sample_sym(params.sigma_range_bitlen);
     let beta1_m = pedersen_commit(&vpk, &r1_m, &sigma1_m);
-    let r2_m = u::bigint_sample_sym(params.ri_range_bitlen());
-    let sigma2_m = u::bigint_sample_sym(params.sigmai_range_bitlen());
+    let r2_m = u::bigint_sample_sym(params.r_range_bitlen);
+    let sigma2_m = u::bigint_sample_sym(params.sigma_range_bitlen);
     let beta2_m = pedersen_commit(&vpk, &r2_m, &sigma2_m);
-    let r3_m = u::bigint_sample_sym(params.ri_range_bitlen());
-    let sigma3_m = u::bigint_sample_sym(params.sigmai_range_bitlen());
+    let r3_m = u::bigint_sample_sym(params.r_range_bitlen);
+    let sigma3_m = u::bigint_sample_sym(params.sigma_range_bitlen);
     let beta3_m = pedersen_commit(&vpk, &r3_m, &sigma3_m);
 
     let t_6 = SystemTime::now();
 
     // Compute tau/beta_4
-    let tau_m = u::bigint_sample_sym(params.tau_range_bitlen());
+    let tau_m = u::bigint_sample_sym(params.tau_range_bitlen);
     let beta4_m_args: [&BigInt;5] =
         [&u::bigint_mod_pow(&vpk.h,&tau_m,&vpk.n),
          &u::bigint_mod_pow(&com_m,&(&BigInt::from(4)*&r_m),&vpk.n),
@@ -697,10 +707,10 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
     ////// For the randomness, wit.r
 
     // Compute com
-    let t_r = u::bigint_sample_sym(params.t_range_bitlen());
+    let t_r = u::bigint_sample_sym(params.t_range_bitlen);
     let com_r = pedersen_commit(&vpk, &wit.r, &t_r);
 
-    let r_r = u::bigint_sample_sym(params.r_range_bitlen());
+    let r_r = u::bigint_sample_sym(params.r_range_bitlen);
 
 
     //// alpha1 and alpha_2
@@ -777,29 +787,29 @@ pub fn prove2(params: &DVRParams,
     ////// For wit.m
 
     // u, v
-    let u_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let u_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let u_m = p2_generic(&u_r_m, &cr.r_m, &(&params.range - &wit.m));
-    let v_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let v_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let v_m = p2_generic(&v_r_m, &cr.sigma_m, &-&cr.t_m);
 
     // u_i, v_i, i = 1, 2, 3
-    let u1_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let u1_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let u1_m = p2_generic(&u1_r_m, &cr.r1_m, &cr.x1_m);
-    let v1_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let v1_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let v1_m = p2_generic(&v1_r_m, &cr.sigma1_m, &cr.t1_m);
 
-    let u2_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let u2_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let u2_m = p2_generic(&u2_r_m, &cr.r2_m, &cr.x2_m);
-    let v2_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let v2_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let v2_m = p2_generic(&v2_r_m, &cr.sigma2_m, &cr.t2_m);
 
-    let u3_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let u3_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let u3_m = p2_generic(&u3_r_m, &cr.r3_m, &cr.x3_m);
-    let v3_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let v3_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let v3_m = p2_generic(&v3_r_m, &cr.sigma3_m, &cr.t3_m);
 
     // u4
-    let u4_r_m = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let u4_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
     let u4_m_exp = &cr.x1_m * &cr.t1_m +
                    &cr.x2_m * &cr.t2_m +
                    &cr.x3_m * &cr.t3_m -
@@ -810,14 +820,14 @@ pub fn prove2(params: &DVRParams,
     ////// For wit.r
 
     // u, v
-    let u_r_r = BigInt::sample(params.vpk_n_bitlen() as usize);
+    let u_r_r = BigInt::sample(params.vpk_n_bitlen as usize);
     let u_r = p2_generic(&u_r_r, &cr.r_r, &-&wit.r);
 
 
     let (plus_com,plus_comrand) = if params.ggm_mode { (None,None) } else {
         //// Running the sub-proof
         let spp_params = params.spp_params();
-        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen(),
+        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen,
                                     pk: vpk.pk.clone(),
                                     sk: None,
                                     ch_ct: ch_ct.clone() };
@@ -931,7 +941,7 @@ pub fn prove3(params: &DVRParams,
 
     //// Running the sub-proof
     let spp_params = params.spp_params();
-        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen(),
+        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen,
                                     pk: vpk.pk.clone(), sk: None, ch_ct: ch_ct.clone() };
 
     let spp_reply = |witm: &BigInt, witr: &BigInt, witcexp: &BigInt, ch: &sch::Challenge, comrand: &sch::ComRand<spp::PPLang>| {
@@ -1035,6 +1045,7 @@ pub fn verify3(params: &DVRParams,
                ch2: Option<&DVRChallenge2>,
                resp2: Option<&DVRResp2>,
                query_ix: usize) -> bool {
+    let t_1 = SystemTime::now();
 
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
@@ -1061,6 +1072,8 @@ pub fn verify3(params: &DVRParams,
         if &res >= &(&vpk.pk.n / BigInt::from(2)) { &res - &vpk.pk.n } else { res }
     };
 
+    let t_2 = SystemTime::now();
+
     let u_m_plain = paillier_decrypt(&resp1.u_m);
 
     // Perform the _m checks
@@ -1080,7 +1093,7 @@ pub fn verify3(params: &DVRParams,
         //println!("u_m      : {:?}", &u_m_plain);
         //println!("v_m      : {:?}", &v_m_plain);
 
-        let ui_range = BigInt::pow(&BigInt::from(2),params.ui_range_bitlen());
+        let ui_range = BigInt::pow(&BigInt::from(2),params.ui_range_bitlen);
         if !u::bigint_in_range_sym(&ui_range,&u1_m_plain) ||
             !u::bigint_in_range_sym(&ui_range,&u2_m_plain) ||
             !u::bigint_in_range_sym(&ui_range,&u3_m_plain) {
@@ -1158,6 +1171,7 @@ pub fn verify3(params: &DVRParams,
         }
 
     }
+    let t_3 = SystemTime::now();
 
     let u_r_plain = paillier_decrypt(&resp1.u_r);
 
@@ -1201,12 +1215,13 @@ pub fn verify3(params: &DVRParams,
             println!("DVRange#verify3: alpha 2");
             return false; }
     }
+    let t_4 = SystemTime::now();
 
 
     // Check the sub-protocol replies, for the schnorr-paillier plus
     if !params.ggm_mode {
         let spp_params = params.spp_params();
-        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen(),
+        let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen,
                                     pk: vpk.pk.clone(),
                                     sk: Some(vsk.sk.clone()),
                                     ch_ct: ch_ct.clone() };
@@ -1280,6 +1295,26 @@ pub fn verify3(params: &DVRParams,
         { println!("DVRange#verify3: spp 10");  return false; }
 
     }
+
+
+    let t_5 = SystemTime::now();
+
+    let t_delta1 = t_2.duration_since(t_1).unwrap();
+    let t_delta2 = t_3.duration_since(t_2).unwrap();
+    let t_delta3 = t_4.duration_since(t_3).unwrap();
+    let t_delta4 = t_5.duration_since(t_4).unwrap();
+    let t_total = t_5.duration_since(t_1).unwrap();
+
+
+    if PROFILE_DVR {
+        println!("DVR verify3 (total {:?}):
+  challenge     {:?}
+  com checks    {:?}
+  alpha checks  {:?}
+  non-ggm  {:?}",
+                 t_total, t_delta1, t_delta2, t_delta3, t_delta4);
+    }
+
 
     true
 }
