@@ -66,7 +66,6 @@ fn estimate_proof_sizes() {
     let lambda = 128;
     let queries = 128;
     let range_bitlen = 256;
-    let range = BigInt::pow(&BigInt::from(2), range_bitlen);
 
     println!("Estimating proof sizes; log(N) = {}, lambda = {}, queries = {}, log(Range) = {}",
              n_bitlen, lambda, queries, range_bitlen);
@@ -274,15 +273,16 @@ fn profile_dv_range() {
     let n_bitlen = 2048;
     let lambda = 128;
     let queries: usize = 128;
-    let range = BigInt::pow(&BigInt::from(2), 256);
+    let range_bitlen = 256;
     let malicious_setup = false;
     let ggm_mode = true;
-    let params = dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, malicious_setup, ggm_mode);
+    let params = dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, malicious_setup, ggm_mode);
 
     println!("n_bitlen: {}, vpk_n_bitlen: {}", n_bitlen, params.vpk_n_bitlen());
     println!("max_ch_bitlen {}, max_ch_proven_bitlen {}",
              params.max_ch_bitlen(),
              params.max_ch_proven_bitlen());
+    println!("tau range: {}", params.tau_range_bitlen());
 
     let (vpk,vsk) = dvr::keygen(&params);
 

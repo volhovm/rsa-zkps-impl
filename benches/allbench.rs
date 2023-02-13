@@ -423,9 +423,9 @@ fn bench_schnorr_paillier_all(c: &mut Criterion) {
     //    //bench_schnorr::<spe::PELang>(c, &params, &n_bitlen);
     //}
 
-    let range_bits = 256;
+    let range_bitlen = 256;
     let reps_number = 128;
-    let params = spb::ProofParams::new(n_bitlen,lambda,reps_number,range_bits);
+    let params = spb::ProofParams::new(n_bitlen,lambda,reps_number,range_bitlen);
     bench_schnorr_paillier_batched(c, &params);
 }
 
@@ -448,15 +448,15 @@ fn bench_designated_range_all(c: &mut Criterion) {
     let n_bitlen = 2048;
     let lambda = 128;
     let queries = 128;
-    let range = BigInt::pow(&BigInt::from(2), 256);
+    let range_bitlen = 256;
 
-    bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
-    bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
+    bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, false, false));
+    bench_designated_range_vpk(c,&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, true, false));
 
-    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries, true, false));
-    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries, false, false));
-    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries, true, true));
-    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries, false, true));
+    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries, true, false));
+    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries, false, false));
+    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries, true, true));
+    bench_designated_range_fs(c,&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries, false, true));
 }
 
 
