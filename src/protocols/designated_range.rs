@@ -158,7 +158,7 @@ impl DVRParams {
         spb::ProofParams::new(self.vpk_n_bitlen,
                               self.lambda,
                               self.lambda,
-                              self.lambda)
+                              self.ch_small_bitlen)
     }
 
     /// Params for the second+ batches, for challenges of 2 * lambda +
@@ -167,7 +167,7 @@ impl DVRParams {
         spb::ProofParams::new(self.vpk_n_bitlen,
                               self.lambda,
                               self.lambda,
-                              2 * self.lambda + u::log2ceil(self.lambda))
+                              self.ch_big_bitlen)
     }
 
     /// Parameters for the GCD NIZK proof.
@@ -802,30 +802,35 @@ pub fn prove2(params: &DVRParams,
     let t_2 = SystemTime::now();
     ////// For wit.m
 
+
+    // TODO Important! Not choosing new randomness here speeds up things a lot!
+    let sample_enc_rand = || BigInt::sample(params.vpk_n_bitlen as usize);
+    //let sample_enc_rand = || BigInt::from(1);
+
     // u, v
-    let u_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let u_r_m = sample_enc_rand();
     let u_m = p2_generic(&u_r_m, &cr.r_m, &(&params.range - &wit.m));
-    let v_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let v_r_m = sample_enc_rand();
     let v_m = p2_generic(&v_r_m, &cr.sigma_m, &-&cr.t_m);
 
     // u_i, v_i, i = 1, 2, 3
-    let u1_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let u1_r_m = sample_enc_rand();
     let u1_m = p2_generic(&u1_r_m, &cr.r1_m, &cr.x1_m);
-    let v1_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let v1_r_m = sample_enc_rand();
     let v1_m = p2_generic(&v1_r_m, &cr.sigma1_m, &cr.t1_m);
 
-    let u2_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let u2_r_m = sample_enc_rand();
     let u2_m = p2_generic(&u2_r_m, &cr.r2_m, &cr.x2_m);
-    let v2_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let v2_r_m = sample_enc_rand();
     let v2_m = p2_generic(&v2_r_m, &cr.sigma2_m, &cr.t2_m);
 
-    let u3_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let u3_r_m = sample_enc_rand();
     let u3_m = p2_generic(&u3_r_m, &cr.r3_m, &cr.x3_m);
-    let v3_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let v3_r_m = sample_enc_rand();
     let v3_m = p2_generic(&v3_r_m, &cr.sigma3_m, &cr.t3_m);
 
     // u4
-    let u4_r_m = BigInt::sample(params.vpk_n_bitlen as usize);
+    let u4_r_m = sample_enc_rand();
     let u4_m_exp = &cr.x1_m * &cr.t1_m +
                    &cr.x2_m * &cr.t2_m +
                    &cr.x3_m * &cr.t3_m -
@@ -836,7 +841,7 @@ pub fn prove2(params: &DVRParams,
     ////// For wit.r
 
     // u, v
-    let u_r_r = BigInt::sample(params.vpk_n_bitlen as usize);
+    let u_r_r = sample_enc_rand();
     let u_r = p2_generic(&u_r_r, &cr.r_r, &-&wit.r);
 
     let t_3 = SystemTime::now();
@@ -1284,6 +1289,7 @@ pub fn verify3(params: &DVRParams,
     let t_5 = SystemTime::now();
 
 
+    // TODO CRT optimise here?
     // Check the sub-protocol replies, for the schnorr-paillier plus
     if !params.ggm_mode {
         let spp_params = params.spp_params();
@@ -1370,7 +1376,7 @@ pub fn verify3(params: &DVRParams,
     let t_delta3 = t_4.duration_since(t_3).unwrap();
     let t_delta4 = t_5.duration_since(t_4).unwrap();
     let t_delta5 = t_6.duration_since(t_5).unwrap();
-    let t_total = t_5.duration_since(t_1).unwrap();
+    let t_total = t_6.duration_since(t_1).unwrap();
 
 
     if PROFILE_DVR {

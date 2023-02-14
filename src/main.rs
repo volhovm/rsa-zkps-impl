@@ -273,7 +273,7 @@ fn profile_dv_range() {
     let queries: usize = 128;
     let range_bitlen = 256;
     let malicious_setup = false;
-    let ggm_mode = true;
+    let ggm_mode = false;
     let params = dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, malicious_setup, ggm_mode);
 
     println!("n_bitlen: {}, vpk_n_bitlen: {}", n_bitlen, params.vpk_n_bitlen);

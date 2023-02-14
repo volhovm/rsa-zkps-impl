@@ -131,6 +131,14 @@ pub fn encrypt_with_randomness_opt(
     sk_m: Option<&PESecretKey>,
     m: &BigInt,
     r: &BigInt) -> PECiphertext {
+
+    if r == &BigInt::from(0) {
+        return PECiphertext {
+            ct1: BigInt::from(1),
+            ct2: 1 + (BigInt::modulus(m,&pk.n)) * &pk.n
+        };
+    }
+
     match sk_m {
         Some(sk) => encrypt_with_randomness_sk(pk,sk,m,r),
         None => encrypt_with_randomness(pk,m,r),

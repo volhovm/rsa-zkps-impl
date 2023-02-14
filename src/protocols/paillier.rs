@@ -13,6 +13,9 @@ pub fn paillier_enc_opt(pk: &EncryptionKey,
                         sk_m: Option<&DecryptionKey>,
                         m: &BigInt,
                         r: &BigInt) -> BigInt {
+    if r == &BigInt::from(1) {
+        return 1 + (BigInt::modulus(m,&pk.n)) * &pk.n;
+    }
     match sk_m {
         Some(sk) => {
             Paillier::encrypt_with_chosen_randomness(

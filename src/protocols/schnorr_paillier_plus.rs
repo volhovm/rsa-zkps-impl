@@ -13,6 +13,7 @@ use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
+use super::utils as u;
 use super::paillier::paillier_enc_opt;
 use super::schnorr_generic::*;
 
@@ -48,12 +49,20 @@ pub struct PPLangCoDom {
 pub fn compute_si(pk: &EncryptionKey,
                   sk: Option<&DecryptionKey>,
                   ch_ct: &BigInt, m: &BigInt, r: &BigInt, cexp: &BigInt) -> BigInt {
-    // TODO This can be further optimised when N^2 is known.
-    BigInt::mod_mul(
-        &paillier_enc_opt(pk,sk,m,r),
-        // TODO Can we avoid inverting here?
-        &super::utils::bigint_mod_pow(ch_ct, cexp, &pk.nn),
-        &pk.nn)
+    let ct = paillier_enc_opt(pk,sk,m,r);
+
+    match sk.as_ref() {
+        None => BigInt::mod_mul(&ct, &u::bigint_mod_pow(ch_ct, cexp, &pk.nn),&pk.nn),
+        Some(sk) => {
+            let pp = &sk.p * &sk.p;
+            let qq = &sk.q * &sk.q;
+            let pp_inv_qq = BigInt::mod_inv(&pp, &qq).unwrap();
+
+            let res_pp = BigInt::mod_mul(&ct, &u::bigint_mod_pow(ch_ct, cexp, &pp), &pp);
+            let res_qq = BigInt::mod_mul(&ct, &u::bigint_mod_pow(ch_ct, cexp, &qq), &qq);
+            u::crt_recombine(&res_pp, &res_qq, &pp, &qq, &pp_inv_qq)
+        }
+    }
 }
 
 impl Lang for PPLang {
@@ -78,7 +87,7 @@ impl Lang for PPLang {
             panic!("schnorr_paillier_plus: verify0: ch_space is too big: {:?} bits",
                    params.ch_space_bitlen)
         }
-        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
+        u::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
     }
 
     fn sample_wit(&self) -> Self::Dom {
@@ -122,7 +131,19 @@ impl Lang for PPLang {
 
     fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom {
         let nn = &self.pk.nn;
-        let si = BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, nn), &com.si, nn);
+
+        let si = match self.sk.as_ref() {
+            None => BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, nn), &com.si, nn),
+            Some(sk) => {
+                let pp = &sk.p * &sk.p;
+                let qq = &sk.q * &sk.q;
+                let pp_inv_qq = BigInt::mod_inv(&pp, &qq).unwrap();
+
+                let si_pp = BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, &pp), &com.si, &pp);
+                let si_qq = BigInt::mod_mul(&BigInt::mod_pow(&inst.si, ch, &qq), &com.si, &qq);
+                u::crt_recombine(&si_pp, &si_qq, &pp, &qq, &pp_inv_qq)
+            }
+        };
         PPLangCoDom { si }
     }
 

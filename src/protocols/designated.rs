@@ -411,6 +411,9 @@ pub fn prove1(params: &DVParams, vpk: &VPK, lang: &DVLang) -> (DVCom,DVComRand) 
     // TODO check these sizes make sense
     let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
     let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
+    // TODO These can be potentially set to 1 to speed things up!
+    //let rm_r = BigInt::from(1);
+    //let rr_r = BigInt::from(1);
 
     let a = pe::encrypt_with_randomness_opt(&lang.pk,lang.sk.as_ref(),&rm_m,&rr_m);
     let t_2 = SystemTime::now();
@@ -426,8 +429,11 @@ pub fn prove1(params: &DVParams, vpk: &VPK, lang: &DVLang) -> (DVCom,DVComRand) 
         let tm2 = BigInt::sample_below(&vpk.pk.n);
         let tr2 = BigInt::sample_below(&vpk.pk.n);
 
+        // TODO These can be potentially set to 1 to speed things up!
         let tm3 = BigInt::sample_below(&vpk.pk.n);
         let tr3 = BigInt::sample_below(&vpk.pk.n);
+        //let tm3 = BigInt::from(1);
+        //let tr3 = BigInt::from(1);
 
         (Some(tm1), Some(tm2), Some(tm3), Some(tr1), Some(tr2), Some(tr3))
     };

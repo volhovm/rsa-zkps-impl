@@ -4,8 +4,8 @@ use curv::BigInt;
 use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, NumberTests};
 
 
-pub const PROFILE_DV: bool = false;
 pub const PROFILE_SPB: bool = false;
+pub const PROFILE_DV: bool = true;
 pub const PROFILE_DVR: bool = true;
 
 
