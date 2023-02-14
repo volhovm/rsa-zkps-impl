@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use curv::arithmetic::traits::{BasicOps};
 use serde::{Serialize};
 use curv::BigInt;
 use paillier::*;
@@ -16,9 +17,9 @@ use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
 
 
-fn estimate_size<T: Serialize>(x: &T) -> usize {
+fn estimate_size<T: Serialize>(x: &T) -> f64 {
     let x: Vec<u8> = rmp_serde::to_vec(x).unwrap();
-    x.len()
+    (x.len() as f64) / 1024.0
 }
 
 fn estimate_size_designated(params: &dv::DVParams) {
@@ -29,7 +30,7 @@ fn estimate_size_designated(params: &dv::DVParams) {
     dv::verify_vpk(&params, &vpk);
     let (lang,inst,wit) = dv::sample_liw(params);
     let proof = dv::fs_prove(params,&vpk,&lang,&inst,&wit,0);
-    println!("VPK: {} B, VSK: {} B, proof: {} B",
+    println!("VPK: {:.2} KB, VSK: {:.2} KB, proof: {:.2} KB",
              estimate_size(&vpk),
              estimate_size(&vsk),
              estimate_size(&proof))
@@ -43,7 +44,7 @@ fn estimate_size_designated_range(params: &dvr::DVRParams) {
     let (lang,inst,wit) = dvr::sample_liw(params);
     let proof = dvr::fs_prove(params,&vpk,&lang,&inst,&wit,0);
 
-    println!("VPK: {} B, VSK: {} B, proof: {} B",
+    println!("VPK: {:.2} KB, VSK: {:.2} KB, proof: {:.2} KB",
              estimate_size(&vpk),
              estimate_size(&vsk),
              estimate_size(&proof))
@@ -55,7 +56,7 @@ fn estimate_size_schnorr<L: sch::Lang>(params: &sch::ProofParams, lparams: &L::L
     let (lang,inst,wit) = L::sample_liw(lparams);
     let proof = sch::fs_prove(&params,&lang,&inst,&wit);
 
-    println!("proof: {} B",
+    println!("proof: {:.2} KB",
              estimate_size(&proof))
 }
 
@@ -69,11 +70,14 @@ fn estimate_proof_sizes() {
              n_bitlen, lambda, queries, range_bitlen);
 
     estimate_size_schnorr::<sp::PLang>(
-        &sch::ProofParams::new(lambda, 1),
-        &sp::PLangParams{ n_bitlen, range: None });
-    estimate_size_schnorr::<sp::PLang>(
-        &sch::ProofParams::new(lambda, 22),
-        &sp::PLangParams{ n_bitlen, range: None });
+        &sch::ProofParams::new_range(lambda),
+        &sp::PLangParams{ n_bitlen, range: Some(BigInt::pow(&BigInt::from(2),range_bitlen))});
+
+    for ch_space_bitlen in [1,16,19,22,26] {
+        estimate_size_schnorr::<sp::PLang>(
+            &sch::ProofParams::new(lambda, ch_space_bitlen),
+            &sp::PLangParams{ n_bitlen, range: None });
+    }
     //estimate_size_schnorr::<sp::PLang>(
     //    &sch::ProofParams::new_range(lambda),
     //    &sp::PLangParams{ n_bitlen, range: Some(range.clone()) });
@@ -91,10 +95,10 @@ fn estimate_proof_sizes() {
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, false, false));
     estimate_size_designated(&dv::DVParams::new(n_bitlen, lambda, queries, true, false));
 
-    //estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, true));
-    //estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, true));
-    //estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, false, false));
-    //estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range.clone(), queries as u32, true, false));
+    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, false, true));
+    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, true, true));
+    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, false, false));
+    estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, true, false));
 
 }
 
@@ -326,9 +330,9 @@ fn profile_dv_range() {
 
 fn main() {
     //rsazkps::protocols::designated_range::test_keygen_correctness();
-    //estimate_proof_sizes();
+    estimate_proof_sizes();
     //profile_schnorr();
     //profile_schnorr_batched();
     //profile_dv();
-    profile_dv_range();
+    //profile_dv_range();
 }
