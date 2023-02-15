@@ -1,3 +1,5 @@
+use get_size::GetSize;
+use get_size_derive::*;
 use serde::{Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fmt;
@@ -51,7 +53,7 @@ impl fmt::Display for ProofParams {
 
 
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct Lang {
     /// Public key that is used to generate instances.
     pub pk: p::EncryptionKey,
@@ -59,7 +61,7 @@ pub struct Lang {
     pub sk: Option<p::DecryptionKey>,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct Inst {
     /// The encryption ciphertext
     pub cts: Vec<BigInt>
@@ -107,17 +109,17 @@ pub fn sample_liw(params: &ProofParams) -> (Lang,Inst,Wit) {
     (lang,inst,wit)
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Commitment(Vec<BigInt>);
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
+pub struct Commitment{ inner: Vec<BigInt> }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct ComRand(Vec<BigInt>,Vec<BigInt>);
+pub struct ComRand{ inner: (Vec<BigInt>,Vec<BigInt>) }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Challenge(BigInt);
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
+pub struct Challenge{ inner: BigInt }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct Response(Vec<BigInt>,Vec<BigInt>);
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
+pub struct Response{ inner: (Vec<BigInt>,Vec<BigInt>) }
 
 
 
@@ -131,13 +133,13 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
         rand_m_v.iter().zip(rand_r_v.iter()).map(|(rm,rr)|
             p::paillier_enc_opt(&lang.pk, lang.sk.as_ref(), rm, rr)).collect();
 
-    (Commitment(com_v),ComRand(rand_m_v,rand_r_v))
+    (Commitment{ inner: com_v },ComRand {inner: (rand_m_v,rand_r_v) })
 }
 
 
 pub fn verify1(params: &ProofParams) -> Challenge {
     //Challenge(BigInt::from(128))
-    Challenge(BigInt::sample_below(&params.ch_space))
+    Challenge{ inner: BigInt::sample_below(&params.ch_space) }
 }
 
 fn challenge_e_mat(reps_m: usize, reps_n: usize, e: &BigInt) -> Vec<Vec<BigInt>> {
@@ -163,14 +165,14 @@ pub fn prove2(params: &ProofParams,
     let reps_n = params.reps_n as usize;
     let reps_m = params.reps_m as usize;
 
-    let e_mat = challenge_e_mat(reps_m,reps_n,&ch.0);
+    let e_mat = challenge_e_mat(reps_m,reps_n,&ch.inner);
 
     let sm: Vec<BigInt> = (0..reps_m).map(|i| {
         let em =
             (0..reps_n)
             .map(|j| &e_mat[i][j] * &wit.ms[j])
             .fold(BigInt::from(0), |acc,x| acc + x );
-        em + &cr.0[i]
+        em + &cr.inner.0[i]
     }).collect();
 
     // TODO This can be optimised when factorization of n is known.
@@ -180,10 +182,10 @@ pub fn prove2(params: &ProofParams,
             (0..reps_n)
             .map(|j| BigInt::mod_pow(&wit.rs[j], &e_mat[i][j], &lang.pk.n))
             .fold(BigInt::from(1), |acc,x| BigInt::mod_mul(&acc,  &x, &lang.pk.n));
-        BigInt::mod_mul(&em, &cr.1[i], &lang.pk.n)
+        BigInt::mod_mul(&em, &cr.inner.1[i], &lang.pk.n)
     }).collect();
 
-    Response(sm, sr)
+    Response{ inner: (sm, sr) }
 }
 
 pub fn verify2(params: &ProofParams,
@@ -196,7 +198,7 @@ pub fn verify2(params: &ProofParams,
 
     let reps_n = params.reps_n as usize;
     let reps_m = params.reps_m as usize;
-    let e_mat = challenge_e_mat(reps_m,reps_n,&ch.0);
+    let e_mat = challenge_e_mat(reps_m,reps_n,&ch.inner);
 
     let t_2 = SystemTime::now();
     let t_3 = SystemTime::now();
@@ -206,9 +208,9 @@ pub fn verify2(params: &ProofParams,
     let mut t_delta2 = t_3.duration_since(t_2).unwrap();
     let mut t_delta3 = t_4.duration_since(t_3).unwrap();
     for i in 0..(params.reps_m as usize) {
-        let a = &com.0[i];
-        let s_m = &resp.0[i];
-        let s_r = &resp.1[i];
+        let a = &com.inner[i];
+        let s_m = &resp.inner.0[i];
+        let s_r = &resp.inner.1[i];
 
         if s_m >= &params.rand_range { return false; }
 
@@ -256,7 +258,7 @@ pub fn verify2(params: &ProofParams,
 
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct FSProof {
     fs_com : Commitment,
     fs_ch : Challenge,
@@ -276,7 +278,7 @@ fn fs_compute_challenge(len: usize, lang: &Lang, inst:&Inst, fs_com: &Commitment
             res.set_bit(i, &(r0.as_slice())[i/8] & (0b0000_0001 << j) == 1);
         }
     }
-    Challenge(res)
+    Challenge{ inner: res }
 }
 
 pub fn fs_prove(params: &ProofParams,

@@ -1,5 +1,7 @@
 /// Schnorr for Paillier-Elgamal.
 
+use get_size::GetSize;
+use get_size_derive::*;
 use serde::{Serialize};
 use std::fmt;
 
@@ -9,7 +11,7 @@ use super::schnorr_generic::*;
 use super::paillier_elgamal as pe;
 
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct PELang {
     /// Bitlength of the RSA modulus
     pub n_bitlen: u32,
@@ -19,7 +21,7 @@ pub struct PELang {
     pub sk: Option<pe::PESecretKey>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PELangDom {
     /// Message to be encrypted
     pub m: BigInt,
@@ -27,7 +29,7 @@ pub struct PELangDom {
     pub r: BigInt
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PELangCoDom {
     /// The encryption ciphertext
     pub ct: pe::PECiphertext

@@ -3,8 +3,13 @@
 
 use std::{ops,fmt};
 
+use get_size::GetSize;
+use get_size_derive::*;
+
 use derive_more::Display;
-use serde::{Serialize};
+use serde::{Serialize,Serializer};
+use serde::ser::SerializeSeq;
+
 
 use curv as c;
 pub use curv::arithmetic::traits::{Modulo, Samplable, NumberTests,
@@ -13,9 +18,38 @@ pub use curv::arithmetic::traits::{Modulo, Samplable, NumberTests,
 use curv::arithmetic::{ParseBigIntError, Zero, One};
 
 
-#[derive(PartialOrd,PartialEq,Ord,Eq,Clone,Serialize)]
+#[derive(PartialOrd,PartialEq,Ord,Eq,Clone)]
 pub struct BigInt { pub v: curv::BigInt }
 
+impl GetSize for BigInt {
+    fn get_stack_size() -> usize {
+        panic!("I don't know how to implement this");
+    }
+    fn get_heap_size(&self) -> usize {
+        self.v.to_bytes().get_heap_size()
+    }
+    fn get_size(&self) -> usize {
+        self.v.to_bytes().get_size()
+    }
+}
+
+impl Serialize for BigInt {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let bytes = self.v.to_bytes();
+        let mut seq = serializer.serialize_seq(Some(bytes.len()))?;
+        for element in bytes {
+            seq.serialize_element(&element)?;
+        }
+        seq.end()
+        //Serialize::serialize(&, serializer)
+        //let mut s = serializer.serialize_struct("BigInt", 1)?;
+        //s.serialize_field("bytes", &self.v.to_bytes())?;
+        //s.end()
+    }
+}
 
 /// Internal helper trait. Creates short-hand for wrapping Mpz into BigInt.
 pub trait Wrap {

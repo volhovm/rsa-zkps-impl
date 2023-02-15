@@ -1,9 +1,13 @@
 #![allow(dead_code)]
 
-use serde::{Serialize};
+use get_size::GetSize;
+
+use serde::ser::{Serialize};
 use std::time::{SystemTime};
 
 use rsazkps::bigint::*;
+
+use rsazkps::protocols::paillier as p;
 
 use rsazkps::protocols::schnorr_generic as sch;
 use rsazkps::protocols::schnorr_paillier as sp;
@@ -15,10 +19,40 @@ use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
 
 
-fn estimate_size<T: Serialize>(x: &T) -> f64 {
-    let x: Vec<u8> = rmp_serde::to_vec(x).unwrap();
-    println!("serialized: {:?}",x);
-    (x.len() as f64) / 1024.0
+fn to_vec_opt<T:Serialize>(x: &T) -> Result<Vec<u8>,rmp_serde::encode::Error> {
+    let mut wr = Vec::with_capacity(128);
+    let mut serializer = rmp_serde::encode::Serializer::new(&mut wr).with_binary();
+    x.serialize(&mut serializer)?;
+    Ok(wr)
+}
+
+fn estimate_size<T: GetSize>(x: &T) -> f64 {
+    (x.get_heap_size() as f64) / 1024.0
+    //let x: Vec<u8> = rmp_serde::to_vec(x).unwrap();
+
+   //// println!("serialized: {:?}",x);
+    //(x.len() as f64) / 1024.0
+}
+
+
+fn debug_bignum_size() {
+    let (pk,_sk) = p::keygen(4096);
+    let n = pk.n;
+    println!("n.bit_length: {}", n.bit_length());
+    println!("n.to_bytes.len: {}", n.to_bytes().len());
+    println!("serialized len: {}", rmp_serde::to_vec(&n).unwrap().len());
+    println!("to_vec_opt len: {}", to_vec_opt(&n).unwrap().len());
+
+    let stupid: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+    println!("stupid len: {}", stupid.len());
+    println!("to_vec_opt stupid: {}", to_vec_opt(&stupid).unwrap().len());
+    println!("stupid get_size: {}", (&stupid).get_heap_size());
+
+    let nbytes: Vec<u8> = n.to_bytes();
+    println!("nbytes len: {}", nbytes.len());
+    println!("to_vec_opt nbytes: {}", to_vec_opt(&nbytes).unwrap().len());
+    println!("nbytes get_size: {}", (&nbytes).get_heap_size());
+    //println!("estimate_size: {:.2} KB", estimate_size(&n));
 }
 
 fn estimate_size_designated(params: &dv::DVParams) {
@@ -26,15 +60,15 @@ fn estimate_size_designated(params: &dv::DVParams) {
              params.malicious_setup, params.ggm_mode);
 
     let (vpk,vsk) = dv::keygen(&params);
-    println!("vpk_n_bitlen: {}", params.vpk_n_bitlen());
-    println!("VPK.cts[0]: {:.2} KB, VPK.cts[0].len: {}, to_bytes.len: {}",
-             estimate_size(&vpk.cts[0]),
-             vpk.cts[0].bit_length(),
-             vpk.cts[0].to_bytes().len());
-    assert!(false);
-    println!("VPK.pk: {:.2} KB, VPK.cts: {:.2} KB",
-             estimate_size(&vpk.pk),
-             estimate_size(&vpk.cts));
+    //println!("vpk_n_bitlen: {}", params.vpk_n_bitlen());
+    //println!("VPK.cts[0]: {:.2} KB, VPK.cts[0].len: {}, to_bytes.len: {}",
+    //         estimate_size(&vpk.cts[0]),
+    //         vpk.cts[0].bit_length(),
+    //         vpk.cts[0].to_bytes().len());
+    ////assert!(false);
+    //println!("VPK.pk: {:.2} KB, VPK.cts: {:.2} KB",
+    //         estimate_size(&vpk.pk),
+    //         estimate_size(&vpk.cts));
 
     dv::verify_vpk(&params, &vpk);
     let (lang,inst,wit) = dv::sample_liw(params);
@@ -78,15 +112,15 @@ fn estimate_proof_sizes() {
     println!("Estimating proof sizes; log(N) = {}, lambda = {}, queries = {}, log(Range) = {}",
              n_bitlen, lambda, queries, range_bitlen);
 
-    //estimate_size_schnorr::<sp::PLang>(
-    //    &sch::ProofParams::new_range(lambda),
-    //    &sp::PLangParams{ n_bitlen, range: Some(BigInt::pow(&BigInt::from(2),range_bitlen))});
+    estimate_size_schnorr::<sp::PLang>(
+        &sch::ProofParams::new_range(lambda),
+        &sp::PLangParams{ n_bitlen, range: Some(BigInt::pow(&BigInt::from(2),range_bitlen))});
 
-    //for ch_space_bitlen in [1,16,19,22,26] {
-    //    estimate_size_schnorr::<sp::PLang>(
-    //        &sch::ProofParams::new(lambda, ch_space_bitlen),
-    //        &sp::PLangParams{ n_bitlen, range: None });
-    //}
+    for ch_space_bitlen in [1,16,19,22,26] {
+        estimate_size_schnorr::<sp::PLang>(
+            &sch::ProofParams::new(lambda, ch_space_bitlen),
+            &sp::PLangParams{ n_bitlen, range: None });
+    }
 
     //estimate_size_schnorr::<spe::PELang>(
     //    &sch::ProofParams::new(lambda, 1),
@@ -316,4 +350,5 @@ fn main() {
     //profile_schnorr_batched();
     //profile_dv();
     //profile_dv_range();
+    //debug_bignum_size();
 }

@@ -8,6 +8,8 @@
 /// https://link.springer.com/chapter/10.1007/978-3-540-40061-5_3
 
 use serde::{Serialize};
+use get_size::GetSize;
+use get_size_derive::*;
 
 use super::paillier as p;
 
@@ -15,7 +17,7 @@ use crate::bigint::*;
 use crate::utils as u;
 
 
-#[derive(PartialEq, Eq, Clone, Debug, Serialize)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, GetSize)]
 pub struct PESecretKey {
     pub a: BigInt,
     pub ordg: BigInt,
@@ -31,7 +33,7 @@ pub struct PESecretKey {
     pub h_inv_qq: BigInt, // h^{-1} mod q^2
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Serialize)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, GetSize)]
 pub struct PEPublicKey {
     pub n: BigInt,
     pub nn: BigInt,
@@ -41,7 +43,7 @@ pub struct PEPublicKey {
     pub h_inv_nn: BigInt, // h^{-1} mod N^2
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Serialize)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, GetSize)]
 pub struct PECiphertext {
     // g^r
     pub ct1: BigInt,

@@ -6,6 +6,8 @@ use std::fmt;
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize};
+use get_size::GetSize;
+use get_size_derive::*;
 use rand::distributions::{Distribution, Uniform};
 
 use crate::bigint::*;
@@ -131,7 +133,7 @@ impl DVParams {
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
     pub sk: p::DecryptionKey,
@@ -139,7 +141,7 @@ pub struct VSK {
     pub chs: Vec<BigInt>
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VPK {
     /// Verifier's Paillier public key
     pub pk: p::EncryptionKey,
@@ -315,13 +317,13 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVLang {
     pub pk: pe::PEPublicKey,
     pub sk: Option<pe::PESecretKey>
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVInst {
     pub ct: pe::PECiphertext
 }
@@ -357,10 +359,10 @@ pub fn sample_liw(params: &DVParams) -> (DVLang,DVInst,DVWit) {
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVCom{ pub a: pe::PECiphertext }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVComRand {
     pub rm_m: BigInt,
     pub rm_r: BigInt,
@@ -374,12 +376,12 @@ pub struct DVComRand {
     pub tr3: Option<BigInt>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct DVChallenge1(BigInt);
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
+pub struct DVChallenge1{ inner: BigInt }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DVChallenge2(BigInt);
+pub struct DVChallenge2{ inner: BigInt }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVResp1 {
     pub sm: BigInt,
     pub sr: BigInt,
@@ -387,7 +389,7 @@ pub struct DVResp1 {
     pub tr: Option<BigInt>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVResp2 {
     pub um1: BigInt,
     pub um2: BigInt,
@@ -454,7 +456,7 @@ pub fn prove1(params: &DVParams, vpk: &VPK, lang: &DVLang) -> (DVCom,DVComRand) 
 
 pub fn verify1(params: &DVParams) -> DVChallenge1 {
     let b = BigInt::sample(params.lambda as usize);
-    DVChallenge1(b)
+    DVChallenge1{ inner: b }
 }
 
 pub fn prove2(params: &DVParams,
@@ -468,7 +470,7 @@ pub fn prove2(params: &DVParams,
     let t_1 = SystemTime::now();
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
-        if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
+        if ch1.inner.test_bit(i) { ch1_active_bits.push(i); }
     }
     let t_2 = SystemTime::now();
 
@@ -549,7 +551,7 @@ pub fn verify2(params: &DVParams) -> Option<DVChallenge2> {
         None
     } else{
         let d = BigInt::sample(params.lambda as usize);
-        Some(DVChallenge2(d))
+        Some(DVChallenge2{inner: d})
     }
 }
 
@@ -565,7 +567,7 @@ pub fn prove3(params: &DVParams,
         let n: &BigInt = &vpk.pk.n;
 
         let ch2 = ch2_opt.expect("designated#prove3: ch2 must be Some");
-        let d: &BigInt = &ch2.0;
+        let d: &BigInt = &ch2.inner;
 
         let tm1 = cr.tm1.as_ref().expect("designated#prove3: tm1 must be Some");
         let tm2 = cr.tm2.as_ref().expect("designated#prove3: tm2 must be Some");
@@ -603,7 +605,7 @@ pub fn verify3(params: &DVParams,
     let t_1 = SystemTime::now();
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
-        if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
+        if ch1.inner.test_bit(i) { ch1_active_bits.push(i); }
     }
 
     let ch1_raw: BigInt =
@@ -688,8 +690,8 @@ pub fn verify3(params: &DVParams,
             let rhs = &BigInt::mod_mul(&exp1, &ct, nn);
 
 
-            let exp2_pp = &BigInt::mod_pow(&resp1.sm, &ch2.0, &pp);
-            let exp2_qq = &BigInt::mod_pow(&resp1.sm, &ch2.0, &qq);
+            let exp2_pp = &BigInt::mod_pow(&resp1.sm, &ch2.inner, &pp);
+            let exp2_qq = &BigInt::mod_pow(&resp1.sm, &ch2.inner, &qq);
             let exp2 = u::crt_recombine(&exp2_pp, &exp2_qq, &pp, &qq, &pp_inv_qq);
             let lhs = &BigInt::mod_mul(&exp2, tm, nn);
 
@@ -704,8 +706,8 @@ pub fn verify3(params: &DVParams,
             let exp1 = u::crt_recombine(&exp1_pp, &exp1_qq, &pp, &qq, &pp_inv_qq);
             let rhs = &BigInt::mod_mul(&exp1, &ct, nn);
 
-            let exp2_pp = &BigInt::mod_pow(&resp1.sr, &ch2.0, &pp);
-            let exp2_qq = &BigInt::mod_pow(&resp1.sr, &ch2.0, &qq);
+            let exp2_pp = &BigInt::mod_pow(&resp1.sr, &ch2.inner, &pp);
+            let exp2_qq = &BigInt::mod_pow(&resp1.sr, &ch2.inner, &qq);
             let exp2 = u::crt_recombine(&exp2_pp, &exp2_qq, &pp, &qq, &pp_inv_qq);
             let lhs = &BigInt::mod_mul(&exp2, tr, nn);
 
@@ -722,7 +724,7 @@ pub fn verify3(params: &DVParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct FSDVProof {
     com : DVCom,
     resp1 : DVResp1,
@@ -748,7 +750,7 @@ fn fs_compute_challenge_1(params: &DVParams,
                           fs_com: &DVCom) -> DVChallenge1 {
     let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, inst, lang)).unwrap();
     let ch1 = fs_to_bigint(params, &x);
-    DVChallenge1(ch1)
+    DVChallenge1{inner: ch1}
 }
 
 fn fs_compute_challenge_2(params: &DVParams,
@@ -762,7 +764,7 @@ fn fs_compute_challenge_2(params: &DVParams,
     } else{
         let x: Vec<u8> = rmp_serde::to_vec(&(fs_com, fs_ch1, fs_resp1, inst, lang)).unwrap();
         let ch2 = fs_to_bigint(params, &x);
-        Some(DVChallenge2(ch2))
+        Some(DVChallenge2{ inner: ch2})
     }
 }
 

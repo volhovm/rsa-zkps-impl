@@ -1,6 +1,8 @@
 /// A simple Schnorr variant for knowledge-of-discrete-logarithm (`x = g^w`)
 /// in Z_N where N might be subverted.
 
+use get_size::GetSize;
+use get_size_derive::*;
 use serde::{Serialize};
 use std::fmt;
 
@@ -10,7 +12,7 @@ use crate::protocols::schnorr_generic::*;
 use crate::protocols::paillier as p;
 
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct ExpNLang {
     /// Bitlength of the RSA modulus
     pub n_bitlen: u32,
@@ -23,13 +25,13 @@ pub struct ExpNLang {
     pub q: Option<BigInt>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct ExpNLangDom {
     /// x | g = h^x mod N
     pub x: BigInt
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct ExpNLangCoDom {
     /// g = h^x mod N
     pub g: BigInt,

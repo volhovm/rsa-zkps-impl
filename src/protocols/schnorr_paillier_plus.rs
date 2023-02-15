@@ -4,6 +4,8 @@
 /// different 3-ary relation S = Enc(w_1,w_2)*C^{w_3} mod N^2; (2) and that it
 /// does not support range check functionality.
 
+use get_size::GetSize;
+use get_size_derive::*;
 use serde::{Serialize};
 use std::fmt;
 
@@ -14,7 +16,7 @@ use super::paillier::paillier_enc_opt;
 use super::schnorr_generic::*;
 
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct PPLang {
     /// Bit size of the RSA modulus
     pub n_bitlen: u32,
@@ -26,7 +28,7 @@ pub struct PPLang {
     pub ch_ct: BigInt,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PPLangDom {
     pub m: BigInt,
     pub r: BigInt,
@@ -34,7 +36,7 @@ pub struct PPLangDom {
     pub cexp: BigInt,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PPLangCoDom {
     /// The encryption ciphertext S_i = Enc(w1,w2)
     pub si: BigInt

@@ -5,6 +5,8 @@
 /// "Efficient Noninteractive Certification of RSA Moduli and Beyond"
 /// https://par.nsf.gov/servlets/purl/10189824
 
+use get_size::GetSize;
+use get_size_derive::*;
 use serde::{Serialize};
 use std::fmt;
 
@@ -13,7 +15,7 @@ use crate::bigint::*;
 
 
 /// Common parameters for the proof system.
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct ProofParams {
     /// Bitlength of the RSA modulus
     pub n_bitlen: usize,
@@ -38,20 +40,20 @@ impl fmt::Display for ProofParams {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct Inst {
     pub n: BigInt
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct Wit {
     pub p: BigInt,
     pub q: BigInt,
 }
 
 /// Contains \phi(N)
-#[derive(Clone, PartialEq, Debug, Serialize)]
-pub struct VerifierPrecomp(BigInt);
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
+pub struct VerifierPrecomp{ inner: BigInt }
 
 pub fn sample_inst_wit(params: &ProofParams) -> (Inst,Wit) {
     let (pk,sk) = p::keygen(params.n_bitlen);
@@ -65,8 +67,8 @@ pub fn sample_inst_wit(params: &ProofParams) -> (Inst,Wit) {
     return (inst,wit);
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct Proof(Vec<BigInt>);
+#[derive(Clone, Debug, Serialize, GetSize)]
+pub struct Proof{ inner: Vec<BigInt> }
 
 fn fs_compute_challenge(params: &ProofParams, inst: &Inst) -> Vec<BigInt> {
     use blake2::*;
@@ -97,13 +99,13 @@ pub fn prove(params: &ProofParams, inst: &Inst, wit: &Wit) -> Proof {
     let phi_n = (&wit.p-1)*(&wit.q-1);
     let n_inv = BigInt::mod_inv(&inst.n,&phi_n).expect("sample_inst inv");
     let sigmas = chs.iter().map(|ch| BigInt::mod_pow(ch,&n_inv, &inst.n)).collect();
-    Proof(sigmas)
+    Proof{inner:sigmas}
 }
 
 pub fn verify(params: &ProofParams, inst: &Inst, proof: &Proof) -> bool {
     if !crate::utils::check_small_primes(params.pmax, &inst.n) { return false; }
     let chs = fs_compute_challenge(params,inst);
-    for (sigma,ch) in (&proof.0).iter().zip(chs.iter()) {
+    for (sigma,ch) in (&proof.inner).iter().zip(chs.iter()) {
         if sigma <= &BigInt::from(0) { return false; }
         if BigInt::mod_pow(sigma,&inst.n,&inst.n) != *ch { return false; }
     }

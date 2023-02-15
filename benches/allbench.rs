@@ -1,13 +1,11 @@
 #![allow(dead_code)]
 
-use curv::arithmetic::traits::{Samplable, BitManipulation};
-use curv::BigInt;
 use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 use std::time::Duration;
-use paillier::{KeyGeneration};
-use paillier::Paillier;
 
-use rsazkps::protocols::paillier::paillier_enc_opt;
+use rsazkps::bigint::*;
+
+use rsazkps::protocols::paillier as p;
 use rsazkps::protocols::paillier_elgamal as pe;
 
 use rsazkps::protocols::schnorr_generic as sch;
@@ -26,13 +24,13 @@ fn bench_paillier(c: &mut Criterion) {
     let n_bitlen = 2048;
     let mut grp = c.benchmark_group(format!("Paillier log(N)={}", n_bitlen));
 
-    let (pk,sk) = Paillier::keypair_with_modulus_size(n_bitlen as usize).keys();
+    let (pk,sk) = p::keygen(n_bitlen as usize);
 
     grp.bench_function("encrypt_crt", |b| {
         b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
                             (m,r) },
-                       |(m,r)| paillier_enc_opt(&pk,Some(&sk),&m,&r),
+                       |(m,r)| p::paillier_enc_opt(&pk,Some(&sk),&m,&r),
                        BatchSize::LargeInput);
     });
 
@@ -40,7 +38,7 @@ fn bench_paillier(c: &mut Criterion) {
         b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
                             (m,r) },
-                       |(m,r)| paillier_enc_opt(&pk,None,&m,&r),
+                       |(m,r)| p::paillier_enc_opt(&pk,None,&m,&r),
                        BatchSize::LargeInput);
     });
 }

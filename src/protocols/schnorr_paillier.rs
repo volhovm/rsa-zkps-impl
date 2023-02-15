@@ -4,6 +4,8 @@
 /// verifier manually checks that there are no p<p_max divisors of N, which
 /// allows to use log(p_max) challenge space instead of the binary one.
 
+use get_size::GetSize;
+use get_size_derive::*;
 use serde::{Serialize};
 use std::fmt;
 
@@ -13,13 +15,13 @@ use super::paillier as p;
 use super::schnorr_generic::*;
 
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PLangParams {
     pub n_bitlen: u32,
     pub range: Option<BigInt>,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct PLang {
     /// Params of the language
     pub lparams: PLangParams,
@@ -30,13 +32,13 @@ pub struct PLang {
 }
 
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PLangDom {
     pub m: BigInt,
     pub r: BigInt
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PLangCoDom {
     /// The encryption ciphertext
     pub ct: BigInt

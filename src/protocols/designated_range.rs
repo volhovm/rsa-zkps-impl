@@ -2,6 +2,8 @@ use std::fmt;
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize};
+use get_size::GetSize;
+use get_size_derive::*;
 use rand::distributions::{Distribution, Uniform};
 
 use crate::bigint::*;
@@ -22,7 +24,7 @@ use super::schnorr_exp as se;
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVRParams {
     /// N of the prover (of the homomorphism psi), bit length
     pub psi_n_bitlen: u32,
@@ -191,7 +193,7 @@ impl DVRParams {
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVRLang {
     pub pk: pe::PEPublicKey,
     pub sk: Option<pe::PESecretKey>,
@@ -203,7 +205,7 @@ impl DVRLang {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVRInst { pub ct: pe::PECiphertext }
 #[derive(Clone, Debug)]
 pub struct DVRWit { pub m: BigInt, pub r: BigInt }
@@ -233,7 +235,7 @@ pub fn sample_liw(params: &DVRParams) -> (DVRLang,DVRInst,DVRWit) {
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
     pub sk: p::DecryptionKey,
@@ -252,7 +254,7 @@ pub struct VSK {
 }
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VPK {
     /// Verifier's Paillier public key
     pub pk: p::EncryptionKey,
@@ -482,7 +484,7 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
 // Interactive part
 ////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct DVRCom {
     com_m: BigInt,
     com1_m: BigInt,
@@ -500,7 +502,7 @@ pub struct DVRCom {
     alpha2: BigInt,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct DVRComRand {
     r_m: BigInt,
     r1_m: BigInt,
@@ -523,11 +525,11 @@ pub struct DVRComRand {
     t_r: BigInt,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct DVRChallenge1(BigInt);
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
+pub struct DVRChallenge1{ inner: BigInt }
 
 /// Commitment for the pe+ protocol
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct PlusCom {
     com_u_m: sch::Commitment<spp::PPLang>,
     com_v_m: sch::Commitment<spp::PPLang>,
@@ -542,7 +544,7 @@ pub struct PlusCom {
     com_u_r: sch::Commitment<spp::PPLang>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct DVRResp1 {
     u_m: BigInt,
     v_m: BigInt,
@@ -559,7 +561,7 @@ pub struct DVRResp1 {
     plus_com: Option<PlusCom>
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct PlusComRand {
     comrand_u_m: sch::ComRand<spp::PPLang>,
     comrand_v_m: sch::ComRand<spp::PPLang>,
@@ -574,7 +576,7 @@ pub struct PlusComRand {
     comrand_u_r: sch::ComRand<spp::PPLang>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct DVRResp1Rand {
     u_r_m: BigInt,
     v_r_m: BigInt,
@@ -592,7 +594,7 @@ pub struct DVRResp1Rand {
 }
 
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct DVRChallenge2 {
     ch_u_m: sch::Challenge,
     ch_v_m: sch::Challenge,
@@ -607,7 +609,7 @@ pub struct DVRChallenge2 {
     ch_u_r: sch::Challenge,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct DVRResp2 {
     resp_u_m: sch::Response<spp::PPLang>,
     resp_v_m: sch::Response<spp::PPLang>,
@@ -766,7 +768,7 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
 
 pub fn verify1(params: &DVRParams) -> DVRChallenge1 {
     let b = BigInt::sample(params.lambda as usize);
-    DVRChallenge1(b)
+    DVRChallenge1{inner:b}
 }
 
 pub fn prove2(params: &DVRParams,
@@ -779,7 +781,7 @@ pub fn prove2(params: &DVRParams,
 
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
-        if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
+        if ch1.inner.test_bit(i) { ch1_active_bits.push(i); }
     }
 
     let vpk_nn: &BigInt = &vpk.pk.nn;
@@ -965,7 +967,7 @@ pub fn prove3(params: &DVRParams,
 
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
-        if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
+        if ch1.inner.test_bit(i) { ch1_active_bits.push(i); }
     }
 
     let vpk_nn: &BigInt = &vpk.pk.nn;
@@ -1086,7 +1088,7 @@ pub fn verify3(params: &DVRParams,
 
     let mut ch1_active_bits: Vec<usize> = vec![];
     for i in 0..(params.lambda as usize) {
-        if ch1.0.test_bit(i) { ch1_active_bits.push(i); }
+        if ch1.inner.test_bit(i) { ch1_active_bits.push(i); }
     }
 
     let vpk_nn: &BigInt = &vpk.pk.nn;
@@ -1395,7 +1397,7 @@ pub fn verify3(params: &DVRParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, GetSize)]
 pub struct FSDVRProof {
     com : DVRCom,
     resp1 : DVRResp1,
@@ -1421,7 +1423,7 @@ fn fs_compute_challenge_1(params: &DVRParams,
                           com: &DVRCom) -> DVRChallenge1 {
     let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang)).unwrap();
     let ch1 = fs_to_bigint(params, &x);
-    DVRChallenge1(ch1)
+    DVRChallenge1{inner:ch1}
 }
 
 fn fs_compute_challenge_2(params: &DVRParams,

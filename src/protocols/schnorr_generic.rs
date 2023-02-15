@@ -1,5 +1,8 @@
 /// A generic Schnorr implementation for any homomorphisms.
 
+use get_size::GetSize;
+use get_size_derive::*;
+
 use serde::{Serialize, Serializer};
 use std::fmt;
 use std::fmt::Debug;
@@ -41,10 +44,10 @@ impl ProofParams {
 // Language
 ////////////////////////////////////////////////////////////////////////////
 
-pub trait Lang: Serialize {
+pub trait Lang: Serialize + GetSize {
     type LangParams: Clone + Debug;
-    type Dom: Serialize + Eq + Clone + Debug;
-    type CoDom: Serialize + Eq + Clone + Debug;
+    type Dom: Serialize + GetSize + Eq + Clone + Debug;
+    type CoDom: Serialize + GetSize + Eq + Clone + Debug;
 
     fn sample_lang(lparams: &Self::LangParams) -> Self;
     fn to_public(&self) -> Self;
@@ -76,7 +79,7 @@ pub trait Lang: Serialize {
 #[derive(Clone, Debug)]
 pub struct Commitment<L:Lang>(Vec<L::CoDom>);
 
-#[derive(Clone, Debug, )]
+#[derive(Clone, Debug)]
 pub struct ComRand<L:Lang>(Vec<L::Dom>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -138,7 +141,7 @@ pub fn verify2<L:Lang>(params: &ProofParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Clone, Serialize, Debug)]
+#[derive(Clone, Serialize, GetSize, Debug)]
 pub struct FSProof<L: Lang> {
     fs_com: Commitment<L>,
     fs_resp: Response<L>
@@ -228,4 +231,28 @@ impl <L:Lang> Serialize for ComRand<L> {
 impl <L:Lang> Serialize for Response<L> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>
     { self.0.serialize(serializer) }
+}
+
+impl <L:Lang> GetSize for Commitment<L> {
+    fn get_stack_size() -> usize { panic!("I don't know how to implement this"); }
+    fn get_heap_size(&self) -> usize { self.0.get_heap_size() }
+    fn get_size(&self) -> usize { self.0.get_size() }
+}
+
+impl <L:Lang> GetSize for ComRand<L> {
+    fn get_stack_size() -> usize { panic!("I don't know how to implement this"); }
+    fn get_heap_size(&self) -> usize { self.0.get_heap_size() }
+    fn get_size(&self) -> usize { self.0.get_size() }
+}
+
+impl <L:Lang> GetSize for Response<L> {
+    fn get_stack_size() -> usize { panic!("I don't know how to implement this"); }
+    fn get_heap_size(&self) -> usize { self.0.get_heap_size() }
+    fn get_size(&self) -> usize { self.0.get_size() }
+}
+
+impl GetSize for Challenge {
+    fn get_stack_size() -> usize { panic!("I don't know how to implement this"); }
+    fn get_heap_size(&self) -> usize { self.0.get_heap_size() }
+    fn get_size(&self) -> usize { self.0.get_size() }
 }

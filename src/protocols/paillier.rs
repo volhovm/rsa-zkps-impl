@@ -1,5 +1,7 @@
 /// Small wrapper around Paillier implementation by kzen_paillier.
 
+use get_size::GetSize;
+use get_size_derive::*;
 
 use serde::{Serialize};
 use paillier::Paillier;
@@ -9,13 +11,13 @@ use paillier;
 
 use crate::bigint::*;
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct EncryptionKey {
     pub n: BigInt,
     pub nn: BigInt
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct DecryptionKey {
     pub p: BigInt,
     pub q: BigInt
