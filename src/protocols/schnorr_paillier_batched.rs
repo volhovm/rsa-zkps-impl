@@ -1,15 +1,10 @@
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation};
-use curv::BigInt;
-use paillier::EncryptWithChosenRandomness;
-use paillier::Paillier;
-use paillier::{EncryptionKey, DecryptionKey, Randomness, RawPlaintext, Keypair};
-use paillier::*;
 use serde::{Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fmt;
 
-use super::utils::PROFILE_SPB;
-use super::paillier::paillier_enc_opt;
+use crate::bigint::*;
+use crate::utils::PROFILE_SPB;
+use super::paillier as p;
 
 
 // Common parameters for the proof system.
@@ -59,9 +54,9 @@ impl fmt::Display for ProofParams {
 #[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Lang {
     /// Public key that is used to generate instances.
-    pub pk: EncryptionKey,
+    pub pk: p::EncryptionKey,
     /// Optional decryption key. If present, speeds up proving and verification.
-    pub sk: Option<DecryptionKey>,
+    pub sk: Option<p::DecryptionKey>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
@@ -77,7 +72,7 @@ pub struct Wit {
 }
 
 pub fn sample_lang(params: &ProofParams) -> Lang {
-    let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys();
+    let (pk,sk) = p::keygen(params.n_bitlen as usize);
     Lang { pk: pk, sk: Some(sk) }
 }
 
@@ -97,7 +92,7 @@ pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let cts: Vec<BigInt> =
         ms.iter().zip(rs.iter())
         .map(|(m,r)|
-            paillier_enc_opt(&lang.pk, lang.sk.as_ref(), m, r))
+            p::paillier_enc_opt(&lang.pk, lang.sk.as_ref(), m, r))
         .collect();
 
     let inst = Inst { cts };
@@ -134,7 +129,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let rand_r_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::sample_below(n)).collect();
     let com_v: Vec<_> =
         rand_m_v.iter().zip(rand_r_v.iter()).map(|(rm,rr)|
-            paillier_enc_opt(&lang.pk, lang.sk.as_ref(), rm, rr)).collect();
+            p::paillier_enc_opt(&lang.pk, lang.sk.as_ref(), rm, rr)).collect();
 
     (Commitment(com_v),ComRand(rand_m_v,rand_r_v))
 }
@@ -225,7 +220,7 @@ pub fn verify2(params: &ProofParams,
         let lhs = BigInt::mod_mul(&a, &ct_e, &lang.pk.nn);
         let t_3 = SystemTime::now();
 
-        let rhs = paillier_enc_opt(&lang.pk, lang.sk.as_ref(), s_m, s_r);
+        let rhs = p::paillier_enc_opt(&lang.pk, lang.sk.as_ref(), s_m, s_r);
         let t_4 = SystemTime::now();
 //        let rhs_doublecheck =
 //            BigInt::mod_mul(

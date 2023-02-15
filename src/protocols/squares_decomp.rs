@@ -5,12 +5,12 @@
 /// 1. "Randomized Algorithms in Number Theory" by Rabin and Shallit.
 /// 2. https://math.stackexchange.com/questions/5877/efficiently-finding-two-squares-which-sum-to-a-prime
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Zero, Roots, Integer, Primes, Converter};
-use curv::BigInt;
 use rand::distributions::{Distribution, Uniform};
 
 use num_bigint as nb;
 use algebraics as alg;
+
+use crate::bigint::*;
 
 // BigInt::is_probable_prime returns a probable prime with
 // prob. 4^reps, so reps = 40 should do to achieve a 80 bit error prob.
@@ -158,8 +158,7 @@ pub fn three_squares_decompose(n: &BigInt) -> (BigInt, BigInt, BigInt) {
 mod tests {
 
     use crate::protocols::squares_decomp::*;
-    use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Zero, Roots, Integer, Primes, Converter};
-    use curv::BigInt;
+    use crate::bigint::*;
 
     #[test]
     fn test_two_squares() {

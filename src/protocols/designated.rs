@@ -2,20 +2,17 @@
 /// of plaintext for the Paillier-Elgamal encryption scheme (see
 /// `super::paillier_elgamal`), assuming its modulus can be subverted.
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation,Converter};
-use curv::{BigInt};
-use paillier::{Paillier, EncryptionKey, DecryptionKey,
-               KeyGeneration, Encrypt, Decrypt, RawCiphertext,
-               Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
 use std::fmt;
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize};
 use rand::distributions::{Distribution, Uniform};
 
-use super::paillier::paillier_enc_opt;
-use super::utils as u;
-use super::utils::PROFILE_DV;
+use crate::bigint::*;
+use crate::utils as u;
+use crate::utils::PROFILE_DV;
+
+use super::paillier as p;
 use super::schnorr_paillier_batched as spb;
 use super::n_gcd as n_gcd;
 use super::paillier_elgamal as pe;
@@ -62,7 +59,7 @@ impl DVParams {
             // sum of lambda (small challenges with slack)
             self.lambda + u::log2ceil(self.lambda)
         } else {
-            // a single big challenge 
+            // a single big challenge
             self.ch_big_bitlen()
         }
     }
@@ -137,7 +134,7 @@ impl DVParams {
 #[derive(Clone, Debug, Serialize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
-    pub sk: DecryptionKey,
+    pub sk: p::DecryptionKey,
     /// Original challenge values
     pub chs: Vec<BigInt>
 }
@@ -145,7 +142,7 @@ pub struct VSK {
 #[derive(Clone, Debug, Serialize)]
 pub struct VPK {
     /// Verifier's Paillier public key
-    pub pk: EncryptionKey,
+    pub pk: p::EncryptionKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
     /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
@@ -160,8 +157,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let t_1 = SystemTime::now();
     // This can be more effective in terms of move/copy
     // e.g. Inst/Wit could contain references inside?
-    let (pk,sk) =
-        Paillier::keypair_with_modulus_size(params.vpk_n_bitlen() as usize).keys();
+    let (pk,sk) = p::keygen(params.vpk_n_bitlen() as usize);
 
     let t_2 = SystemTime::now();
     let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen());
@@ -179,7 +175,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
 
     let cts: Vec<BigInt> =
         chs.iter().zip(rs.iter())
-        .map(|(ch,r)| paillier_enc_opt(&pk,Some(&sk),ch,r))
+        .map(|(ch,r)| p::paillier_enc_opt(&pk,Some(&sk),ch,r))
         .collect();
 
     let t_3 = SystemTime::now();
@@ -219,7 +215,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
                 for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                     ms_wit.push(BigInt::from(0));
                     rs_wit.push(BigInt::from(1));
-                    cts_inst.push(paillier_enc_opt(&pk,Some(&sk),
+                    cts_inst.push(p::paillier_enc_opt(&pk,Some(&sk),
                                                    &BigInt::from(0),
                                                    &BigInt::from(1)));
                 }
@@ -284,7 +280,7 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 cts_w.push(
-                    paillier_enc_opt(&vpk.pk, None, &BigInt::from(0), &BigInt::from(1)));
+                    p::paillier_enc_opt(&vpk.pk, None, &BigInt::from(0), &BigInt::from(1)));
             }
         }
 
@@ -484,14 +480,14 @@ pub fn prove2(params: &DVParams,
                         nn);
     let t_3 = SystemTime::now();
 
-    let sm_ct = paillier_enc_opt(&vpk.pk, None, &cr.rm_m, &cr.rm_r);
+    let sm_ct = p::paillier_enc_opt(&vpk.pk, None, &cr.rm_m, &cr.rm_r);
     let t_4 = SystemTime::now();
     let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, nn),
                              &sm_ct,
                              nn);
     let t_5 = SystemTime::now();
 
-    let sr_ct = paillier_enc_opt(&vpk.pk, None, &cr.rr_m, &cr.rr_r);
+    let sr_ct = p::paillier_enc_opt(&vpk.pk, None, &cr.rr_m, &cr.rr_r);
     let t_6 = SystemTime::now();
     let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, nn),
                              &sr_ct,
@@ -509,12 +505,12 @@ pub fn prove2(params: &DVParams,
         let tr2 = cr.tr2.as_ref().expect("designated#prove2: tr2 must be Some");
         let tr3 = cr.tr3.as_ref().expect("designated#prove2: tr3 must be Some");
 
-        let tm_ct = paillier_enc_opt(&vpk.pk, None, tm2, tm3);
+        let tm_ct = p::paillier_enc_opt(&vpk.pk, None, tm2, tm3);
         let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tm1, nn),
                                  &tm_ct,
                                  nn);
 
-        let tr_ct = paillier_enc_opt(&vpk.pk, None, tr2, tr3);
+        let tr_ct = p::paillier_enc_opt(&vpk.pk, None, tr2, tr3);
         let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tr1, nn),
                                  &tr_ct,
                                  nn);
@@ -617,8 +613,8 @@ pub fn verify3(params: &DVParams,
         .fold(BigInt::from(0), |acc,x| acc + x );
     let t_2 = SystemTime::now();
 
-    let sr = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sr)).0.into_owned();
-    let sm = Paillier::decrypt(&vsk.sk,RawCiphertext::from(&resp1.sm)).0.into_owned();
+    let sr = p::decrypt(&vsk.sk,&resp1.sr);
+    let sm = p::decrypt(&vsk.sk,&resp1.sm);
     let t_3 = SystemTime::now();
 
 
@@ -685,7 +681,7 @@ pub fn verify3(params: &DVParams,
         let pp_inv_qq = BigInt::mod_inv(&pp, &qq).unwrap();
 
         {
-            let ct = paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &resp2.um3);
+            let ct = p::paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &resp2.um3);
             let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.um1, &pp);
             let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.um1, &qq);
             let exp1 = u::crt_recombine(&exp1_pp, &exp1_qq, &pp, &qq, &pp_inv_qq);
@@ -701,7 +697,7 @@ pub fn verify3(params: &DVParams,
         }
 
         {
-            let ct = paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &resp2.ur3);
+            let ct = p::paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &resp2.ur3);
 
             let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &pp);
             let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &qq);

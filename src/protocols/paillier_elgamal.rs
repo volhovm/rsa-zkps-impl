@@ -7,14 +7,12 @@
 ///
 /// https://link.springer.com/chapter/10.1007/978-3-540-40061-5_3
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, Integer};
-use curv::{BigInt};
 use serde::{Serialize};
-use paillier::{Paillier, EncryptionKey, DecryptionKey,
-               KeyGeneration,
-               Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
 
-use super::utils::{bigint_mod_pow_explicit, crt_recombine};
+use super::paillier as p;
+
+use crate::bigint::*;
+use crate::utils as u;
 
 
 #[derive(PartialEq, Eq, Clone, Debug, Serialize)]
@@ -52,7 +50,7 @@ pub struct PECiphertext {
 }
 
 pub fn keygen(n_bitlen: usize) -> (PEPublicKey,PESecretKey) {
-    let (pk,sk) = Paillier::keypair_with_modulus_size(n_bitlen).keys();
+    let (pk,sk) = p::keygen(n_bitlen);
     let p = &sk.p;
     let q = &sk.q;
     let n = &pk.n;
@@ -82,10 +80,10 @@ pub fn keygen(n_bitlen: usize) -> (PEPublicKey,PESecretKey) {
 pub fn encrypt_with_randomness(pk: &PEPublicKey,
                                m: &BigInt,
                                r: &BigInt) -> PECiphertext{
-    let ct1 = bigint_mod_pow_explicit(&pk.g, &pk.g_inv_nn, &r, &pk.nn);
+    let ct1 = u::bigint_mod_pow_explicit(&pk.g, &pk.g_inv_nn, &r, &pk.nn);
     let ct2 =
         BigInt::mod_mul(
-            &bigint_mod_pow_explicit(&pk.h, &pk.h_inv_nn, &r, &pk.nn),
+            &u::bigint_mod_pow_explicit(&pk.h, &pk.h_inv_nn, &r, &pk.nn),
             &(1 + m * &pk.n),
             &pk.nn);
 
@@ -106,23 +104,23 @@ pub fn encrypt_with_randomness_sk(pk: &PEPublicKey,
     let m_p = m % pp;
     let m_q = m % qq;
 
-    let ct1_p = bigint_mod_pow_explicit(&pk.g, &sk.g_inv_pp, &r, &pp);
-    let ct1_q = bigint_mod_pow_explicit(&pk.g, &sk.g_inv_qq, &r, &qq);
+    let ct1_p = u::bigint_mod_pow_explicit(&pk.g, &sk.g_inv_pp, &r, &pp);
+    let ct1_q = u::bigint_mod_pow_explicit(&pk.g, &sk.g_inv_qq, &r, &qq);
 
     let ct2_p =
         BigInt::mod_mul(
-            &bigint_mod_pow_explicit(&pk.h, &sk.h_inv_pp, &r, &pp),
+            &u::bigint_mod_pow_explicit(&pk.h, &sk.h_inv_pp, &r, &pp),
             &(1 + m_p * &pk.n),
             &pp);
 
     let ct2_q =
         BigInt::mod_mul(
-            &bigint_mod_pow_explicit(&pk.h, &sk.h_inv_qq, &r, &qq),
+            &u::bigint_mod_pow_explicit(&pk.h, &sk.h_inv_qq, &r, &qq),
             &(1 + m_q * &pk.n),
             &qq);
 
-    PECiphertext{ ct1: crt_recombine(&ct1_p, &ct1_q, &pp, &qq, &pp_inv_qq),
-                  ct2: crt_recombine(&ct2_p, &ct2_q, &pp, &qq, &pp_inv_qq) }
+    PECiphertext{ ct1: u::crt_recombine(&ct1_p, &ct1_q, &pp, &qq, &pp_inv_qq),
+                  ct2: u::crt_recombine(&ct2_p, &ct2_q, &pp, &qq, &pp_inv_qq) }
 
 }
 

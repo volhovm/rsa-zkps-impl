@@ -4,15 +4,12 @@
 /// verifier manually checks that there are no p<p_max divisors of N, which
 /// allows to use log(p_max) challenge space instead of the binary one.
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation};
-use curv::BigInt;
-use paillier::Paillier;
-use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
-use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
-use super::paillier::paillier_enc_opt;
+use crate::bigint::*;
+use crate::utils as u;
+use super::paillier as p;
 use super::schnorr_generic::*;
 
 
@@ -27,9 +24,9 @@ pub struct PLang {
     /// Params of the language
     pub lparams: PLangParams,
     /// Public key that is used to generate instances.
-    pub pk: EncryptionKey,
+    pub pk: p::EncryptionKey,
     /// Optional decryption key that speeds up Paillier
-    pub sk: Option<DecryptionKey>,
+    pub sk: Option<p::DecryptionKey>,
 }
 
 
@@ -52,7 +49,7 @@ impl Lang for PLang {
     type CoDom = PLangCoDom;
 
     fn sample_lang(lparams: &Self::LangParams) -> Self {
-        let (pk,sk) = Paillier::keypair_with_modulus_size(lparams.n_bitlen as usize).keys();
+        let (pk,sk) = p::keygen(lparams.n_bitlen as usize);
         PLang { lparams: lparams.clone(), pk, sk: Some(sk)  }
     }
 
@@ -67,7 +64,7 @@ impl Lang for PLang {
             panic!("schnorr_paillier_elgamal: verify0: ch_space is too big: {:?} bits",
                    params.ch_space_bitlen)
         }
-        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
+        u::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
     }
 
     fn sample_wit(&self) -> Self::Dom {
@@ -75,7 +72,7 @@ impl Lang for PLang {
             // Full message range N
             None => BigInt::sample_below(&self.pk.n),
             // [-R/2,R/2]
-            Some(r) => super::utils::bigint_sample_below_sym(r),
+            Some(r) => u::bigint_sample_below_sym(r),
         };
         // The order of r^N will be less than N, so it is fine
         // to sample this not from N^2
@@ -86,7 +83,7 @@ impl Lang for PLang {
 
 
     fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
-        let ct = paillier_enc_opt(&self.pk, self.sk.as_ref(), &wit.m, &wit.r);
+        let ct = p::paillier_enc_opt(&self.pk, self.sk.as_ref(), &wit.m, &wit.r);
         PLangCoDom { ct }
     }
 

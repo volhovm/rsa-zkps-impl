@@ -1,10 +1,10 @@
 /// A generic Schnorr implementation for any homomorphisms.
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
-use curv::BigInt;
 use serde::{Serialize, Serializer};
 use std::fmt;
 use std::fmt::Debug;
+
+use crate::bigint::*;
 
 ////////////////////////////////////////////////////////////////////////////
 // Params

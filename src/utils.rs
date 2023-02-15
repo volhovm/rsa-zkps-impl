@@ -1,8 +1,7 @@
 /// Collection of helpers and utility functions.
 
-use curv::BigInt;
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, NumberTests};
 
+use super::bigint::*;
 
 pub const PROFILE_SPB: bool = false;
 pub const PROFILE_DV: bool = false;
@@ -63,7 +62,7 @@ pub fn crt_recombine(vp: &BigInt,
                      p_inv_q: &BigInt) -> BigInt {
     let diff = BigInt::mod_sub(vq, vp, q);
     let u = (&diff * p_inv_q) % q;
-    vp + &u * p
+    vp + (&u) * p
 }
 
 
@@ -75,8 +74,8 @@ pub fn log2ceil(x: u32) -> u32 {
 #[cfg(test)]
 mod tests {
 
-    use curv::BigInt;
-    use crate::protocols::utils::check_small_primes;
+    use crate::utils::check_small_primes;
+    use crate::bigint::*;
 
     #[test]
     pub fn test_check_small_primes() {

@@ -1,17 +1,14 @@
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, BitManipulation, Roots, Converter};
-use curv::BigInt;
-use paillier::{Paillier, EncryptionKey, DecryptionKey,
-               KeyGeneration, Encrypt, Decrypt, RawCiphertext,
-               Randomness, RawPlaintext, Keypair, EncryptWithChosenRandomness};
 use std::fmt;
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize};
 use rand::distributions::{Distribution, Uniform};
 
-use super::paillier::paillier_enc_opt;
-use super::utils as u;
-use super::utils::PROFILE_DVR;
+use crate::bigint::*;
+use crate::utils as u;
+use crate::utils::PROFILE_DVR;
+
+use super::paillier as p;
 use super::schnorr_generic as sch;
 use super::schnorr_paillier_batched as spb;
 use super::schnorr_paillier_plus as spp;
@@ -81,9 +78,9 @@ impl DVRParams {
 
         let ch_small_bitlen = lambda;
         // lambda bits more than sum of lambda small challenges
-        let ch_big_bitlen = 
+        let ch_big_bitlen =
             ch_small_bitlen + u::log2ceil(lambda) + lambda;
-        let max_ch_bitlen = 
+        let max_ch_bitlen =
             if crs_uses == 0 {
                 // because we sum ch_small_bitlen lambda times
                 ch_small_bitlen + u::log2ceil(lambda)
@@ -94,7 +91,7 @@ impl DVRParams {
         // Range slack of the batched range proof.
         let range_slack_bitlen = 2 * lambda + u::log2ceil(lambda) - 1;
         let max_ch_proven_bitlen =
-            max_ch_bitlen + 
+            max_ch_bitlen +
             if malicious_setup { range_slack_bitlen } else { 0 } +
             1;
         // FIXME Double check the value
@@ -121,7 +118,7 @@ impl DVRParams {
         // FIXME I need confirmation on how this value is computed.
         // for now I will just assume it is equal to the r_i blinder.
         let ui_range_bitlen = r_range_bitlen + 1;
-        
+
         // It basically needs to hide tau, which is the biggest encrypted message.
         // FIXME why +3? Does not work with +2 but works with +3? Or sometimes with +2?
         let vpk_n_bitlen = tau_range_bitlen + 2;
@@ -239,7 +236,7 @@ pub fn sample_liw(params: &DVRParams) -> (DVRLang,DVRInst,DVRWit) {
 #[derive(Clone, Debug, Serialize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
-    pub sk: DecryptionKey,
+    pub sk: p::DecryptionKey,
     /// Original challenge values
     pub chs: Vec<BigInt>,
 
@@ -258,7 +255,7 @@ pub struct VSK {
 #[derive(Clone, Debug, Serialize)]
 pub struct VPK {
     /// Verifier's Paillier public key
-    pub pk: EncryptionKey,
+    pub pk: p::EncryptionKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
 
@@ -281,11 +278,9 @@ pub struct VPK {
 pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let t_1 = SystemTime::now();
     // These two are suspiciously slow, taking 300ms both for 2048 bit+
-    let (pk,sk) =
-        Paillier::keypair_with_modulus_size(params.vpk_n_bitlen as usize).keys();
+    let (pk,sk) = p::keygen(params.vpk_n_bitlen as usize);
 
-    let (pk_,sk_) =
-        Paillier::keypair_with_modulus_size(params.n_bitlen as usize).keys();
+    let (pk_,sk_) = p::keygen(params.n_bitlen as usize);
     let t_2 = SystemTime::now();
 
 
@@ -315,7 +310,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
 
     let cts: Vec<BigInt> =
         chs.iter().zip(rs.iter())
-        .map(|(ch,r)| paillier_enc_opt(&pk, Some(&sk), &ch, &r))
+        .map(|(ch,r)| p::paillier_enc_opt(&pk, Some(&sk), &ch, &r))
         .collect();
     let t_3 = SystemTime::now();
 
@@ -362,7 +357,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
                     ms_wit.push(BigInt::from(0));
                     rs_wit.push(BigInt::from(1));
                     cts_inst.push(
-                        paillier_enc_opt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(1)));
+                        p::paillier_enc_opt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(1)));
                 }
             }
 
@@ -448,7 +443,7 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 cts_w.push(
-                    paillier_enc_opt(&vpk.pk,None,&BigInt::from(0),&BigInt::from(1)));
+                    p::paillier_enc_opt(&vpk.pk,None,&BigInt::from(0),&BigInt::from(1)));
             }
         }
 
@@ -1110,7 +1105,7 @@ pub fn verify3(params: &DVRParams,
 
 
     let paillier_decrypt = |target: &BigInt| {
-        let res = Paillier::decrypt(&vsk.sk,RawCiphertext::from(target)).0.into_owned();
+        let res = p::decrypt(&vsk.sk,target);
         if &res >= &(&vpk.pk.n / BigInt::from(2)) { &res - &vpk.pk.n } else { res }
     };
 

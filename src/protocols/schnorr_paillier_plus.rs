@@ -4,16 +4,12 @@
 /// different 3-ary relation S = Enc(w_1,w_2)*C^{w_3} mod N^2; (2) and that it
 /// does not support range check functionality.
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
-use curv::BigInt;
-use paillier::EncryptWithChosenRandomness;
-use paillier::Paillier;
-use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
-use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
-use super::utils as u;
+use crate::bigint::*;
+use crate::utils as u;
+use super::paillier as p;
 use super::paillier::paillier_enc_opt;
 use super::schnorr_generic::*;
 
@@ -23,9 +19,9 @@ pub struct PPLang {
     /// Bit size of the RSA modulus
     pub n_bitlen: u32,
     /// Public key that is used to generate instances.
-    pub pk: EncryptionKey,
+    pub pk: p::EncryptionKey,
     /// Optional decryption key that speeds up Paillier
-    pub sk: Option<DecryptionKey>,
+    pub sk: Option<p::DecryptionKey>,
     /// The encryption ciphertext C, corresponding to the DVRange challenge
     pub ch_ct: BigInt,
 }
@@ -46,10 +42,10 @@ pub struct PPLangCoDom {
 
 
 /// Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
-pub fn compute_si(pk: &EncryptionKey,
-                  sk: Option<&DecryptionKey>,
+pub fn compute_si(pk: &p::EncryptionKey,
+                  sk: Option<&p::DecryptionKey>,
                   ch_ct: &BigInt, m: &BigInt, r: &BigInt, cexp: &BigInt) -> BigInt {
-    let ct = paillier_enc_opt(pk,sk,m,r);
+    let ct = p::paillier_enc_opt(pk,sk,m,r);
 
     match sk.as_ref() {
         None => BigInt::mod_mul(&ct, &u::bigint_mod_pow(ch_ct, cexp, &pk.nn),&pk.nn),
@@ -71,7 +67,7 @@ impl Lang for PPLang {
     type CoDom = PPLangCoDom;
 
     fn sample_lang(n_bitlen: &Self::LangParams) -> Self {
-        let (pk,sk) = Paillier::keypair_with_modulus_size(*n_bitlen as usize).keys();
+        let (pk,sk) = p::keygen(*n_bitlen as usize);
         let ch_ct = BigInt::sample_below(&pk.nn);
         PPLang { n_bitlen: *n_bitlen, pk, sk: Some(sk), ch_ct  }
     }

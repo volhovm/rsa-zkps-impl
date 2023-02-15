@@ -1,17 +1,13 @@
 /// A simple Schnorr variant for knowledge-of-discrete-logarithm (`x = g^w`)
 /// in Z_N where N might be subverted.
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
-use curv::BigInt;
-use paillier::EncryptWithChosenRandomness;
-use paillier::Paillier;
-use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
-use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
-use super::utils as u;
+use crate::bigint::*;
+use crate::utils as u;
 use crate::protocols::schnorr_generic::*;
+use crate::protocols::paillier as p;
 
 
 #[derive(Clone, PartialEq, Debug, Serialize)]
@@ -46,8 +42,7 @@ impl Lang for ExpNLang {
     type CoDom = ExpNLangCoDom;
 
     fn sample_lang(n_bitlen: &Self::LangParams) -> Self {
-        use paillier::*;
-        let (pk,sk) = Paillier::keypair_with_modulus_size(*n_bitlen as usize).keys();
+        let (pk,sk) = p::keygen(*n_bitlen as usize);
         let n = pk.n;
         let h = BigInt::sample_below(&n);
         ExpNLang { n_bitlen: *n_bitlen, n, h, p: Some(sk.p.clone()), q: Some(sk.q.clone())
@@ -60,13 +55,13 @@ impl Lang for ExpNLang {
         other.q = None;
         return other
     }
-    
+
     fn verify(&self, params: &ProofParams) -> bool {
         if params.ch_space_bitlen > 32 {
             panic!("schnorr_exp: verify0: ch_space is too big: {:?} bits",
                    params.ch_space_bitlen)
         }
-        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.n)
+        u::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.n)
     }
 
     fn sample_wit(&self) -> Self::Dom {

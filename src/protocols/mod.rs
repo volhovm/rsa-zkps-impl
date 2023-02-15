@@ -1,4 +1,3 @@
-pub mod utils;
 pub mod schnorr_generic;
 pub mod schnorr_exp;
 pub mod schnorr_paillier;

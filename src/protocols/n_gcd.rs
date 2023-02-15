@@ -5,14 +5,11 @@
 /// "Efficient Noninteractive Certification of RSA Moduli and Beyond"
 /// https://par.nsf.gov/servlets/purl/10189824
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps, Converter};
-use curv::BigInt;
-use paillier::EncryptWithChosenRandomness;
-use paillier::Paillier;
-use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
-use paillier::*;
 use serde::{Serialize};
 use std::fmt;
+
+use super::paillier as p;
+use crate::bigint::*;
 
 
 /// Common parameters for the proof system.
@@ -57,7 +54,7 @@ pub struct Wit {
 pub struct VerifierPrecomp(BigInt);
 
 pub fn sample_inst_wit(params: &ProofParams) -> (Inst,Wit) {
-    let (pk,sk) = Paillier::keypair_with_modulus_size(params.n_bitlen).keys();
+    let (pk,sk) = p::keygen(params.n_bitlen);
     let p = sk.p;
     let q = sk.q;
     let n = pk.n;
@@ -104,7 +101,7 @@ pub fn prove(params: &ProofParams, inst: &Inst, wit: &Wit) -> Proof {
 }
 
 pub fn verify(params: &ProofParams, inst: &Inst, proof: &Proof) -> bool {
-    if !super::utils::check_small_primes(params.pmax, &inst.n) { return false; }
+    if !crate::utils::check_small_primes(params.pmax, &inst.n) { return false; }
     let chs = fs_compute_challenge(params,inst);
     for (sigma,ch) in (&proof.0).iter().zip(chs.iter()) {
         if sigma <= &BigInt::from(0) { return false; }

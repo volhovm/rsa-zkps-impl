@@ -1,13 +1,10 @@
 /// Schnorr for Paillier-Elgamal.
 
-use curv::arithmetic::traits::{Modulo, Samplable, BasicOps};
-use curv::BigInt;
-use paillier::Paillier;
-use paillier::{EncryptionKey, Randomness, RawPlaintext, Keypair};
-use paillier::*;
 use serde::{Serialize};
 use std::fmt;
 
+use crate::bigint::*;
+use crate::utils as u;
 use super::schnorr_generic::*;
 use super::paillier_elgamal as pe;
 
@@ -57,7 +54,7 @@ impl Lang for PELang {
             panic!("schnorr_paillier_elgamal: verify0: ch_space is too big: {:?} bits",
                    params.ch_space_bitlen)
         }
-        super::utils::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
+        u::check_small_primes(2u64.pow(params.ch_space_bitlen),&self.pk.n)
     }
 
     fn sample_wit(&self) -> Self::Dom {

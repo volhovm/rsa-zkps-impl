@@ -1,11 +1,9 @@
 #![allow(dead_code)]
 
-use curv::arithmetic::traits::{BasicOps};
 use serde::{Serialize};
-use curv::BigInt;
-use paillier::*;
-use zk_paillier::zkproofs::{CiphertextProof,CiphertextWitness,CiphertextStatement};
 use std::time::{SystemTime};
+
+use rsazkps::bigint::*;
 
 use rsazkps::protocols::schnorr_generic as sch;
 use rsazkps::protocols::schnorr_paillier as sp;
@@ -19,6 +17,7 @@ use rsazkps::protocols::designated_range as dvr;
 
 fn estimate_size<T: Serialize>(x: &T) -> f64 {
     let x: Vec<u8> = rmp_serde::to_vec(x).unwrap();
+    println!("serialized: {:?}",x);
     (x.len() as f64) / 1024.0
 }
 
@@ -27,6 +26,16 @@ fn estimate_size_designated(params: &dv::DVParams) {
              params.malicious_setup, params.ggm_mode);
 
     let (vpk,vsk) = dv::keygen(&params);
+    println!("vpk_n_bitlen: {}", params.vpk_n_bitlen());
+    println!("VPK.cts[0]: {:.2} KB, VPK.cts[0].len: {}, to_bytes.len: {}",
+             estimate_size(&vpk.cts[0]),
+             vpk.cts[0].bit_length(),
+             vpk.cts[0].to_bytes().len());
+    assert!(false);
+    println!("VPK.pk: {:.2} KB, VPK.cts: {:.2} KB",
+             estimate_size(&vpk.pk),
+             estimate_size(&vpk.cts));
+
     dv::verify_vpk(&params, &vpk);
     let (lang,inst,wit) = dv::sample_liw(params);
     let proof = dv::fs_prove(params,&vpk,&lang,&inst,&wit,0);
@@ -69,18 +78,15 @@ fn estimate_proof_sizes() {
     println!("Estimating proof sizes; log(N) = {}, lambda = {}, queries = {}, log(Range) = {}",
              n_bitlen, lambda, queries, range_bitlen);
 
-    estimate_size_schnorr::<sp::PLang>(
-        &sch::ProofParams::new_range(lambda),
-        &sp::PLangParams{ n_bitlen, range: Some(BigInt::pow(&BigInt::from(2),range_bitlen))});
-
-    for ch_space_bitlen in [1,16,19,22,26] {
-        estimate_size_schnorr::<sp::PLang>(
-            &sch::ProofParams::new(lambda, ch_space_bitlen),
-            &sp::PLangParams{ n_bitlen, range: None });
-    }
     //estimate_size_schnorr::<sp::PLang>(
     //    &sch::ProofParams::new_range(lambda),
-    //    &sp::PLangParams{ n_bitlen, range: Some(range.clone()) });
+    //    &sp::PLangParams{ n_bitlen, range: Some(BigInt::pow(&BigInt::from(2),range_bitlen))});
+
+    //for ch_space_bitlen in [1,16,19,22,26] {
+    //    estimate_size_schnorr::<sp::PLang>(
+    //        &sch::ProofParams::new(lambda, ch_space_bitlen),
+    //        &sp::PLangParams{ n_bitlen, range: None });
+    //}
 
     //estimate_size_schnorr::<spe::PELang>(
     //    &sch::ProofParams::new(lambda, 1),
@@ -101,31 +107,6 @@ fn estimate_proof_sizes() {
     estimate_size_designated_range(&dvr::DVRParams::new(n_bitlen, lambda, range_bitlen, queries as u32, true, false));
 
 }
-
-
-fn check_correct_ciphertext_proof() {
-    let kp:Keypair = Paillier::keypair();
-    let (pk,_) = kp.keys();
-
-    let m = BigInt::from(1u32);
-    let r = BigInt::from(2u32);
-
-    let ct = Paillier::encrypt_with_chosen_randomness(
-             &pk,
-             RawPlaintext::from(m.clone()),
-             &Randomness(r.clone())).0.into_owned();
-
-    let w = CiphertextWitness{ x: m.clone(), r: r };
-    let w_false = CiphertextWitness{x:m,r:BigInt::from(3)};
-    let x = CiphertextStatement{ ek: pk, c: ct };
-
-    let res1 = CiphertextProof::prove(&w,&x).verify(&x);
-    println!("Honest proof verifies: {:?}", res1);
-
-    let res2 = CiphertextProof::prove(&w_false,&x).verify(&x);
-    println!("Bogus proof verification gives: {:?}", res2);
-}
-
 
 
 
