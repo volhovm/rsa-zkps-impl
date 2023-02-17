@@ -80,7 +80,7 @@ impl Lang for PPLang {
         return other
     }
 
-    fn verify(&self, params: &ProofParams) -> bool {
+    fn pre_verify(&self, params: &ProofParams) -> bool {
         if params.ch_space_bitlen > 32 {
             panic!("schnorr_paillier_plus: verify0: ch_space is too big: {:?} bits",
                    params.ch_space_bitlen)

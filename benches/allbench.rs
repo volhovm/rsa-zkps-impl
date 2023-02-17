@@ -88,7 +88,7 @@ fn bench_schnorr<L: sch::Lang>(c: &mut Criterion,
 
     grp.bench_function("lang_verify", |b| {
         b.iter_batched(|| L::sample_lang(lparams),
-                       |lang| lang.verify(params),
+                       |lang| lang.pre_verify(params),
                        BatchSize::LargeInput);
     });
 
@@ -141,7 +141,7 @@ fn bench_schnorr_fs<L: sch::Lang>(c: &mut Criterion,
 
     grp.bench_function("lang_verify", |b| {
         b.iter_batched(|| L::sample_lang(lparams),
-                       |lang| lang.verify(params),
+                       |lang| lang.pre_verify(params),
                        BatchSize::LargeInput);
     });
 

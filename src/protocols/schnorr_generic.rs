@@ -51,7 +51,7 @@ pub trait Lang: Serialize + GetSize {
 
     fn sample_lang(lparams: &Self::LangParams) -> Self;
     fn to_public(&self) -> Self;
-    fn verify(&self, params: &ProofParams) -> bool;
+    fn pre_verify(&self, params: &ProofParams) -> bool;
 
     fn sample_wit(&self) -> Self::Dom;
 

@@ -122,7 +122,7 @@ impl DVRParams {
         let ui_range_bitlen = r_range_bitlen + 1;
 
         // It basically needs to hide tau, which is the biggest encrypted message.
-        // FIXME why +3? Does not work with +2 but works with +3? Or sometimes with +2?
+        // TODO why +3? Does not work with +2 but works with +3? Or sometimes with +2?
         let vpk_n_bitlen = tau_range_bitlen + 2;
 
         DVRParams{psi_n_bitlen, lambda, range_bitlen,
@@ -408,9 +408,8 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
     let se_lang = se::ExpNLang{n_bitlen: params.n_bitlen,
                                n: vpk.n.clone(), h: vpk.h.clone(),
                                p: None, q: None };
-    // FIXME I'm not sure it's needed, and I'm not sure I
     // haven't missed lang. verification anywhere else
-    if !sch::Lang::verify(&se_lang,&se_params) { return false; }
+    if !sch::Lang::pre_verify(&se_lang,&se_params) { return false; }
     if !sch::fs_verify(&se_params,
                        &se_lang,
                        &se::ExpNLangCoDom{g: vpk.g.clone()},
