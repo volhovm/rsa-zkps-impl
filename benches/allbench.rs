@@ -7,6 +7,7 @@ use rsazkps::bigint::*;
 
 use rsazkps::protocols::paillier as p;
 use rsazkps::protocols::paillier_elgamal as pe;
+use rsazkps::protocols::paillier_cramer_shoup as pcs;
 
 use rsazkps::protocols::schnorr_generic as sch;
 use rsazkps::protocols::schnorr_paillier as sp;
@@ -41,6 +42,15 @@ fn bench_paillier(c: &mut Criterion) {
                        |(m,r)| p::paillier_enc_opt(&pk,None,&m,&r),
                        BatchSize::LargeInput);
     });
+
+    grp.bench_function("decrypt", |b| {
+        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+                            let r = BigInt::sample_below(&pk.n);
+                            let ct = p::paillier_enc_opt(&pk,Some(&sk),&m,&r);
+                            ct },
+                       |ct| p::decrypt(&sk,&ct),
+                       BatchSize::LargeInput);
+    });
 }
 
 fn bench_paillier_elgamal(c: &mut Criterion) {
@@ -62,6 +72,38 @@ fn bench_paillier_elgamal(c: &mut Criterion) {
                             let r = BigInt::sample_below(&pk.n);
                             (m,r) },
                        |(m,r)| pe::encrypt_with_randomness_opt(&pk,None,&m,&r),
+                       BatchSize::LargeInput);
+    });
+}
+
+fn bench_paillier_cramer_shoup(c: &mut Criterion) {
+    let n_bitlen = 2048;
+    let mut grp = c.benchmark_group(format!("Paillier-Cramer-Shoup log(N)={}", n_bitlen));
+
+    let (pk,sk) = pcs::keygen(n_bitlen);
+
+    grp.bench_function("encrypt_crt", |b| {
+        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+                            let r = BigInt::sample_below(&pk.n);
+                            (m,r) },
+                       |(m,r)| pcs::encrypt(&pk,Some(&sk),&m,&r),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("encrypt_naive", |b| {
+        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+                            let r = BigInt::sample_below(&pk.n);
+                            (m,r) },
+                       |(m,r)| pcs::encrypt(&pk,None,&m,&r),
+                       BatchSize::LargeInput);
+    });
+
+    grp.bench_function("decrypt", |b| {
+        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+                            let r = BigInt::sample_below(&pk.n);
+                            let ct = pcs::encrypt(&pk,Some(&sk),&m,&r);
+                            ct },
+                       |ct| pcs::decrypt(&pk,&sk,&ct),
                        BatchSize::LargeInput);
     });
 }
@@ -458,9 +500,10 @@ fn bench_designated_range_all(c: &mut Criterion) {
 }
 
 
-criterion_group!(benches, bench_designated_all, bench_designated_range_all);
+//criterion_group!(benches, bench_designated_all, bench_designated_range_all);
 //criterion_group!(benches, bench_designated_all);
 //criterion_group!(benches, bench_designated_range_all);
 //criterion_group!(benches, bench_schnorr_paillier_all);
-//criterion_group!(benches, bench_paillier, bench_paillier_elgamal);
+//criterion_group!(benches, bench_paillier, bench_paillier_elgamal, bench_paillier_cramer_shoup);
+criterion_group!(benches, bench_paillier_cramer_shoup);
 criterion_main!(benches);
