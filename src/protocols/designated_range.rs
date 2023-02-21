@@ -577,18 +577,6 @@ pub struct PlusComRand {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
 pub struct DVRResp1Rand {
-    u_r_m: BigInt,
-    v_r_m: BigInt,
-    u1_r_m: BigInt,
-    v1_r_m: BigInt,
-    u2_r_m: BigInt,
-    v2_r_m: BigInt,
-    u3_r_m: BigInt,
-    v3_r_m: BigInt,
-    u4_r_m: BigInt,
-
-    u_r_r: BigInt,
-
     plus_comrand: Option<PlusComRand>
 }
 
@@ -791,54 +779,41 @@ pub fn prove2(params: &DVRParams,
                           .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_nn)),
                         vpk_nn);
 
-    // Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
-    let p2_generic = |rand: &BigInt,enc_arg: &BigInt,ct_exp: &BigInt|
-            super::schnorr_paillier_plus::compute_si(&vpk.pk,None,&ch_ct,enc_arg,rand,ct_exp);
-
     let t_2 = SystemTime::now();
+
+    // Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
+    let p2_generic = |enc_arg: &BigInt,ct_exp: &BigInt|
+            super::schnorr_paillier_plus::compute_si(&vpk.pk,None,&ch_ct,enc_arg,ct_exp);
+
+
     ////// For wit.m
 
-
-    // TODO Important! Not choosing new randomness here speeds up things a lot!
-    let sample_enc_rand = || BigInt::sample(params.vpk_n_bitlen as usize);
-    //let sample_enc_rand = || BigInt::from(1);
-
     // u, v
-    let u_r_m = sample_enc_rand();
-    let u_m = p2_generic(&u_r_m, &cr.r_m, &(&params.range - &wit.m));
-    let v_r_m = sample_enc_rand();
-    let v_m = p2_generic(&v_r_m, &cr.sigma_m, &-&cr.t_m);
+    let u_m = p2_generic(&cr.r_m, &(&params.range - &wit.m));
+    let v_m = p2_generic(&cr.sigma_m, &-&cr.t_m);
 
     // u_i, v_i, i = 1, 2, 3
-    let u1_r_m = sample_enc_rand();
-    let u1_m = p2_generic(&u1_r_m, &cr.r1_m, &cr.x1_m);
-    let v1_r_m = sample_enc_rand();
-    let v1_m = p2_generic(&v1_r_m, &cr.sigma1_m, &cr.t1_m);
+    let u1_m = p2_generic(&cr.r1_m, &cr.x1_m);
+    let v1_m = p2_generic(&cr.sigma1_m, &cr.t1_m);
 
-    let u2_r_m = sample_enc_rand();
-    let u2_m = p2_generic(&u2_r_m, &cr.r2_m, &cr.x2_m);
-    let v2_r_m = sample_enc_rand();
-    let v2_m = p2_generic(&v2_r_m, &cr.sigma2_m, &cr.t2_m);
+    let u2_m = p2_generic(&cr.r2_m, &cr.x2_m);
+    let v2_m = p2_generic(&cr.sigma2_m, &cr.t2_m);
 
-    let u3_r_m = sample_enc_rand();
-    let u3_m = p2_generic(&u3_r_m, &cr.r3_m, &cr.x3_m);
-    let v3_r_m = sample_enc_rand();
-    let v3_m = p2_generic(&v3_r_m, &cr.sigma3_m, &cr.t3_m);
+    let u3_m = p2_generic(&cr.r3_m, &cr.x3_m);
+    let v3_m = p2_generic(&cr.sigma3_m, &cr.t3_m);
 
     // u4
-    let u4_r_m = sample_enc_rand();
     let u4_m_exp = &cr.x1_m * &cr.t1_m +
                    &cr.x2_m * &cr.t2_m +
                    &cr.x3_m * &cr.t3_m -
                    &BigInt::from(4) * (&params.range - &wit.m) * &cr.t_m;
     let u4_m =
-        p2_generic(&u4_r_m, &cr.tau_m, &u4_m_exp);
+        p2_generic(&cr.tau_m, &u4_m_exp);
 
     ////// For wit.r
 
     // u, v
-    let u_r_r = sample_enc_rand();
-    let u_r = p2_generic(&u_r_r, &cr.r_r, &-&wit.r);
+    let u_r = p2_generic(&cr.r_r, &-&wit.r);
 
     let t_3 = SystemTime::now();
 
@@ -893,12 +868,7 @@ pub fn prove2(params: &DVRParams,
             u_r,
             plus_com,
         };
-    let resp1_rand =
-        DVRResp1Rand {
-            u_r_m, v_r_m, u1_r_m, v1_r_m, u2_r_m, v2_r_m, u3_r_m, v3_r_m, u4_r_m,
-            u_r_r,
-            plus_comrand,
-                };
+    let resp1_rand = DVRResp1Rand { plus_comrand };
 
 
 
@@ -962,86 +932,77 @@ pub fn prove3(params: &DVRParams,
               resp1rand: &DVRResp1Rand,
               ch2: Option<&DVRChallenge2>,
               query_ix: usize) -> Option<DVRResp2> {
-    if params.ggm_mode { None } else {
+    if params.ggm_mode {
+        None
+    } else {
+        let mut ch1_active_bits: Vec<usize> = vec![];
+        for i in 0..(params.lambda as usize) {
+            if ch1.inner.test_bit(i) { ch1_active_bits.push(i); }
+        }
 
-    let mut ch1_active_bits: Vec<usize> = vec![];
-    for i in 0..(params.lambda as usize) {
-        if ch1.inner.test_bit(i) { ch1_active_bits.push(i); }
-    }
+        let vpk_nn: &BigInt = &vpk.pk.nn;
+        let ch_ct =
+            BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
+                            &ch1_active_bits.iter()
+                            .map(|&i| &vpk.cts[i])
+                            .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_nn)),
+                            vpk_nn);
 
-    let vpk_nn: &BigInt = &vpk.pk.nn;
-    let ch_ct =
-        BigInt::mod_mul(&vpk.cts[(params.lambda as usize) + query_ix],
-                        &ch1_active_bits.iter()
-                          .map(|&i| &vpk.cts[i])
-                          .fold(BigInt::from(1), |ct,cti| BigInt::mod_mul(&ct, cti, vpk_nn)),
-                        vpk_nn);
-
-    //// Running the sub-proof
-    let spp_params = params.spp_params();
+        //// Running the sub-proof
+        let spp_params = params.spp_params();
         let spp_lang = spp::PPLang{ n_bitlen: params.vpk_n_bitlen,
                                     pk: vpk.pk.clone(), sk: None, ch_ct: ch_ct.clone() };
 
-    let spp_reply = |witm: &BigInt, witr: &BigInt, witcexp: &BigInt, ch: &sch::Challenge, comrand: &sch::ComRand<spp::PPLang>| {
+        let spp_reply = |witm: &BigInt, witcexp: &BigInt, ch: &sch::Challenge, comrand: &sch::ComRand<spp::PPLang>| {
             sch::prove2(&spp_params,&spp_lang,
-                            &spp::PPLangDom{m: witm.clone(),
-                                            r: witr.clone(),
-                                            cexp: witcexp.clone()},
-                            ch,
-                            comrand)
-    };
+                        &spp::PPLangDom{m: witm.clone(),
+                                        cexp: witcexp.clone()},
+                        ch,
+                        comrand)
+        };
 
-    let ch2_unwrap = ch2.expect("DVRange#prove3: ch2 must be Some");
-    let plus_comrand = resp1rand.plus_comrand.clone().expect("DVRange#prove3: plus_comrand must be Some");
+        let ch2_unwrap = ch2.expect("DVRange#prove3: ch2 must be Some");
+        let plus_comrand = resp1rand.plus_comrand.clone().expect("DVRange#prove3: plus_comrand must be Some");
 
 
-    let resp_u_m = spp_reply(&cr.r_m,
-                                 &resp1rand.u_r_m,
+        let resp_u_m = spp_reply(&cr.r_m,
                                  &(&params.range - &wit.m),
                                  &ch2_unwrap.ch_u_m,
                                  &plus_comrand.comrand_u_m);
 
-    let resp_v_m = spp_reply(&cr.sigma_m,
-                                 &resp1rand.v_r_m,
+        let resp_v_m = spp_reply(&cr.sigma_m,
                                  &-&cr.t_m,
                                  &ch2_unwrap.ch_v_m,
                                  &plus_comrand.comrand_v_m);
 
-    let resp_u1_m = spp_reply(&cr.r1_m,
-                                  &resp1rand.u1_r_m,
+        let resp_u1_m = spp_reply(&cr.r1_m,
                                   &cr.x1_m,
                                   &ch2_unwrap.ch_u1_m,
                                   &plus_comrand.comrand_u1_m);
-    let resp_v1_m = spp_reply(&cr.sigma1_m,
-                                  &resp1rand.v1_r_m,
+        let resp_v1_m = spp_reply(&cr.sigma1_m,
                                   &cr.t1_m,
                                   &ch2_unwrap.ch_v1_m,
                                   &plus_comrand.comrand_v1_m);
 
-    let resp_u2_m = spp_reply(&cr.r2_m,
-                                  &resp1rand.u2_r_m,
+        let resp_u2_m = spp_reply(&cr.r2_m,
                                   &cr.x2_m,
                                   &ch2_unwrap.ch_u2_m,
                                   &plus_comrand.comrand_u2_m);
-    let resp_v2_m = spp_reply(&cr.sigma2_m,
-                                  &resp1rand.v2_r_m,
+        let resp_v2_m = spp_reply(&cr.sigma2_m,
                                   &cr.t2_m,
                                   &ch2_unwrap.ch_v2_m,
                                   &plus_comrand.comrand_v2_m);
 
-    let resp_u3_m = spp_reply(&cr.r3_m,
-                                  &resp1rand.u3_r_m,
+        let resp_u3_m = spp_reply(&cr.r3_m,
                                   &cr.x3_m,
                                   &ch2_unwrap.ch_u3_m,
                                   &plus_comrand.comrand_u3_m);
-    let resp_v3_m = spp_reply(&cr.sigma3_m,
-                                  &resp1rand.v3_r_m,
+        let resp_v3_m = spp_reply(&cr.sigma3_m,
                                   &cr.t3_m,
                                   &ch2_unwrap.ch_v3_m,
                                   &plus_comrand.comrand_v3_m);
 
-    let resp_u4_m = spp_reply(&cr.tau_m,
-                                  &resp1rand.u4_r_m,
+        let resp_u4_m = spp_reply(&cr.tau_m,
                                   &(&cr.x1_m * &cr.t1_m +
                                     &cr.x2_m * &cr.t2_m +
                                     &cr.x3_m * &cr.t3_m -
@@ -1050,25 +1011,24 @@ pub fn prove3(params: &DVRParams,
                                   &plus_comrand.comrand_u4_m);
 
 
-    let resp_u_r = spp_reply(&cr.r_r,
-                                 &resp1rand.u_r_r,
+        let resp_u_r = spp_reply(&cr.r_r,
                                  &-&wit.r,
                                  &ch2_unwrap.ch_u_r,
                                  &plus_comrand.comrand_u_r);
 
-    Some(DVRResp2 {
-        resp_u_m,
-        resp_v_m,
-        resp_u1_m,
-        resp_v1_m,
-        resp_u2_m,
-        resp_v2_m,
-        resp_u3_m,
-        resp_v3_m,
-        resp_u4_m,
+        Some(DVRResp2 {
+            resp_u_m,
+            resp_v_m,
+            resp_u1_m,
+            resp_v1_m,
+            resp_u2_m,
+            resp_v2_m,
+            resp_u3_m,
+            resp_v3_m,
+            resp_u4_m,
 
-        resp_u_r,
-    })
+            resp_u_r,
+        })
     }
 }
 

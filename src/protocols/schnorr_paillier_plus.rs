@@ -1,7 +1,7 @@
 /// A tailored variant of schnorr_paillier for knowledge-of-ciphertext
 /// specifically for the DVRange protocol. It is very similar to
 /// super::schnorr_paillier, except that (1) it is for a slightly
-/// different 3-ary relation S = Enc(w_1,w_2)*C^{w_3} mod N^2; (2) and that it
+/// different 3-ary relation S = Enc(w_1;1)*C^{w_2} mod N^2; (2) and that it
 /// does not support range check functionality.
 
 use get_size::GetSize;
@@ -30,8 +30,8 @@ pub struct PPLang {
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PPLangDom {
+    /// Blinding message
     pub m: BigInt,
-    pub r: BigInt,
     /// exponent of ct
     pub cexp: BigInt,
 }
@@ -43,11 +43,11 @@ pub struct PPLangCoDom {
 }
 
 
-/// Computes Enc_pk(enc_arg,rand)*Ct^{ct_exp}
+/// Computes Enc_pk(enc_arg,1)*Ct^{ct_exp}
 pub fn compute_si(pk: &p::EncryptionKey,
                   sk: Option<&p::DecryptionKey>,
-                  ch_ct: &BigInt, m: &BigInt, r: &BigInt, cexp: &BigInt) -> BigInt {
-    let ct = p::paillier_enc_opt(pk,sk,m,r);
+                  ch_ct: &BigInt, m: &BigInt, cexp: &BigInt) -> BigInt {
+    let ct = p::paillier_enc_opt(pk,sk,m,&BigInt::from(1));
 
     match sk.as_ref() {
         None => BigInt::mod_mul(&ct, &u::bigint_mod_pow(ch_ct, cexp, &pk.nn),&pk.nn),
@@ -90,41 +90,36 @@ impl Lang for PPLang {
 
     fn sample_wit(&self) -> Self::Dom {
         let m = BigInt::sample_below(&self.pk.n);
-        let r = BigInt::sample_below(&self.pk.n);
         // Most generally this is N^2. However in DVRange, this number can be
         // range-limited to smaller different numbers depending on the step.
         // TODO probably can be optimised
         let cexp = BigInt::sample_below(&self.pk.nn);
 
-        PPLangDom { m, r, cexp }
+        PPLangDom { m, cexp }
     }
 
     fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
-        let si = compute_si(&self.pk, self.sk.as_ref(), &self.ch_ct, &wit.m, &wit.r, &wit.cexp);
+        let si = compute_si(&self.pk, self.sk.as_ref(), &self.ch_ct, &wit.m, &wit.cexp);
         PPLangCoDom { si }
     }
 
     fn sample_com_rand(&self, _params: &ProofParams) -> Self::Dom {
         // Perfect blinding since response is computed mod N
         let m = BigInt::sample_below(&self.pk.n);
-        // Perfect multiplicative blinding
-        let r = BigInt::sample_below(&self.pk.n);
         // Must additively blind anything over N^2.
         // TODO can be optimised if we know the witness is smaller.
         let cexp = BigInt::sample_below(&self.pk.nn);
 
-        PPLangDom { m, r, cexp }
+        PPLangDom { m, cexp }
     }
 
     fn compute_resp(&self, wit: &Self::Dom, ch: &BigInt, rand: &Self::Dom) -> Self::Dom {
         let n = &self.pk.n;
 
         let m = BigInt::mod_add(&rand.m, &BigInt::mod_mul(&wit.m, ch, n), n);
-        // TODO This can be optimised when factorization of n is known
-        let r = BigInt::mod_mul(&rand.r, &BigInt::mod_pow(&wit.r, ch, n), n);
         let cexp = &wit.cexp * ch + &rand.cexp;
 
-        PPLangDom { m, r, cexp }
+        PPLangDom { m, cexp }
     }
 
     fn resp_lhs(&self, inst: &Self::CoDom, ch: &BigInt, com: &Self::CoDom) -> Self::CoDom {

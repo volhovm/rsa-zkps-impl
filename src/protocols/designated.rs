@@ -365,15 +365,11 @@ pub struct DVCom{ pub a: pe::PECiphertext }
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVComRand {
     pub rm_m: BigInt,
-    pub rm_r: BigInt,
     pub rr_m: BigInt,
-    pub rr_r: BigInt,
     pub tm1: Option<BigInt>,
     pub tm2: Option<BigInt>,
-    pub tm3: Option<BigInt>,
     pub tr1: Option<BigInt>,
     pub tr2: Option<BigInt>,
-    pub tr3: Option<BigInt>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, GetSize)]
@@ -393,10 +389,8 @@ pub struct DVResp1 {
 pub struct DVResp2 {
     pub um1: BigInt,
     pub um2: BigInt,
-    pub um3: BigInt,
     pub ur1: BigInt,
     pub ur2: BigInt,
-    pub ur3: BigInt,
 }
 
 
@@ -405,19 +399,11 @@ pub fn prove1(params: &DVParams, vpk: &VPK, lang: &DVLang) -> (DVCom,DVComRand) 
     let rm_m = BigInt::sample(params.rand_m_bitlen() as usize);
     let rr_m = BigInt::sample(params.rand_r_bitlen() as usize);
 
-    // These will be used in the next steps
-    // TODO check these sizes make sense
-    let rm_r = BigInt::sample(params.vpk_n_bitlen() as usize);
-    let rr_r = BigInt::sample(params.vpk_n_bitlen() as usize);
-    // TODO These can be potentially set to 1 to speed things up!
-    //let rm_r = BigInt::from(1);
-    //let rr_r = BigInt::from(1);
-
     let a = pe::encrypt_with_randomness_opt(&lang.pk,lang.sk.as_ref(),&rm_m,&rr_m);
     let t_2 = SystemTime::now();
 
-    let (tm1, tm2, tm3, tr1, tr2, tr3) = if params.ggm_mode {
-        (None, None, None, None, None, None)
+    let (tm1, tm2, tr1, tr2) = if params.ggm_mode {
+        (None, None, None, None)
     } else {
         // These must blind, over Z, the product d*w, and d*r, where d is lambda
         // bits and both w and r are n_bitlen bits.
@@ -427,13 +413,7 @@ pub fn prove1(params: &DVParams, vpk: &VPK, lang: &DVLang) -> (DVCom,DVComRand) 
         let tm2 = BigInt::sample_below(&vpk.pk.n);
         let tr2 = BigInt::sample_below(&vpk.pk.n);
 
-        // TODO These can be potentially set to 1 to speed things up!
-        let tm3 = BigInt::sample_below(&vpk.pk.n);
-        let tr3 = BigInt::sample_below(&vpk.pk.n);
-        //let tm3 = BigInt::from(1);
-        //let tr3 = BigInt::from(1);
-
-        (Some(tm1), Some(tm2), Some(tm3), Some(tr1), Some(tr2), Some(tr3))
+        (Some(tm1), Some(tm2), Some(tr1), Some(tr2))
     };
 
     let t_3 = SystemTime::now();
@@ -449,8 +429,8 @@ pub fn prove1(params: &DVParams, vpk: &VPK, lang: &DVLang) -> (DVCom,DVComRand) 
                  t_total,t_delta1,t_delta2);
     }
 
-    (DVCom{a}, DVComRand{rm_m, rm_r, rr_m, rr_r,
-                         tm1, tm2, tm3, tr1, tr2, tr3})
+    (DVCom{a}, DVComRand{rm_m, rr_m,
+                         tm1, tm2, tr1, tr2})
 
 }
 
@@ -482,14 +462,14 @@ pub fn prove2(params: &DVParams,
                         nn);
     let t_3 = SystemTime::now();
 
-    let sm_ct = p::paillier_enc_opt(&vpk.pk, None, &cr.rm_m, &cr.rm_r);
+    let sm_ct = p::paillier_enc_opt(&vpk.pk, None, &cr.rm_m, &BigInt::from(1));
     let t_4 = SystemTime::now();
     let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, nn),
                              &sm_ct,
                              nn);
     let t_5 = SystemTime::now();
 
-    let sr_ct = p::paillier_enc_opt(&vpk.pk, None, &cr.rr_m, &cr.rr_r);
+    let sr_ct = p::paillier_enc_opt(&vpk.pk, None, &cr.rr_m, &BigInt::from(1));
     let t_6 = SystemTime::now();
     let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, nn),
                              &sr_ct,
@@ -502,17 +482,15 @@ pub fn prove2(params: &DVParams,
     } else {
         let tm1 = cr.tm1.as_ref().expect("designated#prove2: tm1 must be Some");
         let tm2 = cr.tm2.as_ref().expect("designated#prove2: tm2 must be Some");
-        let tm3 = cr.tm3.as_ref().expect("designated#prove2: tm3 must be Some");
         let tr1 = cr.tr1.as_ref().expect("designated#prove2: tr1 must be Some");
         let tr2 = cr.tr2.as_ref().expect("designated#prove2: tr2 must be Some");
-        let tr3 = cr.tr3.as_ref().expect("designated#prove2: tr3 must be Some");
 
-        let tm_ct = p::paillier_enc_opt(&vpk.pk, None, tm2, tm3);
+        let tm_ct = p::paillier_enc_opt(&vpk.pk, None, tm2, &BigInt::from(1));
         let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tm1, nn),
                                  &tm_ct,
                                  nn);
 
-        let tr_ct = p::paillier_enc_opt(&vpk.pk, None, tr2, tr3);
+        let tr_ct = p::paillier_enc_opt(&vpk.pk, None, tr2, &BigInt::from(1));
         let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tr1, nn),
                                  &tr_ct,
                                  nn);
@@ -571,10 +549,8 @@ pub fn prove3(params: &DVParams,
 
         let tm1 = cr.tm1.as_ref().expect("designated#prove3: tm1 must be Some");
         let tm2 = cr.tm2.as_ref().expect("designated#prove3: tm2 must be Some");
-        let tm3 = cr.tm3.as_ref().expect("designated#prove3: tm3 must be Some");
         let tr1 = cr.tr1.as_ref().expect("designated#prove3: tr1 must be Some");
         let tr2 = cr.tr2.as_ref().expect("designated#prove3: tr2 must be Some");
-        let tr3 = cr.tr3.as_ref().expect("designated#prove3: tr3 must be Some");
 
         // These are over integers because we don't know the order of C.
         let um1 = &wit.m * d + tm1;
@@ -583,10 +559,7 @@ pub fn prove3(params: &DVParams,
         let um2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rm_m, d, n), tm2, n);
         let ur2 = BigInt::mod_add(&BigInt::mod_mul(&cr.rr_m, d, n), tr2, n);
 
-        let um3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rm_r, d, n), tm3, n);
-        let ur3 = BigInt::mod_mul(&BigInt::mod_pow(&cr.rr_r, d, n), tr3, n);
-
-        Some(DVResp2{um1, um2, um3, ur1, ur2, ur3})
+        Some(DVResp2{um1, um2, ur1, ur2})
     }
 }
 
@@ -683,7 +656,7 @@ pub fn verify3(params: &DVParams,
         let pp_inv_qq = BigInt::mod_inv(&pp, &qq).unwrap();
 
         {
-            let ct = p::paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &resp2.um3);
+            let ct = p::paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &BigInt::from(1));
             let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.um1, &pp);
             let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.um1, &qq);
             let exp1 = u::crt_recombine(&exp1_pp, &exp1_qq, &pp, &qq, &pp_inv_qq);
@@ -699,7 +672,7 @@ pub fn verify3(params: &DVParams,
         }
 
         {
-            let ct = p::paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &resp2.ur3);
+            let ct = p::paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &BigInt::from(1));
 
             let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &pp);
             let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &qq);
