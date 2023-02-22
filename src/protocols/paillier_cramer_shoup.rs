@@ -103,21 +103,40 @@ pub fn decrypt(pk: &PCSPublicKey,
                sk: &PCSSecretKey,
                ct: &PCSCiphertext) -> BigInt {
 
-    // We use parallelism here because the original Paillier library does.
-    // Maybe we should disable it in both places though.
-    // We can use p-1 as an exponent here, which makes things faster.
-    // See paillier implementation.
-    let m1_pp = BigInt::mod_pow(&ct.ct,&sk.lambda,&sk.pp);
-    let m1_qq = BigInt::mod_pow(&ct.ct,&sk.lambda,&sk.qq);
-    let m1 = u::crt_recombine(&m1_pp, &m1_qq, &sk.pp, &sk.qq, &sk.pp_inv_qq);
+    let p_inv_q = BigInt::mod_inv(&sk.p, &sk.q).unwrap();
+    let qminusone = &sk.q - 1;
+    let pminusone = &sk.p - 1;
+    let hp = h(&sk.p, &sk.pp, &pk.n);
+    let hq = h(&sk.q, &sk.qq, &pk.n);
+    let (cp, cq) = u::crt_decompose(&ct.ct, &sk.pp, &sk.qq);
+    let mp = {
+        let dp = BigInt::mod_pow(&cp, &pminusone, &sk.pp);
+        let lp = (&dp - 1) / &sk.p;
+        (&lp * &hp) % &sk.p
+    };
+    let mq = {
+        let dq = BigInt::mod_pow(&cq, &qminusone, &sk.qq);
+        let lq = (&dq - 1) / &sk.q;
+        (&lq * &hq) % &sk.q
+    };
+    let m = u::crt_recombine(&mp, &mq, &sk.p, &sk.q, &p_inv_q);
+    m
+}
 
-    let m2 = &m1 / &pk.n;
 
-    let m3_p = BigInt::mod_mul(&m2, &sk.pi, &sk.p);
-    let m3_q = BigInt::mod_mul(&m2, &sk.pi, &sk.q);
-    let m3 = u::crt_recombine(&m3_p, &m3_q, &sk.p, &sk.q, &sk.p_inv_q);
 
-    m3
+fn h(p: &BigInt, pp: &BigInt, n: &BigInt) -> BigInt {
+    // here we assume:
+    //  - p \in {P, Q}
+    //  - n = P * Q
+    //  - g = 1 + n
+
+    // compute g^{p-1} mod p^2
+    let gp = (1 - n) % pp;
+    // compute L_p(.)
+    let lp = (&gp - 1) / p;
+    // compute L_p(.)^{-1}
+    BigInt::mod_inv(&lp, p).unwrap()
 }
 
 
@@ -129,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_correctness() {
-        for _i in 0..10 {
+        for _i in 0..100 {
             let (pk,sk) = keygen(1024);
             let m = BigInt::sample_below(&pk.n);
             let r = BigInt::sample_below(&pk.n);
