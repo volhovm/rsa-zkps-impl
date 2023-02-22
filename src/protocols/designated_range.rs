@@ -195,8 +195,8 @@ impl DVRParams {
 
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVRLang {
-    pub pk: pe::PEPublicKey,
-    pub sk: Option<pe::PESecretKey>,
+    pub pk: pe::PublicKey,
+    pub sk: Option<pe::SecretKey>,
 }
 
 impl DVRLang {
@@ -206,7 +206,7 @@ impl DVRLang {
 }
 
 #[derive(Clone, Debug, Serialize, GetSize)]
-pub struct DVRInst { pub ct: pe::PECiphertext }
+pub struct DVRInst { pub ct: pe::Ciphertext }
 #[derive(Clone, Debug)]
 pub struct DVRWit { pub m: BigInt, pub r: BigInt }
 
@@ -712,7 +712,7 @@ pub fn prove1(params: &DVRParams, vpk: &VPK, lang: &DVRLang, wit: &DVRWit) -> (D
 
 
     //// alpha1 and alpha_2
-    let pe::PECiphertext{ct1:alpha1,ct2:alpha2} =
+    let pe::Ciphertext{ct1:alpha1,ct2:alpha2} =
             pe::encrypt_with_randomness_opt(&lang.pk, lang.sk.as_ref(), &r_m, &r_r);
 
 
@@ -1204,11 +1204,11 @@ pub fn verify3(params: &DVRParams,
 
     // perform the alpha check
     {
-        let pe::PECiphertext{ct1:rhs_1,ct2:rhs_2} =
+        let pe::Ciphertext{ct1:rhs_1,ct2:rhs_2} =
             pe::encrypt_with_randomness_opt(&lang.pk, None, &u_m_plain, &u_r_plain);
 
         // both (R,0) and (R,R) should work, depending on how u_r is constructed
-        let pe::PECiphertext{ct1:psi_range_1,ct2:psi_range_2} =
+        let pe::Ciphertext{ct1:psi_range_1,ct2:psi_range_2} =
             pe::encrypt_with_randomness_opt(&lang.pk, None, &params.range, &BigInt::from(0));
             //pe::encrypt_with_randomness(&lang.pk, &params.range, lang.range_rand());
 

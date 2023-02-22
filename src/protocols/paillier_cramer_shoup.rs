@@ -20,7 +20,7 @@ use crate::utils as u;
 
 
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, GetSize)]
-pub struct PCSSecretKey {
+pub struct SecretKey {
     pub p: BigInt,
     pub q: BigInt,
     pub p_inv_q: BigInt,
@@ -34,19 +34,19 @@ pub struct PCSSecretKey {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, GetSize)]
-pub struct PCSPublicKey {
+pub struct PublicKey {
     pub n: BigInt,
     pub nn: BigInt,
     pub h: BigInt,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Serialize, GetSize)]
-pub struct PCSCiphertext {
+pub struct Ciphertext {
     // (1+mN) h^r mod N^2
     pub ct: BigInt,
 }
 
-pub fn keygen(n_bitlen: usize) -> (PCSPublicKey,PCSSecretKey) {
+pub fn keygen(n_bitlen: usize) -> (PublicKey,SecretKey) {
     let (pk,sk) = p::keygen(n_bitlen);
     let p = &sk.p;
     let q = &sk.q;
@@ -70,15 +70,15 @@ pub fn keygen(n_bitlen: usize) -> (PCSPublicKey,PCSSecretKey) {
     let pi = BigInt::mod_inv(&lambda, &n).unwrap();
 
 
-    (PCSPublicKey{n: pk.n, nn: pk.nn, h },
-     PCSSecretKey{p: sk.p, q: sk.q, p_inv_q, pp, qq, pp_inv_qq, lambda, pi })
+    (PublicKey{n: pk.n, nn: pk.nn, h },
+     SecretKey{p: sk.p, q: sk.q, p_inv_q, pp, qq, pp_inv_qq, lambda, pi })
 }
 
 
-pub fn encrypt(pk: &PCSPublicKey,
-               sk_m: Option<&PCSSecretKey>,
+pub fn encrypt(pk: &PublicKey,
+               sk_m: Option<&SecretKey>,
                m: &BigInt,
-               r: &BigInt) -> PCSCiphertext {
+               r: &BigInt) -> Ciphertext {
     let ct = match sk_m {
         None => {
             BigInt::mod_mul(&(1 + m * &pk.n),
@@ -96,12 +96,12 @@ pub fn encrypt(pk: &PCSPublicKey,
         }
     };
 
-    PCSCiphertext{ ct }
+    Ciphertext{ ct }
 }
 
-pub fn decrypt(pk: &PCSPublicKey,
-               sk: &PCSSecretKey,
-               ct: &PCSCiphertext) -> BigInt {
+pub fn decrypt(pk: &PublicKey,
+               sk: &SecretKey,
+               ct: &Ciphertext) -> BigInt {
 
     let p_inv_q = BigInt::mod_inv(&sk.p, &sk.q).unwrap();
     let qminusone = &sk.q - 1;

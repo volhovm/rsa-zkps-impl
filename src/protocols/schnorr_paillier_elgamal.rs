@@ -16,9 +16,9 @@ pub struct PELang {
     /// Bitlength of the RSA modulus
     pub n_bitlen: u32,
     /// Public key that is used to generate instances.
-    pub pk: pe::PEPublicKey,
+    pub pk: pe::PublicKey,
     /// Optional decryption key that speeds up Paillier
-    pub sk: Option<pe::PESecretKey>,
+    pub sk: Option<pe::SecretKey>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
@@ -32,7 +32,7 @@ pub struct PELangDom {
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
 pub struct PELangCoDom {
     /// The encryption ciphertext
-    pub ct: pe::PECiphertext
+    pub ct: pe::Ciphertext
 }
 
 impl Lang for PELang {
@@ -89,7 +89,7 @@ impl Lang for PELang {
         let nn = &self.pk.nn;
         let ct1 = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct.ct1, ch, nn), &com.ct.ct1, nn);
         let ct2 = BigInt::mod_mul(&BigInt::mod_pow(&inst.ct.ct2, ch, nn), &com.ct.ct2, nn);
-        PELangCoDom { ct: pe::PECiphertext{ ct1, ct2 } }
+        PELangCoDom { ct: pe::Ciphertext{ ct1, ct2 } }
     }
 
     fn check_resp_range(&self, _: &ProofParams, _: &Self::Dom) -> bool {

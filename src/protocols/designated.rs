@@ -319,13 +319,13 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
 
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVLang {
-    pub pk: pe::PEPublicKey,
-    pub sk: Option<pe::PESecretKey>
+    pub pk: pe::PublicKey,
+    pub sk: Option<pe::SecretKey>
 }
 
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVInst {
-    pub ct: pe::PECiphertext
+    pub ct: pe::Ciphertext
 }
 
 #[derive(Clone, Debug)]
@@ -360,7 +360,7 @@ pub fn sample_liw(params: &DVParams) -> (DVLang,DVInst,DVWit) {
 
 
 #[derive(Clone, Debug, Serialize, GetSize)]
-pub struct DVCom{ pub a: pe::PECiphertext }
+pub struct DVCom{ pub a: pe::Ciphertext }
 
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct DVComRand {
@@ -596,7 +596,7 @@ pub fn verify3(params: &DVParams,
     // a Y^c = Enc_psi(s_m,s_r)
     {
 
-        let pe::PECiphertext{ct1:x1,ct2:x2} =
+        let pe::Ciphertext{ct1:x1,ct2:x2} =
             pe::encrypt_with_randomness_opt(&lang.pk, None, &sm, &sr);
 
         let t_4 = SystemTime::now();
