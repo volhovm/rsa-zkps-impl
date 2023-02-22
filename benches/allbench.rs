@@ -31,7 +31,7 @@ fn bench_paillier(c: &mut Criterion) {
         b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
                             (m,r) },
-                       |(m,r)| p::paillier_enc_opt(&pk,Some(&sk),&m,&r),
+                       |(m,r)| p::encrypt(&pk,Some(&sk),&m,&r),
                        BatchSize::LargeInput);
     });
 
@@ -39,14 +39,14 @@ fn bench_paillier(c: &mut Criterion) {
         b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
                             (m,r) },
-                       |(m,r)| p::paillier_enc_opt(&pk,None,&m,&r),
+                       |(m,r)| p::encrypt(&pk,None,&m,&r),
                        BatchSize::LargeInput);
     });
 
     grp.bench_function("decrypt", |b| {
         b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
-                            let ct = p::paillier_enc_opt(&pk,Some(&sk),&m,&r);
+                            let ct = p::encrypt(&pk,Some(&sk),&m,&r);
                             ct },
                        |ct| p::decrypt(&sk,&ct),
                        BatchSize::LargeInput);
@@ -504,6 +504,6 @@ fn bench_designated_range_all(c: &mut Criterion) {
 //criterion_group!(benches, bench_designated_all);
 //criterion_group!(benches, bench_designated_range_all);
 //criterion_group!(benches, bench_schnorr_paillier_all);
-//criterion_group!(benches, bench_paillier, bench_paillier_elgamal, bench_paillier_cramer_shoup);
-criterion_group!(benches, bench_paillier_cramer_shoup);
+criterion_group!(benches, bench_paillier, bench_paillier_elgamal, bench_paillier_cramer_shoup);
+//criterion_group!(benches, bench_paillier_cramer_shoup);
 criterion_main!(benches);

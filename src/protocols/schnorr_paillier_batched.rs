@@ -56,9 +56,9 @@ impl fmt::Display for ProofParams {
 #[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct Lang {
     /// Public key that is used to generate instances.
-    pub pk: p::EncryptionKey,
+    pub pk: p::PublicKey,
     /// Optional decryption key. If present, speeds up proving and verification.
-    pub sk: Option<p::DecryptionKey>,
+    pub sk: Option<p::SecretKey>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
@@ -94,7 +94,7 @@ pub fn sample_inst(params: &ProofParams, lang: &Lang) -> (Inst,Wit) {
     let cts: Vec<BigInt> =
         ms.iter().zip(rs.iter())
         .map(|(m,r)|
-            p::paillier_enc_opt(&lang.pk, lang.sk.as_ref(), m, r))
+            p::encrypt(&lang.pk, lang.sk.as_ref(), m, r))
         .collect();
 
     let inst = Inst { cts };
@@ -131,7 +131,7 @@ pub fn prove1(params: &ProofParams, lang: &Lang) -> (Commitment,ComRand) {
     let rand_r_v: Vec<_> = (0..params.reps_m).map(|_| BigInt::sample_below(n)).collect();
     let com_v: Vec<_> =
         rand_m_v.iter().zip(rand_r_v.iter()).map(|(rm,rr)|
-            p::paillier_enc_opt(&lang.pk, lang.sk.as_ref(), rm, rr)).collect();
+            p::encrypt(&lang.pk, lang.sk.as_ref(), rm, rr)).collect();
 
     (Commitment{ inner: com_v },ComRand {inner: (rand_m_v,rand_r_v) })
 }
@@ -222,7 +222,7 @@ pub fn verify2(params: &ProofParams,
         let lhs = BigInt::mod_mul(&a, &ct_e, &lang.pk.nn);
         let t_3 = SystemTime::now();
 
-        let rhs = p::paillier_enc_opt(&lang.pk, lang.sk.as_ref(), s_m, s_r);
+        let rhs = p::encrypt(&lang.pk, lang.sk.as_ref(), s_m, s_r);
         let t_4 = SystemTime::now();
 //        let rhs_doublecheck =
 //            BigInt::mod_mul(

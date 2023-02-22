@@ -238,7 +238,7 @@ pub fn sample_liw(params: &DVRParams) -> (DVRLang,DVRInst,DVRWit) {
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
-    pub sk: p::DecryptionKey,
+    pub sk: p::SecretKey,
     /// Original challenge values
     pub chs: Vec<BigInt>,
 
@@ -257,7 +257,7 @@ pub struct VSK {
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VPK {
     /// Verifier's Paillier public key
-    pub pk: p::EncryptionKey,
+    pub pk: p::PublicKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
 
@@ -312,7 +312,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
 
     let cts: Vec<BigInt> =
         chs.iter().zip(rs.iter())
-        .map(|(ch,r)| p::paillier_enc_opt(&pk, Some(&sk), &ch, &r))
+        .map(|(ch,r)| p::encrypt(&pk, Some(&sk), &ch, &r))
         .collect();
     let t_3 = SystemTime::now();
 
@@ -359,7 +359,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
                     ms_wit.push(BigInt::from(0));
                     rs_wit.push(BigInt::from(1));
                     cts_inst.push(
-                        p::paillier_enc_opt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(1)));
+                        p::encrypt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(1)));
                 }
             }
 
@@ -444,7 +444,7 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 cts_w.push(
-                    p::paillier_enc_opt(&vpk.pk,None,&BigInt::from(0),&BigInt::from(1)));
+                    p::encrypt(&vpk.pk,None,&BigInt::from(0),&BigInt::from(1)));
             }
         }
 

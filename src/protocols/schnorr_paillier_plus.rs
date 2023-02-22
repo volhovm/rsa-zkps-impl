@@ -12,7 +12,7 @@ use std::fmt;
 use crate::bigint::*;
 use crate::utils as u;
 use super::paillier as p;
-use super::paillier::paillier_enc_opt;
+use super::paillier::encrypt;
 use super::schnorr_generic::*;
 
 
@@ -21,9 +21,9 @@ pub struct PPLang {
     /// Bit size of the RSA modulus
     pub n_bitlen: u32,
     /// Public key that is used to generate instances.
-    pub pk: p::EncryptionKey,
+    pub pk: p::PublicKey,
     /// Optional decryption key that speeds up Paillier
-    pub sk: Option<p::DecryptionKey>,
+    pub sk: Option<p::SecretKey>,
     /// The encryption ciphertext C, corresponding to the DVRange challenge
     pub ch_ct: BigInt,
 }
@@ -44,10 +44,10 @@ pub struct PPLangCoDom {
 
 
 /// Computes Enc_pk(enc_arg,1)*Ct^{ct_exp}
-pub fn compute_si(pk: &p::EncryptionKey,
-                  sk: Option<&p::DecryptionKey>,
+pub fn compute_si(pk: &p::PublicKey,
+                  sk: Option<&p::SecretKey>,
                   ch_ct: &BigInt, m: &BigInt, cexp: &BigInt) -> BigInt {
-    let ct = p::paillier_enc_opt(pk,sk,m,&BigInt::from(1));
+    let ct = p::encrypt(pk,sk,m,&BigInt::from(1));
 
     match sk.as_ref() {
         None => BigInt::mod_mul(&ct, &u::bigint_mod_pow(ch_ct, cexp, &pk.nn),&pk.nn),

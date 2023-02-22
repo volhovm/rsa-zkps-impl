@@ -136,7 +136,7 @@ impl DVParams {
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
-    pub sk: p::DecryptionKey,
+    pub sk: p::SecretKey,
     /// Original challenge values
     pub chs: Vec<BigInt>
 }
@@ -144,7 +144,7 @@ pub struct VSK {
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VPK {
     /// Verifier's Paillier public key
-    pub pk: p::EncryptionKey,
+    pub pk: p::PublicKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
     /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
@@ -177,7 +177,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
 
     let cts: Vec<BigInt> =
         chs.iter().zip(rs.iter())
-        .map(|(ch,r)| p::paillier_enc_opt(&pk,Some(&sk),ch,r))
+        .map(|(ch,r)| p::encrypt(&pk,Some(&sk),ch,r))
         .collect();
 
     let t_3 = SystemTime::now();
@@ -217,7 +217,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
                 for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                     ms_wit.push(BigInt::from(0));
                     rs_wit.push(BigInt::from(1));
-                    cts_inst.push(p::paillier_enc_opt(&pk,Some(&sk),
+                    cts_inst.push(p::encrypt(&pk,Some(&sk),
                                                    &BigInt::from(0),
                                                    &BigInt::from(1)));
                 }
@@ -282,7 +282,7 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 cts_w.push(
-                    p::paillier_enc_opt(&vpk.pk, None, &BigInt::from(0), &BigInt::from(1)));
+                    p::encrypt(&vpk.pk, None, &BigInt::from(0), &BigInt::from(1)));
             }
         }
 
@@ -462,14 +462,14 @@ pub fn prove2(params: &DVParams,
                         nn);
     let t_3 = SystemTime::now();
 
-    let sm_ct = p::paillier_enc_opt(&vpk.pk, None, &cr.rm_m, &BigInt::from(1));
+    let sm_ct = p::encrypt(&vpk.pk, None, &cr.rm_m, &BigInt::from(1));
     let t_4 = SystemTime::now();
     let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, nn),
                              &sm_ct,
                              nn);
     let t_5 = SystemTime::now();
 
-    let sr_ct = p::paillier_enc_opt(&vpk.pk, None, &cr.rr_m, &BigInt::from(1));
+    let sr_ct = p::encrypt(&vpk.pk, None, &cr.rr_m, &BigInt::from(1));
     let t_6 = SystemTime::now();
     let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, nn),
                              &sr_ct,
@@ -485,12 +485,12 @@ pub fn prove2(params: &DVParams,
         let tr1 = cr.tr1.as_ref().expect("designated#prove2: tr1 must be Some");
         let tr2 = cr.tr2.as_ref().expect("designated#prove2: tr2 must be Some");
 
-        let tm_ct = p::paillier_enc_opt(&vpk.pk, None, tm2, &BigInt::from(1));
+        let tm_ct = p::encrypt(&vpk.pk, None, tm2, &BigInt::from(1));
         let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tm1, nn),
                                  &tm_ct,
                                  nn);
 
-        let tr_ct = p::paillier_enc_opt(&vpk.pk, None, tr2, &BigInt::from(1));
+        let tr_ct = p::encrypt(&vpk.pk, None, tr2, &BigInt::from(1));
         let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tr1, nn),
                                  &tr_ct,
                                  nn);
@@ -656,7 +656,7 @@ pub fn verify3(params: &DVParams,
         let pp_inv_qq = BigInt::mod_inv(&pp, &qq).unwrap();
 
         {
-            let ct = p::paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &BigInt::from(1));
+            let ct = p::encrypt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &BigInt::from(1));
             let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.um1, &pp);
             let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.um1, &qq);
             let exp1 = u::crt_recombine(&exp1_pp, &exp1_qq, &pp, &qq, &pp_inv_qq);
@@ -672,7 +672,7 @@ pub fn verify3(params: &DVParams,
         }
 
         {
-            let ct = p::paillier_enc_opt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &BigInt::from(1));
+            let ct = p::encrypt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &BigInt::from(1));
 
             let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &pp);
             let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &qq);

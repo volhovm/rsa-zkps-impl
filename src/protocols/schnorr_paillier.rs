@@ -26,9 +26,9 @@ pub struct PLang {
     /// Params of the language
     pub lparams: PLangParams,
     /// Public key that is used to generate instances.
-    pub pk: p::EncryptionKey,
+    pub pk: p::PublicKey,
     /// Optional decryption key that speeds up Paillier
-    pub sk: Option<p::DecryptionKey>,
+    pub sk: Option<p::SecretKey>,
 }
 
 
@@ -85,7 +85,7 @@ impl Lang for PLang {
 
 
     fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
-        let ct = p::paillier_enc_opt(&self.pk, self.sk.as_ref(), &wit.m, &wit.r);
+        let ct = p::encrypt(&self.pk, self.sk.as_ref(), &wit.m, &wit.r);
         PLangCoDom { ct }
     }
 

@@ -10,7 +10,6 @@
 use serde::{Serialize};
 use get_size::GetSize;
 use get_size_derive::*;
-use rayon::join;
 
 use super::paillier as p;
 use super::paillier_elgamal as pe;
@@ -106,11 +105,10 @@ pub fn decrypt(pk: &PCSPublicKey,
 
     // We use parallelism here because the original Paillier library does.
     // Maybe we should disable it in both places though.
-    let (m1_pp,m1_qq) = join(
-        // We can use p-1 as an exponent here, which makes things faster.
-        // See paillier implementation.
-        || {BigInt::mod_pow(&ct.ct,&sk.lambda,&sk.pp) },
-        || {BigInt::mod_pow(&ct.ct,&sk.lambda,&sk.qq) },);
+    // We can use p-1 as an exponent here, which makes things faster.
+    // See paillier implementation.
+    let m1_pp = BigInt::mod_pow(&ct.ct,&sk.lambda,&sk.pp);
+    let m1_qq = BigInt::mod_pow(&ct.ct,&sk.lambda,&sk.qq);
     let m1 = u::crt_recombine(&m1_pp, &m1_qq, &sk.pp, &sk.qq, &sk.pp_inv_qq);
 
     let m2 = &m1 / &pk.n;

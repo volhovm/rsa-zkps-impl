@@ -1,5 +1,6 @@
 /// Collection of helpers and utility functions.
 
+use std::borrow::{Borrow, Cow};
 
 use super::bigint::*;
 
@@ -52,6 +53,17 @@ pub fn bigint_mod_pow_explicit(a: &BigInt, a_inv: &BigInt, exponent: &BigInt, mo
 /// Same as bigint_mod_pow, but computing the inverse on the fly.
 pub fn bigint_mod_pow(a: &BigInt, exponent: &BigInt, modulus: &BigInt) -> BigInt {
     bigint_mod_pow_explicit(a, &BigInt::mod_inv(a, modulus).unwrap(), exponent, modulus)
+}
+
+
+/// Computes a crt decomposition.
+pub fn crt_decompose<X, M1, M2>(x: X, m1: M1, m2: M2) -> (BigInt, BigInt)
+where
+    X: Borrow<BigInt>,
+    M1: Borrow<BigInt>,
+    M2: Borrow<BigInt>,
+{
+    (x.borrow() % m1.borrow(), x.borrow() % m2.borrow())
 }
 
 /// Computes m such that m = vp mod p & m = vq mod q.
