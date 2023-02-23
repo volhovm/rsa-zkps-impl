@@ -7,4 +7,5 @@ extern crate sapling_crypto_ce as sapling_crypto;
 
 pub mod bigint;
 pub mod utils;
+pub mod primes;
 pub mod protocols;

@@ -27,9 +27,9 @@ pub struct SecretKey {
 }
 
 pub fn keygen(n_bitlen: usize) -> (PublicKey,SecretKey) {
-    let (pk,sk) = Paillier::keypair_with_modulus_size(n_bitlen).keys();
-    return (PublicKey { n: pk.n.wrap(), nn: pk.nn.wrap() },
-            SecretKey { p: sk.p.wrap(), q: sk.q.wrap() });
+    let ((p,q),n) = u::sample_modulus(n_bitlen);
+    let nn = &n * &n;
+    return (PublicKey { n, nn }, SecretKey { p, q });
 }
 
 pub fn encrypt(pk: &PublicKey,

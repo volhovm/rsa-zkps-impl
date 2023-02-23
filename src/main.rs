@@ -235,7 +235,7 @@ fn profile_dv() {
     let n_bitlen = 2048;
     let lambda = 128;
     let queries: usize = 128;
-    let malicious_setup = true;
+    let malicious_setup = false;
     let ggm_mode = true;
     let params = dv::DVParams::new(n_bitlen, lambda, queries as u32, malicious_setup, ggm_mode);
 
@@ -345,10 +345,12 @@ fn profile_dv_range() {
 
 fn main() {
     //rsazkps::protocols::designated_range::test_keygen_correctness();
-    estimate_proof_sizes();
+    //estimate_proof_sizes();
     //profile_schnorr();
     //profile_schnorr_batched();
     //profile_dv();
     //profile_dv_range();
     //debug_bignum_size();
+
+    //print!("{}", rsazkps::primes::sample_safe_prime(1024));
 }

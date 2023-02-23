@@ -46,60 +46,71 @@ DVRange FS malicious false, GGM true/fs_verify
                         time:   [105.35 ms 105.53 ms 105.73 ms]
 
 
+
+
 Sch FS λ=128 log(Ch)=1 reps=128, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [653.33 ms 654.59 ms 655.78 ms]
 Sch FS λ=128 log(Ch)=1 reps=128, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [1.0148 µs 1.0924 µs 1.2146 µs]
 Sch FS λ=128 log(Ch)=1 reps=128, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [1.1462 s 1.1506 s 1.1578 s]
+
 Sch FS λ=128 log(Ch)=1 reps=128, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [1.3804 s 1.3876 s 1.3952 s]
 Sch FS λ=128 log(Ch)=1 reps=128, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [2.4311 µs 2.7421 µs 2.9551 µs]
 Sch FS λ=128 log(Ch)=1 reps=128, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [2.4387 s 2.4401 s 2.4415 s]
+
 Sch FS λ=128 log(Ch)=16 reps=8, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [41.213 ms 41.408 ms 41.651 ms]
 Sch FS λ=128 log(Ch)=16 reps=8, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [3.9818 ms 4.0640 ms 4.1909 ms]
 Sch FS λ=128 log(Ch)=16 reps=8, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [73.559 ms 73.890 ms 74.217 ms]
+
 Sch FS λ=128 log(Ch)=16 reps=8, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [87.209 ms 87.439 ms 87.630 ms]
 Sch FS λ=128 log(Ch)=16 reps=8, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [3.9992 ms 4.0131 ms 4.0304 ms]
 Sch FS λ=128 log(Ch)=16 reps=8, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [155.86 ms 156.60 ms 157.49 ms]
+
 Sch FS λ=128 log(Ch)=19 reps=7, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [36.053 ms 36.195 ms 36.434 ms]
 Sch FS λ=128 log(Ch)=19 reps=7, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [36.262 ms 36.344 ms 36.406 ms]
 Sch FS λ=128 log(Ch)=19 reps=7, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [63.296 ms 63.563 ms 63.790 ms]
+
 Sch FS λ=128 log(Ch)=19 reps=7, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [76.491 ms 76.675 ms 76.930 ms]
 Sch FS λ=128 log(Ch)=19 reps=7, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [36.202 ms 36.294 ms 36.408 ms]
 Sch FS λ=128 log(Ch)=19 reps=7, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [135.78 ms 136.16 ms 136.67 ms]
+
 Sch FS λ=128 log(Ch)=22 reps=6, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [30.869 ms 31.210 ms 31.886 ms]
 Sch FS λ=128 log(Ch)=22 reps=6, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [337.15 ms 337.72 ms 338.29 ms]
 Sch FS λ=128 log(Ch)=22 reps=6, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [55.695 ms 55.906 ms 56.153 ms]
+
 Sch FS λ=128 log(Ch)=22 reps=6, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [65.280 ms 65.541 ms 65.828 ms]
 Sch FS λ=128 log(Ch)=22 reps=6, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [336.70 ms 337.30 ms 337.96 ms]
 Sch FS λ=128 log(Ch)=22 reps=6, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [120.26 ms 120.56 ms 120.82 ms]
+
 Sch FS λ=128 log(Ch)=26 reps=5, norange PLangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [25.687 ms 25.748 ms 25.832 ms]
 Sch FS λ=128 log(Ch)=26 reps=5, norange PLangParams { n_bitlen: 2048, range: None }/lang_verify
                         time:   [6.5445 s 6.5660 s 6.6020 s]
 Sch FS λ=128 log(Ch)=26 reps=5, norange PLangParams { n_bitlen: 2048, range: None }/fs_verify
                         time:   [46.339 ms 46.789 ms 47.108 ms]
+
 Sch FS λ=128 log(Ch)=26 reps=5, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
                         time:   [54.807 ms 54.898 ms 54.993 ms]
 Sch FS λ=128 log(Ch)=26 reps=5, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify

@@ -26,30 +26,34 @@ fn bench_paillier(c: &mut Criterion) {
     let n_bitlen = 2048;
     let mut grp = c.benchmark_group(format!("Paillier log(N)={}", n_bitlen));
 
-    let (pk,sk) = p::keygen(n_bitlen as usize);
+
+    grp.bench_function("keygen", |b| b.iter(|| p::keygen(n_bitlen as usize)));
 
     grp.bench_function("encrypt_crt", |b| {
-        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+        b.iter_batched(|| { let (pk,sk) = p::keygen(n_bitlen as usize);
+                            let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
-                            (m,r) },
-                       |(m,r)| p::encrypt(&pk,Some(&sk),&m,&r),
+                            (pk,sk,m,r) },
+                       |(pk,sk,m,r)| p::encrypt(&pk,Some(&sk),&m,&r),
                        BatchSize::LargeInput);
     });
 
     grp.bench_function("encrypt_naive", |b| {
-        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+        b.iter_batched(|| { let (pk,_) = p::keygen(n_bitlen as usize);
+                            let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
-                            (m,r) },
-                       |(m,r)| p::encrypt(&pk,None,&m,&r),
+                            (pk,m,r) },
+                       |(pk,m,r)| p::encrypt(&pk,None,&m,&r),
                        BatchSize::LargeInput);
     });
 
     grp.bench_function("decrypt", |b| {
-        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+        b.iter_batched(|| { let (pk,sk) = p::keygen(n_bitlen as usize);
+                            let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
                             let ct = p::encrypt(&pk,Some(&sk),&m,&r);
-                            ct },
-                       |ct| p::decrypt(&sk,&ct),
+                            (sk,ct) },
+                       |(sk,ct)| p::decrypt(&sk,&ct),
                        BatchSize::LargeInput);
     });
 }
@@ -58,21 +62,23 @@ fn bench_paillier_elgamal(c: &mut Criterion) {
     let n_bitlen = 2048;
     let mut grp = c.benchmark_group(format!("Paillier-Elgamal log(N)={}", n_bitlen));
 
-    let (pk,sk) = pe::keygen(n_bitlen);
+    grp.bench_function("keygen", |b| b.iter(|| pe::keygen(n_bitlen as usize)));
 
     grp.bench_function("encrypt_crt", |b| {
-        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+        b.iter_batched(|| { let (pk,sk) = pe::keygen(n_bitlen as usize);
+                            let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
-                            (m,r) },
-                       |(m,r)| pe::encrypt_with_randomness_opt(&pk,Some(&sk),&m,&r),
+                            (pk,sk,m,r) },
+                       |(pk,sk,m,r)| pe::encrypt_with_randomness_opt(&pk,Some(&sk),&m,&r),
                        BatchSize::LargeInput);
     });
 
     grp.bench_function("encrypt_naive", |b| {
-        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+        b.iter_batched(|| { let (pk,_) = pe::keygen(n_bitlen as usize);
+                            let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
-                            (m,r) },
-                       |(m,r)| pe::encrypt_with_randomness_opt(&pk,None,&m,&r),
+                            (pk,m,r) },
+                       |(pk,m,r)| pe::encrypt_with_randomness_opt(&pk,None,&m,&r),
                        BatchSize::LargeInput);
     });
 }
@@ -81,30 +87,34 @@ fn bench_paillier_cramer_shoup(c: &mut Criterion) {
     let n_bitlen = 2048;
     let mut grp = c.benchmark_group(format!("Paillier-Cramer-Shoup log(N)={}", n_bitlen));
 
-    let (pk,sk) = pcs::keygen(n_bitlen);
+
+    grp.bench_function("keygen", |b| b.iter(|| pcs::keygen(n_bitlen as usize)));
 
     grp.bench_function("encrypt_crt", |b| {
-        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+        b.iter_batched(|| { let (pk,sk) = pcs::keygen(n_bitlen);
+                            let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
-                            (m,r) },
-                       |(m,r)| pcs::encrypt(&pk,Some(&sk),&m,&r),
+                            (pk,sk,m,r) },
+                       |(pk,sk,m,r)| pcs::encrypt(&pk,Some(&sk),&m,&r),
                        BatchSize::LargeInput);
     });
 
     grp.bench_function("encrypt_naive", |b| {
-        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+        b.iter_batched(|| { let (pk,sk) = pcs::keygen(n_bitlen);
+                            let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
-                            (m,r) },
-                       |(m,r)| pcs::encrypt(&pk,None,&m,&r),
+                            (pk,m,r) },
+                       |(pk,m,r)| pcs::encrypt(&pk,None,&m,&r),
                        BatchSize::LargeInput);
     });
 
     grp.bench_function("decrypt", |b| {
-        b.iter_batched(|| { let m = BigInt::sample_below(&pk.n);
+        b.iter_batched(|| { let (pk,sk) = pcs::keygen(n_bitlen);
+                            let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
                             let ct = pcs::encrypt(&pk,Some(&sk),&m,&r);
-                            ct },
-                       |ct| pcs::decrypt(&pk,&sk,&ct),
+                            (pk,sk,ct) },
+                       |(pk,sk,ct)| pcs::decrypt(&pk,&sk,&ct),
                        BatchSize::LargeInput);
     });
 }
@@ -526,10 +536,10 @@ fn bench_designated_range_all(c: &mut Criterion) {
 }
 
 
-criterion_group!(benches, bench_designated_all, bench_designated_range_all, bench_schnorr_all);
+//criterion_group!(benches, bench_designated_all, bench_designated_range_all, bench_schnorr_all);
 //criterion_group!(benches, bench_designated_all);
 //criterion_group!(benches, bench_designated_range_all);
 //criterion_group!(benches, bench_schnorr_all);
-//criterion_group!(benches, bench_paillier, bench_paillier_elgamal, bench_paillier_cramer_shoup);
+criterion_group!(benches, bench_paillier, bench_paillier_elgamal, bench_paillier_cramer_shoup);
 //criterion_group!(benches, bench_paillier_cramer_shoup);
 criterion_main!(benches);

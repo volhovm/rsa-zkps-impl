@@ -9,6 +9,14 @@ pub const PROFILE_DV: bool = false;
 pub const PROFILE_DVR: bool = false;
 
 
+/// Samples N = p*q
+pub fn sample_modulus(n_bitlen: usize) -> ((BigInt,BigInt),BigInt) {
+    let p = crate::primes::sample_prime(n_bitlen / 2);
+    let q = crate::primes::sample_prime(n_bitlen / 2);
+    let n = &p * &q;
+    ((p,q),n)
+}
+
 /// Checks whether n is divisible by any prime p <= upto.
 pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
     use primes::{Sieve, PrimeSet};
@@ -25,7 +33,7 @@ pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
 /// a bigint of the bit_size from its prefix.
 pub fn extract_bits(input: &[u8], bit_size: usize) -> BigInt {
     let r = bit_size / 8;
-    let q = bit_size & 8;
+    let q = bit_size % 8;
     assert!(input.len() >= r + 1);
     if q == 0 {
         BigInt::from_bytes(&input[0..r])

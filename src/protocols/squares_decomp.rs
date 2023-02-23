@@ -97,7 +97,7 @@ pub fn two_squares_decompose(p: &BigInt) -> (BigInt,BigInt) {
 fn three_squares_decompose_raw(n: &BigInt) -> Option<(BigInt, BigInt, BigInt)> {
     // if n % 4 == 0, then do smth with n/4
     let (n_over_4,r) = BigInt::div_rem(n, &BigInt::from(4));
-    if BigInt::is_zero(&r) {
+    if NumberTests::is_zero(&r) {
         let (a,b,c) = three_squares_decompose_raw(&n_over_4)?;
         return Some((2*a, 2*b, 2*c))
     }

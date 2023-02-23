@@ -150,7 +150,6 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     // e.g. Inst/Wit could contain references inside?
     let (pk,sk) = pcs::keygen(params.vpk_n_bitlen() as usize);
 
-    let t_2 = SystemTime::now();
     let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen());
     let ch_range_2 = BigInt::pow(&BigInt::from(2), params.ch_big_bitlen());
     let mut chs: Vec<BigInt> = vec![];
@@ -158,6 +157,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
         chs.push(u::bigint_sample_below_sym(&ch_range_1)); }
     for _i in 0..params.crs_uses {
         chs.push(u::bigint_sample_below_sym(&ch_range_2)); }
+    let t_2 = SystemTime::now();
 
     let rs: Vec<BigInt> =
         (0..(params.lambda + params.crs_uses))
@@ -724,7 +724,7 @@ fn fs_to_bigint(params: &DVParams,
     let mut hasher: Blake2b = Digest::new();
     hasher.update(hash_input);
     let r0 = hasher.finalize(); // the result is u8 array of size 64
-    let bigint = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8 - 1]);
+    let bigint = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8]);
 
     bigint
 }

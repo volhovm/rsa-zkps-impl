@@ -1386,7 +1386,7 @@ fn fs_to_bigint(params: &DVRParams,
     let mut hasher: Blake2b = Digest::new();
     hasher.update(hash_input);
     let r0 = hasher.finalize(); // the result is u8 array of size 64
-    let bigint = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8 - 1]);
+    let bigint = Converter::from_bytes(&r0[0..(params.lambda as usize) / 8]);
 
     bigint
 }

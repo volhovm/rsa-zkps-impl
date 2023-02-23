@@ -2,6 +2,7 @@
 /// I wish I could declare an orphan impl.
 
 use std::{ops,fmt};
+use core::ops::ShrAssign;
 
 use get_size::GetSize;
 use get_size_derive::*;
@@ -14,8 +15,8 @@ use serde::ser::SerializeSeq;
 use curv as c;
 pub use curv::arithmetic::traits::{Modulo, Samplable, NumberTests,
                                    BasicOps, BitManipulation, Converter, Integer,
-                                   Roots, Primes};
-use curv::arithmetic::{ParseBigIntError, Zero, One};
+                                   Roots, Primes, Zero, One};
+use curv::arithmetic::{ParseBigIntError};
 
 
 #[derive(PartialOrd,PartialEq,Ord,Eq,Clone)]
@@ -420,5 +421,11 @@ impl Primes for BigInt {
 
     fn is_probable_prime(&self, n: u32) -> bool {
         self.v.is_probable_prime(n)
+    }
+}
+
+impl ShrAssign<usize> for BigInt {
+    fn shr_assign(&mut self, rhs: usize) {
+        self.v.shr_assign(rhs);
     }
 }
