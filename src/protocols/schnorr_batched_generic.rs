@@ -21,13 +21,11 @@ pub struct ProofParams {
     pub lambda: u32,
     /// Number of repeats n, equal to the number of instances, usually =lambda
     pub reps_n: u32,
-    /// Range of the original message value, R
-    pub range_bitlen: u32,
 }
 
 impl ProofParams {
-    pub fn new(lambda: u32, reps_n: u32, range_bitlen: u32) -> Self {
-        return ProofParams { lambda, reps_n, range_bitlen };
+    pub fn new(lambda: u32, reps_n: u32 ) -> Self {
+        return ProofParams { lambda, reps_n };
     }
 
     pub fn reps_m(&self) -> u32 { 2 * self.reps_n + 1 }
@@ -35,10 +33,9 @@ impl ProofParams {
 
 impl fmt::Display for ProofParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProofParams ( lambda: {}, reps: {}, log R: {} )",
+        write!(f, "ProofParams ( lambda: {}, reps: {} )",
                self.lambda,
-               self.reps_n,
-               self.range_bitlen)
+               self.reps_n)
     }
 }
 

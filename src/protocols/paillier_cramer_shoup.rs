@@ -40,12 +40,6 @@ pub struct PublicKey {
     pub h: BigInt,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Serialize, GetSize)]
-pub struct Ciphertext {
-    // (1+mN) h^r mod N^2
-    pub ct: BigInt,
-}
-
 pub fn keygen(n_bitlen: usize) -> (PublicKey,SecretKey) {
     let (pk,sk) = p::keygen(n_bitlen);
     let p = &sk.p;
@@ -78,7 +72,11 @@ pub fn keygen(n_bitlen: usize) -> (PublicKey,SecretKey) {
 pub fn encrypt(pk: &PublicKey,
                sk_m: Option<&SecretKey>,
                m: &BigInt,
-               r: &BigInt) -> Ciphertext {
+               r: &BigInt) -> BigInt {
+    if r == &BigInt::from(0) {
+        return 1 + (BigInt::modulus(m,&pk.n)) * &pk.n;
+    }
+
     let ct = match sk_m {
         None => {
             BigInt::mod_mul(&(1 + m * &pk.n),
@@ -96,19 +94,19 @@ pub fn encrypt(pk: &PublicKey,
         }
     };
 
-    Ciphertext{ ct }
+    ct
 }
 
 pub fn decrypt(pk: &PublicKey,
                sk: &SecretKey,
-               ct: &Ciphertext) -> BigInt {
+               ct: &BigInt) -> BigInt {
 
     let p_inv_q = BigInt::mod_inv(&sk.p, &sk.q).unwrap();
     let qminusone = &sk.q - 1;
     let pminusone = &sk.p - 1;
     let hp = h(&sk.p, &sk.pp, &pk.n);
     let hq = h(&sk.q, &sk.qq, &pk.n);
-    let (cp, cq) = u::crt_decompose(&ct.ct, &sk.pp, &sk.qq);
+    let (cp, cq) = u::crt_decompose(ct, &sk.pp, &sk.qq);
     let mp = {
         let dp = BigInt::mod_pow(&cp, &pminusone, &sk.pp);
         let lp = (&dp - 1) / &sk.p;

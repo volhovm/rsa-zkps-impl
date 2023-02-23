@@ -14,13 +14,11 @@ use crate::bigint::*;
 use crate::utils as u;
 use crate::utils::PROFILE_DV;
 
-use super::paillier as p;
 use super::paillier_elgamal as pe;
 use super::paillier_cramer_shoup as pcs;
 use super::n_gcd as n_gcd;
 use super::schnorr_batched_generic as schb;
-
-use super::schnorr_paillier_batched as spb;
+use super::schnorr_paillier_cramer_shoup as spcs;
 
 ////////////////////////////////////////////////////////////////////////////
 // Params
@@ -101,24 +99,13 @@ impl DVParams {
         // It should be max(x,y)
         // + 1, not +2. Maybe this has to do with the symmetric range.
         // But the difference does not affect the performance anyway.
-        std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 2
+        std::cmp::max(self.rand_m_bitlen(),self.rand_r_bitlen()) + 3
     }
 
     /// Params for the first batch, for challenges of lambda bits.
-    pub fn nizk_ct_params_1(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.vpk_n_bitlen(),
-                              self.lambda,
-                              self.lambda,
-                              self.lambda)
-    }
-
-    /// Params for the second+ batches, for challenges of 2 * lambda +
-    /// log lambda bits.
-    pub fn nizk_ct_params_2(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.vpk_n_bitlen(),
-                              self.lambda,
-                              self.lambda,
-                              2 * self.lambda + u::log2ceil(self.lambda))
+    pub fn nizk_ct_params(&self) -> schb::ProofParams {
+        schb::ProofParams::new(self.lambda,
+                               self.lambda)
     }
 
     /// Parameters for the GCD NIZK proof.
@@ -138,7 +125,7 @@ impl DVParams {
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
-    pub sk: p::SecretKey,
+    pub sk: pcs::SecretKey,
     /// Original challenge values
     pub chs: Vec<BigInt>
 }
@@ -146,13 +133,13 @@ pub struct VSK {
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VPK {
     /// Verifier's Paillier public key
-    pub pk: p::PublicKey,
+    pub pk: pcs::PublicKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
     /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
     pub nizk_gcd: Option<n_gcd::Proof>,
     /// Proofs of correctness+range of cts.
-    pub nizks_ct: Option<Vec<spb::FSProof>>,
+    pub nizks_ct: Option<Vec<schb::FSProof<spcs::PCSLang>>>,
 }
 
 
@@ -161,7 +148,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
     let t_1 = SystemTime::now();
     // This can be more effective in terms of move/copy
     // e.g. Inst/Wit could contain references inside?
-    let (pk,sk) = p::keygen(params.vpk_n_bitlen() as usize);
+    let (pk,sk) = pcs::keygen(params.vpk_n_bitlen() as usize);
 
     let t_2 = SystemTime::now();
     let ch_range_1 = BigInt::pow(&BigInt::from(2), params.ch_small_bitlen());
@@ -179,7 +166,7 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
 
     let cts: Vec<BigInt> =
         chs.iter().zip(rs.iter())
-        .map(|(ch,r)| p::encrypt(&pk,Some(&sk),ch,r))
+        .map(|(ch,r)| pcs::encrypt(&pk,Some(&sk),ch,r))
         .collect();
 
     let t_3 = SystemTime::now();
@@ -199,12 +186,21 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
 
         t_4 = SystemTime::now();
 
-        let mut nizks_ct: Vec<spb::FSProof> = vec![];
+        let mut nizks_ct: Vec<schb::FSProof<spcs::PCSLang>> = vec![];
         let nizk_batches =
             if params.crs_uses == 0 { 1 }
         else { 2 + (params.crs_uses - 1) / params.lambda };
 
-        let lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
+        let lang1 = spcs::PCSLang{
+            lparams: spcs::PCSLangParams { n_bitlen: params.vpk_n_bitlen(),
+                                           range_bitlen: params.ch_small_bitlen() },
+            pk: pk.clone(),
+            sk: Some(sk.clone())};
+        let lang2 = spcs::PCSLang{
+            lparams: spcs::PCSLangParams { n_bitlen: params.vpk_n_bitlen(),
+                                           range_bitlen: params.ch_big_bitlen() },
+            pk: pk.clone(),
+            sk: Some(sk.clone())};
 
         for i in 0..nizk_batches {
             let batch_from = (i*params.lambda) as usize;
@@ -218,19 +214,22 @@ pub fn keygen(params: &DVParams) -> (VPK, VSK) {
             if pad_last_batch {
                 for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                     ms_wit.push(BigInt::from(0));
-                    rs_wit.push(BigInt::from(1));
-                    cts_inst.push(p::encrypt(&pk,Some(&sk),
-                                                   &BigInt::from(0),
-                                                   &BigInt::from(1)));
+                    rs_wit.push(BigInt::from(0));
+                    cts_inst.push(pcs::encrypt(&pk,Some(&sk),
+                                               &BigInt::from(0),
+                                               &BigInt::from(0)));
                 }
             }
 
-            let params = if i == 0 { params.nizk_ct_params_1() }
-            else { params.nizk_ct_params_2() };
-            let inst = spb::Inst{cts: cts_inst};
-            let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
+            let params = params.nizk_ct_params();
+            let lang = if i == 0 { &lang1 } else { &lang2 };
 
-            nizks_ct.push(spb::fs_prove(&params, &lang, &inst, &wit));
+            let inst = cts_inst.iter().map(|ct| spcs::PCSLangCoDom{ct:ct.clone()}).collect();
+            let wit = ms_wit.into_iter().zip(rs_wit.into_iter())
+                .map(|(m,r)| spcs::PCSLangDom{m, r})
+                .collect();
+
+            nizks_ct.push(schb::fs_prove(&params, lang, &inst, &wit));
         }
 
         (Some(nizk_gcd), Some(nizks_ct))
@@ -273,6 +272,18 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
     let t_2 = SystemTime::now();
 
     let nizks_ct = vpk.nizks_ct.as_ref().expect("dv#verify_vpk: no nizk_gcd");
+
+    let lang1 = spcs::PCSLang{
+        lparams: spcs::PCSLangParams { n_bitlen: params.vpk_n_bitlen(),
+                                       range_bitlen: params.ch_small_bitlen() },
+        pk: vpk.pk.clone(),
+        sk: None };
+    let lang2 = spcs::PCSLang{
+        lparams: spcs::PCSLangParams { n_bitlen: params.vpk_n_bitlen(),
+                                       range_bitlen: params.ch_big_bitlen() },
+        pk: vpk.pk.clone(),
+        sk: None };
+
     for i in 0..(nizks_ct.len() as u32) {
         let batch_from = (i*params.lambda) as usize;
         let batch_to = std::cmp::min((i+1)*params.lambda,
@@ -284,17 +295,16 @@ pub fn verify_vpk(params: &DVParams, vpk: &VPK) -> bool {
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 cts_w.push(
-                    p::encrypt(&vpk.pk, None, &BigInt::from(0), &BigInt::from(1)));
+                    pcs::encrypt(&vpk.pk, None, &BigInt::from(0), &BigInt::from(0)));
             }
         }
 
-        let params =
-            if i == 0 { params.nizk_ct_params_1() }
-            else { params.nizk_ct_params_2() };
-        let inst = spb::Lang{ pk: vpk.pk.clone(), sk: None };
-        let wit = spb::Inst{ cts: cts_w };
 
-        let res2 = spb::fs_verify(&params, &inst, &wit, &nizks_ct[i as usize]);
+        let params = params.nizk_ct_params();
+        let lang = if i == 0 { &lang1 } else { &lang2 };
+        let inst = cts_w.iter().map(|ct| spcs::PCSLangCoDom{ ct:ct.clone() }).collect();
+
+        let res2 = schb::fs_verify(&params, lang, &inst, &nizks_ct[i as usize]);
         if !res2 { return false; }
     }
 
@@ -464,14 +474,14 @@ pub fn prove2(params: &DVParams,
                         nn);
     let t_3 = SystemTime::now();
 
-    let sm_ct = p::encrypt(&vpk.pk, None, &cr.rm_m, &BigInt::from(1));
+    let sm_ct = pcs::encrypt(&vpk.pk, None, &cr.rm_m, &BigInt::from(0));
     let t_4 = SystemTime::now();
     let sm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.m, nn),
                              &sm_ct,
                              nn);
     let t_5 = SystemTime::now();
 
-    let sr_ct = p::encrypt(&vpk.pk, None, &cr.rr_m, &BigInt::from(1));
+    let sr_ct = pcs::encrypt(&vpk.pk, None, &cr.rr_m, &BigInt::from(0));
     let t_6 = SystemTime::now();
     let sr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, &wit.r, nn),
                              &sr_ct,
@@ -487,12 +497,12 @@ pub fn prove2(params: &DVParams,
         let tr1 = cr.tr1.as_ref().expect("designated#prove2: tr1 must be Some");
         let tr2 = cr.tr2.as_ref().expect("designated#prove2: tr2 must be Some");
 
-        let tm_ct = p::encrypt(&vpk.pk, None, tm2, &BigInt::from(1));
+        let tm_ct = pcs::encrypt(&vpk.pk, None, tm2, &BigInt::from(0));
         let tm = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tm1, nn),
                                  &tm_ct,
                                  nn);
 
-        let tr_ct = p::encrypt(&vpk.pk, None, tr2, &BigInt::from(1));
+        let tr_ct = pcs::encrypt(&vpk.pk, None, tr2, &BigInt::from(0));
         let tr = BigInt::mod_mul(&BigInt::mod_pow(&ch_ct, tr1, nn),
                                  &tr_ct,
                                  nn);
@@ -590,8 +600,8 @@ pub fn verify3(params: &DVParams,
         .fold(BigInt::from(0), |acc,x| acc + x );
     let t_2 = SystemTime::now();
 
-    let sr = p::decrypt(&vsk.sk,&resp1.sr);
-    let sm = p::decrypt(&vsk.sk,&resp1.sm);
+    let sr = pcs::decrypt(&vpk.pk,&vsk.sk,&resp1.sr);
+    let sm = pcs::decrypt(&vpk.pk,&vsk.sk,&resp1.sm);
     let t_3 = SystemTime::now();
 
 
@@ -658,7 +668,7 @@ pub fn verify3(params: &DVParams,
         let pp_inv_qq = BigInt::mod_inv(&pp, &qq).unwrap();
 
         {
-            let ct = p::encrypt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &BigInt::from(1));
+            let ct = pcs::encrypt(&vpk.pk, Some(&vsk.sk), &resp2.um2, &BigInt::from(0));
             let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.um1, &pp);
             let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.um1, &qq);
             let exp1 = u::crt_recombine(&exp1_pp, &exp1_qq, &pp, &qq, &pp_inv_qq);
@@ -674,7 +684,7 @@ pub fn verify3(params: &DVParams,
         }
 
         {
-            let ct = p::encrypt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &BigInt::from(1));
+            let ct = pcs::encrypt(&vpk.pk, Some(&vsk.sk), &resp2.ur2, &BigInt::from(0));
 
             let exp1_pp = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &pp);
             let exp1_qq = BigInt::mod_pow(&ch1_ct, &resp2.ur1, &qq);
@@ -788,18 +798,21 @@ mod tests {
 
     #[test]
     fn keygen_correctness() {
-        let params = DVParams::new(1024, 32, 5, true, false);
-
-        let (vpk,_vsk) = keygen(&params);
-        assert!(verify_vpk(&params,&vpk));
+        for ggm_mode in [false,true] {
+            let params = DVParams::new(1024, 32, 5, true, ggm_mode);
+            
+            let (vpk,_vsk) = keygen(&params);
+            assert!(verify_vpk(&params,&vpk));
+        }
     }
 
     #[test]
     fn correctness() {
+        for malicious_setup in [false,true] {
         for ggm_mode in [false,true] {
         for _i in 0..5 {
             let queries:usize = 128;
-            let params = DVParams::new(256, 16, queries as u32, true, ggm_mode);
+            let params = DVParams::new(256, 16, queries as u32, malicious_setup, ggm_mode);
 
             let (vpk,vsk) = keygen(&params);
             assert!(verify_vpk(&params,&vpk));
@@ -816,17 +829,17 @@ mod tests {
                 assert!(verify3(&params,&vsk,&vpk,&lang,&inst,
                                 &com,&ch1,ch2.as_ref(),&resp1,resp2.as_ref(),query_ix));
             }
-        }
-        }
+        }}}
     }
 
 
     #[test]
     fn fs_correctness() {
+        for malicious_setup in [false,true] {
         for ggm_mode in [false,true] {
         for _i in 0..5 {
             let queries:usize = 128;
-            let params = DVParams::new(256, 16, queries as u32, true, ggm_mode);
+            let params = DVParams::new(256, 16, queries as u32, malicious_setup, ggm_mode);
 
             let (vpk,vsk) = keygen(&params);
             assert!(verify_vpk(&params,&vpk));
@@ -837,8 +850,7 @@ mod tests {
                 let proof = fs_prove(&params,&vpk,&lang,&inst,&wit,query_ix);
                 assert!(fs_verify(&params,&vsk,&vpk,&lang,&inst,query_ix,&proof));
             }
-        }
-        }
+        }}}
     }
 
 }

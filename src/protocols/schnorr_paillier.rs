@@ -258,7 +258,7 @@ mod tests {
         for _i in 0..10 {
             let range = BigInt::pow(&BigInt::from(2), 256);
             let lparams = PLangParams{ n_bitlen: 1024, range: Some(range) };
-            schb::generic_test_correctness::<PLang>(&schb::ProofParams::new(128,128,256),&lparams);
+            schb::generic_test_correctness::<PLang>(&schb::ProofParams::new(128,128),&lparams);
         }
     }
 
@@ -267,7 +267,7 @@ mod tests {
         for _i in 0..10 {
             let range = BigInt::pow(&BigInt::from(2), 256);
             let lparams = PLangParams{ n_bitlen: 1024, range: Some(range) };
-            schb::generic_test_correctness_fs::<PLang>(&schb::ProofParams::new(128,128,256),&lparams);
+            schb::generic_test_correctness_fs::<PLang>(&schb::ProofParams::new(128,128),&lparams);
         }
     }
 

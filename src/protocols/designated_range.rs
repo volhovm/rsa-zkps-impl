@@ -10,14 +10,17 @@ use crate::bigint::*;
 use crate::utils as u;
 use crate::utils::PROFILE_DVR;
 
-use super::paillier as p;
-use super::schnorr_generic as sch;
-use super::schnorr_paillier_batched as spb;
-use super::schnorr_paillier_plus as spp;
-use super::n_gcd as n_gcd;
+use super::paillier_cramer_shoup as pcs;
 use super::paillier_elgamal as pe;
+
+use super::n_gcd as n_gcd;
+
+use super::schnorr_generic as sch;
+use super::schnorr_paillier_plus as spp;
 use super::schnorr_exp as se;
 
+use super::schnorr_batched_generic as schb;
+use super::schnorr_paillier_cramer_shoup as spcs;
 
 ////////////////////////////////////////////////////////////////////////////
 // Params
@@ -153,20 +156,9 @@ impl DVRParams {
 
 
     /// Params for the first batch, for challenges of lambda bits.
-    pub fn nizk_ct_params_1(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.vpk_n_bitlen,
-                              self.lambda,
-                              self.lambda,
-                              self.ch_small_bitlen)
-    }
-
-    /// Params for the second+ batches, for challenges of 2 * lambda +
-    /// log lambda bits.
-    pub fn nizk_ct_params_2(&self) -> spb::ProofParams {
-        spb::ProofParams::new(self.vpk_n_bitlen,
-                              self.lambda,
-                              self.lambda,
-                              self.ch_big_bitlen)
+    pub fn nizk_ct_params(&self) -> schb::ProofParams {
+        schb::ProofParams::new(self.lambda,
+                               self.lambda)
     }
 
     /// Parameters for the GCD NIZK proof.
@@ -238,7 +230,7 @@ pub fn sample_liw(params: &DVRParams) -> (DVRLang,DVRInst,DVRWit) {
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VSK {
     /// Verifier's Paillier secret key
-    pub sk: p::SecretKey,
+    pub sk: pcs::SecretKey,
     /// Original challenge values
     pub chs: Vec<BigInt>,
 
@@ -257,7 +249,7 @@ pub struct VSK {
 #[derive(Clone, Debug, Serialize, GetSize)]
 pub struct VPK {
     /// Verifier's Paillier public key
-    pub pk: p::PublicKey,
+    pub pk: pcs::PublicKey,
     /// Challenges, encrypted under Verifier's key
     pub cts: Vec<BigInt>,
 
@@ -273,16 +265,16 @@ pub struct VPK {
     /// Proof of N = pk.n having gcd(N,phi(N)) = 1.
     pub nizk_gcd: Option<n_gcd::Proof>,
     /// Proofs of correctness+range of cts.
-    pub nizks_ct: Option<Vec<spb::FSProof>>,
+    pub nizks_ct: Option<Vec<schb::FSProof<spcs::PCSLang>>>,
 }
 
 
 pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
     let t_1 = SystemTime::now();
     // These two are suspiciously slow, taking 300ms both for 2048 bit+
-    let (pk,sk) = p::keygen(params.vpk_n_bitlen as usize);
+    let (pk,sk) = pcs::keygen(params.vpk_n_bitlen as usize);
 
-    let (pk_,sk_) = p::keygen(params.n_bitlen as usize);
+    let (pk_,sk_) = pcs::keygen(params.n_bitlen as usize);
     let t_2 = SystemTime::now();
 
 
@@ -312,7 +304,7 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
 
     let cts: Vec<BigInt> =
         chs.iter().zip(rs.iter())
-        .map(|(ch,r)| p::encrypt(&pk, Some(&sk), &ch, &r))
+        .map(|(ch,r)| pcs::encrypt(&pk, Some(&sk), &ch, &r))
         .collect();
     let t_3 = SystemTime::now();
 
@@ -339,8 +331,19 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
             );
         t_5 = SystemTime::now();
 
-        let spb_lang = spb::Lang{pk:pk.clone(), sk: Some(sk.clone())};
-        let mut nizks_ct: Vec<spb::FSProof> = vec![];
+        let lang1 = spcs::PCSLang{
+            lparams: spcs::PCSLangParams { n_bitlen: params.vpk_n_bitlen,
+                                           range_bitlen: params.ch_small_bitlen },
+            pk: pk.clone(),
+            sk: Some(sk.clone())};
+        let lang2 = spcs::PCSLang{
+            lparams: spcs::PCSLangParams { n_bitlen: params.vpk_n_bitlen,
+                                           range_bitlen: params.ch_big_bitlen },
+            pk: pk.clone(),
+            sk: Some(sk.clone())};
+
+
+        let mut nizks_ct: Vec<schb::FSProof<spcs::PCSLang>> = vec![];
         let nizk_batches =
             if params.crs_uses == 0 { 1 }
         else { 2 + (params.crs_uses - 1) / params.lambda };
@@ -357,18 +360,20 @@ pub fn keygen(params: &DVRParams) -> (VPK, VSK) {
             if pad_last_batch {
                 for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                     ms_wit.push(BigInt::from(0));
-                    rs_wit.push(BigInt::from(1));
+                    rs_wit.push(BigInt::from(0));
                     cts_inst.push(
-                        p::encrypt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(1)));
+                        pcs::encrypt(&pk,Some(&sk),&BigInt::from(0),&BigInt::from(0)));
                 }
             }
 
-            let params = if i == 0 { params.nizk_ct_params_1() }
-            else { params.nizk_ct_params_2() };
-            let inst = spb::Inst{cts: cts_inst};
-            let wit = spb::Wit{ms: ms_wit, rs: rs_wit};
+            let schb_lang = if i == 0 { &lang1 } else { &lang2 };
+            let params = params.nizk_ct_params();
+            let inst = cts_inst.iter().map(|ct| spcs::PCSLangCoDom{ct:ct.clone()}).collect();
+            let wit = ms_wit.into_iter().zip(rs_wit.into_iter())
+                .map(|(m,r)| spcs::PCSLangDom{m, r})
+                .collect();
 
-            nizks_ct.push(spb::fs_prove(&params, &spb_lang, &inst, &wit));
+            nizks_ct.push(schb::fs_prove(&params, schb_lang, &inst, &wit));
         }
 
         (Some(nizk_gcd),Some(nizks_ct))
@@ -432,6 +437,19 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
 
     let t_3 = SystemTime::now();
 
+        
+    let lang1 = spcs::PCSLang{
+        lparams: spcs::PCSLangParams { n_bitlen: params.vpk_n_bitlen,
+                                       range_bitlen: params.ch_small_bitlen },
+        pk: vpk.pk.clone(),
+        sk: None };
+    let lang2 = spcs::PCSLang{
+        lparams: spcs::PCSLangParams { n_bitlen: params.vpk_n_bitlen,
+                                       range_bitlen: params.ch_big_bitlen },
+        pk: vpk.pk.clone(),
+        sk: None };
+
+
     let nizks_ct = vpk.nizks_ct.as_ref().expect("dvr::verify_vpk: nizks_ct must be Some");
     for i in 0..(nizks_ct.len() as u32) {
         let batch_from = (i*params.lambda) as usize;
@@ -444,17 +462,14 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
         if pad_last_batch {
             for _j in 0..(params.lambda - (params.crs_uses % params.lambda)) {
                 cts_w.push(
-                    p::encrypt(&vpk.pk,None,&BigInt::from(0),&BigInt::from(1)));
+                    pcs::encrypt(&vpk.pk,None,&BigInt::from(0),&BigInt::from(0)));
             }
         }
 
-        let params =
-            if i == 0 { params.nizk_ct_params_1() }
-            else { params.nizk_ct_params_2() };
-        let inst = spb::Lang{ pk: vpk.pk.clone(), sk: None };
-        let wit = spb::Inst{ cts: cts_w };
-
-        let res2 = spb::fs_verify(&params, &inst, &wit, &nizks_ct[i as usize]);
+        let params = params.nizk_ct_params();
+        let lang = if i == 0 { &lang1 } else { &lang2 };
+        let inst = cts_w.iter().map(|ct| spcs::PCSLangCoDom{ ct:ct.clone() }).collect();
+        let res2 = schb::fs_verify(&params, lang, &inst, &nizks_ct[i as usize]);
         if !res2 { return false; }
     }
 
@@ -1066,7 +1081,7 @@ pub fn verify3(params: &DVRParams,
 
 
     let paillier_decrypt = |target: &BigInt| {
-        let res = p::decrypt(&vsk.sk,target);
+        let res = pcs::decrypt(&vpk.pk,&vsk.sk,target);
         if &res >= &(&vpk.pk.n / BigInt::from(2)) { &res - &vpk.pk.n } else { res }
     };
 
@@ -1534,10 +1549,11 @@ mod tests {
 
     #[test]
     fn correctness() {
+        for malicious_setup in [false,true] {
         for ggm_mode in [false,true] {
         let queries:usize = 128;
         let range_bitlen = 256;
-        let params = DVRParams::new(256, 32, range_bitlen, queries as u32, false, ggm_mode);
+        let params = DVRParams::new(256, 32, range_bitlen, queries as u32, malicious_setup, ggm_mode);
 
         let (vpk,vsk) = keygen(&params);
         assert!(verify_vpk(&params,&vpk));
@@ -1559,15 +1575,16 @@ mod tests {
 
             assert!(verify3(&params,&vsk,&vpk,&lang,&inst,
                             &com,&ch1,&resp1,ch2.as_ref(),resp2.as_ref(),query_ix));
-        }}
+        }}}
     }
 
     #[test]
     fn fs_correctness() {
+        for malicious_setup in [false,true] {
         for ggm_mode in [false,true] {
             let queries:usize = 32;
             let range_bitlen = 256;
-            let params = DVRParams::new(1024, 128, range_bitlen, queries as u32, false, ggm_mode);
+            let params = DVRParams::new(1024, 128, range_bitlen, queries as u32, malicious_setup, ggm_mode);
 
             let (vpk,vsk) = keygen(&params);
             assert!(verify_vpk(&params,&vpk));
@@ -1578,6 +1595,6 @@ mod tests {
                 let proof = fs_prove(&params,&vpk,&lang,&inst,&wit,query_ix);
                 assert!(fs_verify(&params,&vsk,&vpk,&lang,&inst,query_ix,&proof));
             }
-        }
+        }}
     }
 }

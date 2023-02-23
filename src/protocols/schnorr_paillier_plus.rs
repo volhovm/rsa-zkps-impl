@@ -1,7 +1,8 @@
 /// A tailored variant of schnorr_paillier for knowledge-of-ciphertext
 /// specifically for the DVRange protocol. It is very similar to
 /// super::schnorr_paillier, except that (1) it is for a slightly
-/// different 3-ary relation S = Enc(w_1;1)*C^{w_2} mod N^2; (2) and that it
+/// different 3-ary relation S = Enc(w_1;0)*C^{w_2} mod N^2, where Enc
+/// is Elgamal-Cramer-Shoup, and (2) and that it
 /// does not support range check functionality.
 
 use get_size::GetSize;
@@ -11,8 +12,7 @@ use std::fmt;
 
 use crate::bigint::*;
 use crate::utils as u;
-use super::paillier as p;
-use super::paillier::encrypt;
+use super::paillier_cramer_shoup as pcs;
 use super::schnorr_generic::*;
 
 
@@ -21,9 +21,9 @@ pub struct PPLang {
     /// Bit size of the RSA modulus
     pub n_bitlen: u32,
     /// Public key that is used to generate instances.
-    pub pk: p::PublicKey,
+    pub pk: pcs::PublicKey,
     /// Optional decryption key that speeds up Paillier
-    pub sk: Option<p::SecretKey>,
+    pub sk: Option<pcs::SecretKey>,
     /// The encryption ciphertext C, corresponding to the DVRange challenge
     pub ch_ct: BigInt,
 }
@@ -44,10 +44,10 @@ pub struct PPLangCoDom {
 
 
 /// Computes Enc_pk(enc_arg,1)*Ct^{ct_exp}
-pub fn compute_si(pk: &p::PublicKey,
-                  sk: Option<&p::SecretKey>,
+pub fn compute_si(pk: &pcs::PublicKey,
+                  sk: Option<&pcs::SecretKey>,
                   ch_ct: &BigInt, m: &BigInt, cexp: &BigInt) -> BigInt {
-    let ct = p::encrypt(pk,sk,m,&BigInt::from(1));
+    let ct = pcs::encrypt(pk,sk,m,&BigInt::from(0));
 
     match sk.as_ref() {
         None => BigInt::mod_mul(&ct, &u::bigint_mod_pow(ch_ct, cexp, &pk.nn),&pk.nn),
@@ -69,7 +69,7 @@ impl SchnorrLang for PPLang {
     type CoDom = PPLangCoDom;
 
     fn sample_lang(n_bitlen: &Self::LangParams) -> Self {
-        let (pk,sk) = p::keygen(*n_bitlen as usize);
+        let (pk,sk) = pcs::keygen(*n_bitlen as usize);
         let ch_ct = BigInt::sample_below(&pk.nn);
         PPLang { n_bitlen: *n_bitlen, pk, sk: Some(sk), ch_ct  }
     }

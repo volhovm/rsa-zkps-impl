@@ -205,10 +205,9 @@ fn bench_schnorr_fs<L: sch::SchnorrLang>(c: &mut Criterion,
 ////////////////////////////////////////////////////////////////////////////
 
 fn format_schb_params(params: &schb::ProofParams) -> String {
-    format!("λ={} inst_num={} range_bits={}",
+    format!("λ={} inst_num={}",
             params.lambda,
-            params.reps_n,
-            params.range_bitlen)
+            params.reps_n)
 }
 
 fn bench_schnorr_batched<L: schb::SchnorrBatchedLang>(
@@ -475,11 +474,11 @@ fn bench_schnorr_all(c: &mut Criterion) {
     let reps_n = 128;
     bench_schnorr_batched_fs::<spcs::PCSLang>(
         c,
-        &schb::ProofParams::new(lambda,reps_n,range_bitlen),
-        &spcs::PCSLangParams{n_bitlen, range: range.clone()});
+        &schb::ProofParams::new(lambda,reps_n),
+        &spcs::PCSLangParams{n_bitlen, range_bitlen});
     bench_schnorr_batched_fs::<sp::PLang>(
         c,
-        &schb::ProofParams::new(lambda,reps_n,range_bitlen),
+        &schb::ProofParams::new(lambda,reps_n),
         &sp::PLangParams{n_bitlen, range: Some(range.clone())});
 
 
