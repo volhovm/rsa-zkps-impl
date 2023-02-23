@@ -100,7 +100,7 @@ fn bench_paillier_cramer_shoup(c: &mut Criterion) {
     });
 
     grp.bench_function("encrypt_naive", |b| {
-        b.iter_batched(|| { let (pk,sk) = pcs::keygen(n_bitlen);
+        b.iter_batched(|| { let (pk,_) = pcs::keygen(n_bitlen);
                             let m = BigInt::sample_below(&pk.n);
                             let r = BigInt::sample_below(&pk.n);
                             (pk,m,r) },
@@ -137,7 +137,7 @@ fn bench_schnorr<L: sch::SchnorrLang>(c: &mut Criterion,
                                lparams: &L::LangParams) {
     let mut grp = c.benchmark_group(format!("Sch {} {:?}", format_params(params), lparams));
 
-    grp.measurement_time(Duration::from_secs(120));
+    //grp.measurement_time(Duration::from_secs(120));
 
     grp.bench_function("lang_verify", |b| {
         b.iter_batched(|| L::sample_lang(lparams),
@@ -183,7 +183,7 @@ fn bench_schnorr_fs<L: sch::SchnorrLang>(c: &mut Criterion,
                                   params: &sch::ProofParams,
                                   lparams: &L::LangParams) {
     let mut grp = c.benchmark_group(format!("Sch FS {} {:?}", format_params(params), lparams));
-    grp.sample_size(10);
+    //grp.sample_size(10);
 
 
     grp.bench_function("fs_prove", |b| {
@@ -231,7 +231,7 @@ fn bench_schnorr_batched<L: schb::SchnorrBatchedLang>(
                                   lparams
         ));
 
-    grp.sample_size(10);
+    //grp.sample_size(10);
     //grp.measurement_time(Duration::from_secs(30));
 
     grp.bench_function("prove1", |b| {
@@ -278,7 +278,7 @@ fn bench_schnorr_batched_fs<L: schb::SchnorrBatchedLang>(
                                   format_schb_params(params),
         ));
 
-    grp.sample_size(10);
+    //grp.sample_size(10);
 
     grp.bench_function("fs_prove", |b| {
         b.iter_batched(|| L::sample_liw(params,lparams),
@@ -309,7 +309,7 @@ fn bench_designated_vpk(c: &mut Criterion, params: &dv::DVParams) {
     let mut grp = c.benchmark_group(format!("DV VPK lam = {:?}, malicious {:?}", params.lambda, params.malicious_setup));
 
     //grp.measurement_time(Duration::from_secs(30));
-    grp.sample_size(10);
+    //grp.sample_size(10);
 
     grp.bench_function("keygen", |b| b.iter(|| dv::keygen(params)));
 
@@ -425,7 +425,7 @@ fn bench_designated_range_vpk(c: &mut Criterion, params: &dvr::DVRParams) {
     let mut grp = c.benchmark_group(format!("DVR VPK malicious {:?}, GGM {:?}", params.malicious_setup, params.ggm_mode));
 
     //grp.measurement_time(Duration::from_secs(30));
-    grp.sample_size(10);
+    //grp.sample_size(10);
 
     grp.bench_function("keygen", |b| b.iter(|| dvr::keygen(params)));
 
