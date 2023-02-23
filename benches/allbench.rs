@@ -472,11 +472,8 @@ fn bench_schnorr_all(c: &mut Criterion) {
     // q = 128, 8, 7, 6, 5
     for i in [1, 16, 19, 22, 26] {
         let params = sch::ProofParams::new(lambda,i);
-        let lparams = sp::PLangParams{ n_bitlen, range: None };
-        bench_schnorr_fs::<sp::PLang>(c, &params, &lparams);
-
+        bench_schnorr_fs::<sp::PLang>(c, &params, &sp::PLangParams{ n_bitlen, range: None });
         bench_schnorr_fs::<spe::PELang>(c, &params, &spe::PELangParams{n_bitlen, range:None });
-        //bench_schnorr::<spe::PELang>(c, &params, &n_bitlen);
     }
 
     let range_bitlen = 256;
