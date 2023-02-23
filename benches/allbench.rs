@@ -10,9 +10,10 @@ use rsazkps::protocols::paillier_elgamal as pe;
 use rsazkps::protocols::paillier_cramer_shoup as pcs;
 
 use rsazkps::protocols::schnorr_generic as sch;
+use rsazkps::protocols::schnorr_batched_generic as schb;
 use rsazkps::protocols::schnorr_paillier as sp;
 use rsazkps::protocols::schnorr_paillier_elgamal as spe;
-use rsazkps::protocols::schnorr_paillier_batched as spb;
+use rsazkps::protocols::schnorr_paillier_cramer_shoup as spcs;
 use rsazkps::protocols::designated as dv;
 use rsazkps::protocols::designated_range as dvr;
 
@@ -203,47 +204,54 @@ fn bench_schnorr_fs<L: sch::SchnorrLang>(c: &mut Criterion,
 // Schnorr Paillier Batched
 ////////////////////////////////////////////////////////////////////////////
 
-fn format_spb_params(params: &spb::ProofParams) -> String {
-    format!("λ={} n_bitlen={} inst_num={} range_bits={}",
+fn format_schb_params(params: &schb::ProofParams) -> String {
+    format!("λ={} inst_num={} range_bits={}",
             params.lambda,
-            params.n_bitlen,
             params.reps_n,
-            (params.range.bit_length()))
+            params.range_bitlen)
 }
 
-fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) {
-    let mut grp = c.benchmark_group(format!("Batched S-P {}", format_spb_params(params)));
+fn bench_schnorr_batched<L: schb::SchnorrBatchedLang>(
+    c: &mut Criterion,
+    params: &schb::ProofParams,
+    lparams: &L::LangParams)
+{
+    let mut grp =
+        c.benchmark_group(format!("Sch batched {}, {:?}",
+                                  format_schb_params(params),
+                                  lparams
+        ));
 
     grp.sample_size(10);
     //grp.measurement_time(Duration::from_secs(30));
 
     grp.bench_function("prove1", |b| {
-        b.iter_batched(|| spb::sample_liw(params).0,
-                       |lang| spb::prove1(params,&lang),
+        b.iter_batched(|| L::sample_liw(params,lparams).0,
+                       |lang| schb::prove1(params,&lang),
                        BatchSize::LargeInput);
     });
 
-    grp.bench_function("verify1", |b| b.iter(|| spb::verify1(params)));
+    grp.bench_function("verify1", |b| b.iter(|| schb::verify1(params)));
 
     grp.bench_function("prove2", |b| {
         b.iter_batched(
-            || { let (lang,_,wit) = spb::sample_liw(params);
-                 let (_,cr) = spb::prove1(params,&lang);
-                 let ch = spb::verify1(params);
+            || { let (lang,_,wit) = L::sample_liw(params,lparams);
+                 let (_,cr) = schb::prove1(params,&lang);
+                 let ch = schb::verify1(params);
                  return (lang,wit,ch,cr); },
-            |(lang,wit,ch,cr)| spb::prove2(params,&lang,&wit,&ch,&cr),
+            |(lang,wit,ch,cr)| schb::prove2(params,&lang,&wit,&ch,&cr),
             BatchSize::LargeInput
         );
     });
 
     grp.bench_function("verify2", |b| {
         b.iter_batched(
-            || { let (lang,inst,wit) = spb::sample_liw(params);
-                 let (com,cr) = spb::prove1(params,&lang);
-                 let ch = spb::verify1(params);
-                 let resp = spb::prove2(params,&lang,&wit,&ch,&cr);
-                 return (spb::to_public(&lang),inst,com,ch,resp); },
-            |(lang,inst,com,ch,resp)| spb::verify2(params,&lang,&inst,&com,&ch,&resp),
+            || { let (lang,inst,wit) = L::sample_liw(params,lparams);
+                 let (com,cr) = schb::prove1(params,&lang);
+                 let ch = schb::verify1(params);
+                 let resp = schb::prove2(params,&lang,&wit,&ch,&cr);
+                 return (L::to_public(&lang),inst,com,ch,resp); },
+            |(lang,inst,com,ch,resp)| schb::verify2(params,&lang,&inst,&com,&ch,&resp),
             BatchSize::LargeInput
         );
     });
@@ -251,21 +259,30 @@ fn bench_schnorr_paillier_batched(c: &mut Criterion, params: &spb::ProofParams) 
     grp.finish();
 }
 
-fn bench_schnorr_paillier_batched_fs(c: &mut Criterion, params: &spb::ProofParams) {
-    let mut grp = c.benchmark_group(format!("Batched S-P FS {:?}", params));
+fn bench_schnorr_batched_fs<L: schb::SchnorrBatchedLang>(
+    c: &mut Criterion,
+    params: &schb::ProofParams,
+    lparams: &L::LangParams)
+{
+    let mut grp =
+        c.benchmark_group(format!("Sch batched FS {}",
+                                  format_schb_params(params),
+        ));
+
+    grp.sample_size(10);
 
     grp.bench_function("fs_prove", |b| {
-        b.iter_batched(|| spb::sample_liw(params),
-                       |(lang,inst,wit)| spb::fs_prove(params,&lang,&inst,&wit),
+        b.iter_batched(|| L::sample_liw(params,lparams),
+                       |(lang,inst,wit)| schb::fs_prove(params,&lang,&inst,&wit),
                        BatchSize::LargeInput);
     });
 
     grp.bench_function("fs_verify", |b| {
         b.iter_batched(
-            || { let (lang,inst,wit) = spb::sample_liw(params);
-                 let proof = spb::fs_prove(params,&lang,&inst,&wit);
+            || { let (lang,inst,wit) = L::sample_liw(params,lparams);
+                 let proof = schb::fs_prove(params,&lang,&inst,&wit);
                  return (lang,inst,proof); },
-            |(lang,inst,proof)| spb::fs_verify(params,&spb::to_public(&lang),&inst,&proof),
+            |(lang,inst,proof)| schb::fs_verify(params,&L::to_public(&lang),&inst,&proof),
             BatchSize::LargeInput
         );
     });
@@ -449,9 +466,22 @@ fn bench_designated_range_fs(c: &mut Criterion, params: &dvr::DVRParams) {
 
 
 
-fn bench_schnorr_paillier_all(c: &mut Criterion) {
+fn bench_schnorr_all(c: &mut Criterion) {
     let lambda = 128;
     let n_bitlen = 2048;
+
+    let range_bitlen = 256;
+    let range = BigInt::pow(&BigInt::from(2),range_bitlen);
+    let reps_n = 128;
+    bench_schnorr_batched_fs::<spcs::PCSLang>(
+        c,
+        &schb::ProofParams::new(lambda,reps_n,range_bitlen),
+        &spcs::PCSLangParams{n_bitlen, range: range.clone()});
+    bench_schnorr_batched_fs::<sp::PLang>(
+        c,
+        &schb::ProofParams::new(lambda,reps_n,range_bitlen),
+        &sp::PLangParams{n_bitlen, range: Some(range.clone())});
+
 
     // q = 128, 8, 7, 6, 5
     for i in [1, 16, 19, 22, 26] {
@@ -462,11 +492,6 @@ fn bench_schnorr_paillier_all(c: &mut Criterion) {
         bench_schnorr_fs::<spe::PELang>(c, &params, &n_bitlen);
         //bench_schnorr::<spe::PELang>(c, &params, &n_bitlen);
     }
-
-    let range_bitlen = 256;
-    let reps_number = 128;
-    let params = spb::ProofParams::new(n_bitlen,lambda,reps_number,range_bitlen);
-    bench_schnorr_paillier_batched(c, &params);
 }
 
 
@@ -503,7 +528,7 @@ fn bench_designated_range_all(c: &mut Criterion) {
 //criterion_group!(benches, bench_designated_all, bench_designated_range_all);
 //criterion_group!(benches, bench_designated_all);
 //criterion_group!(benches, bench_designated_range_all);
-//criterion_group!(benches, bench_schnorr_paillier_all);
+criterion_group!(benches, bench_schnorr_all);
 //criterion_group!(benches, bench_paillier, bench_paillier_elgamal, bench_paillier_cramer_shoup);
-criterion_group!(benches, bench_paillier_cramer_shoup);
+//criterion_group!(benches, bench_paillier_cramer_shoup);
 criterion_main!(benches);
