@@ -38,7 +38,7 @@ pub struct ExpNLangCoDom {
 }
 
 
-impl Lang for ExpNLang {
+impl SchnorrLang for ExpNLang {
     type LangParams = u32;
     type Dom = ExpNLangDom;
     type CoDom = ExpNLangCoDom;

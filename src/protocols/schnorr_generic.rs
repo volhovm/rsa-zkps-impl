@@ -8,6 +8,7 @@ use std::fmt;
 use std::fmt::Debug;
 
 use crate::bigint::*;
+use crate::utils as u;
 
 ////////////////////////////////////////////////////////////////////////////
 // Params
@@ -44,7 +45,7 @@ impl ProofParams {
 // Language
 ////////////////////////////////////////////////////////////////////////////
 
-pub trait Lang: Serialize + GetSize {
+pub trait SchnorrLang: Serialize + GetSize {
     type LangParams: Clone + Debug;
     type Dom: Serialize + GetSize + Eq + Clone + Debug;
     type CoDom: Serialize + GetSize + Eq + Clone + Debug;
@@ -77,20 +78,20 @@ pub trait Lang: Serialize + GetSize {
 
 
 #[derive(Clone, Debug)]
-pub struct Commitment<L:Lang>(Vec<L::CoDom>);
+pub struct Commitment<L:SchnorrLang>(Vec<L::CoDom>);
 
 #[derive(Clone, Debug)]
-pub struct ComRand<L:Lang>(Vec<L::Dom>);
+pub struct ComRand<L:SchnorrLang>(Vec<L::Dom>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Challenge(pub Vec<BigInt>);
 
 #[derive(Clone, Debug)]
-pub struct Response<L:Lang>(Vec<L::Dom>);
+pub struct Response<L:SchnorrLang>(Vec<L::Dom>);
 
 
 
-pub fn prove1<L:Lang>(params: &ProofParams, lang: &L) -> (Commitment<L>,ComRand<L>) {
+pub fn prove1<L:SchnorrLang>(params: &ProofParams, lang: &L) -> (Commitment<L>,ComRand<L>) {
     let mut rand_v = vec![];
     let mut com_v = vec![];
     for _i in 0..params.reps {
@@ -107,7 +108,7 @@ pub fn verify1(params: &ProofParams) -> Challenge {
     return Challenge(b);
 }
 
-pub fn prove2<L:Lang>(params: &ProofParams,
+pub fn prove2<L:SchnorrLang>(params: &ProofParams,
                       lang: &L,
                       wit: &L::Dom,
                       ch: &Challenge,
@@ -118,7 +119,7 @@ pub fn prove2<L:Lang>(params: &ProofParams,
     return Response(resp_v);
 }
 
-pub fn verify2<L:Lang>(params: &ProofParams,
+pub fn verify2<L:SchnorrLang>(params: &ProofParams,
                        lang: &L,
                        inst: &L::CoDom,
                        com: &Commitment<L>,
@@ -141,15 +142,19 @@ pub fn verify2<L:Lang>(params: &ProofParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
+
 #[derive(Clone, Serialize, GetSize, Debug)]
-pub struct FSProof<L: Lang> {
+pub struct FSProof<L: SchnorrLang> {
     fs_com: Commitment<L>,
     fs_resp: Response<L>
 }
 
-fn fs_compute_challenge<L: Lang>(lang: &L,
-                                 inst:&L::CoDom,
-                                 fs_com: &Commitment<L>) -> Challenge {
+fn fs_compute_challenge<L: SchnorrLang>(
+    params: &ProofParams,
+    lang: &L,
+    inst:&L::CoDom,
+    fs_com: &Commitment<L>) -> Challenge
+{
     use blake2::*;
     let b = fs_com.0.iter().map(|com:&L::CoDom| {
         let x: Vec<u8> = rmp_serde::to_vec(&(com, inst, lang.to_public())).unwrap();
@@ -157,27 +162,29 @@ fn fs_compute_challenge<L: Lang>(lang: &L,
         let mut hasher: Blake2b = Digest::new();
         hasher.update(&x);
         let r0 = hasher.finalize();
-        BigInt::from((&(r0.as_slice())[0] & 0b0000001) as u32)
+        // FIXME this should be of the right size
+        u::extract_bits(&r0.as_slice(),params.ch_space_bitlen as usize)
+        //BigInt::from((&(r0.as_slice())[0] & 0b0000001) as u32)
     }).collect();
     Challenge(b)
 }
 
-pub fn fs_prove<L:Lang>(params: &ProofParams,
-                        lang: &L,
-                        inst: &L::CoDom,
-                        wit: &L::Dom) -> FSProof<L> {
+pub fn fs_prove<L:SchnorrLang>(params: &ProofParams,
+                               lang: &L,
+                               inst: &L::CoDom,
+                               wit: &L::Dom) -> FSProof<L> {
     let (fs_com,cr) = prove1(params,lang);
-    let fs_ch = fs_compute_challenge(lang,inst,&fs_com);
+    let fs_ch = fs_compute_challenge(params,lang,inst,&fs_com);
     let fs_resp = prove2(params,lang,wit,&fs_ch,&cr);
 
     FSProof{ fs_com, fs_resp }
 }
 
-pub fn fs_verify<L:Lang>(params: &ProofParams,
-                         lang: &L,
-                         inst: &L::CoDom,
-                         proof: &FSProof<L>) -> bool {
-    let fs_ch = fs_compute_challenge(lang,inst,&proof.fs_com);
+pub fn fs_verify<L:SchnorrLang>(params: &ProofParams,
+                                lang: &L,
+                                inst: &L::CoDom,
+                                proof: &FSProof<L>) -> bool {
+    let fs_ch = fs_compute_challenge(params,lang,inst,&proof.fs_com);
     verify2(params,lang,inst,&proof.fs_com,&fs_ch,&proof.fs_resp)
 }
 
@@ -187,7 +194,7 @@ pub fn fs_verify<L:Lang>(params: &ProofParams,
 ////////////////////////////////////////////////////////////////////////////
 
 
-pub fn generic_test_correctness<L: Lang>(params: &ProofParams, lparams: &L::LangParams) {
+pub fn generic_test_correctness<L: SchnorrLang>(params: &ProofParams, lparams: &L::LangParams) {
     let (lang,inst,wit) = L::sample_liw(lparams);
 
     let (com,cr) = prove1(params,&lang);
@@ -198,7 +205,7 @@ pub fn generic_test_correctness<L: Lang>(params: &ProofParams, lparams: &L::Lang
     assert!(verify2(params,&lang.to_public(),&inst,&com,&ch,&resp));
 }
 
-pub fn generic_test_correctness_fs<L: Lang>(params: &ProofParams, lparams: &L::LangParams) {
+pub fn generic_test_correctness_fs<L: SchnorrLang>(params: &ProofParams, lparams: &L::LangParams) {
     let (lang,inst,wit) = L::sample_liw(lparams);
 
     let proof = fs_prove(params,&lang,&inst,&wit);
@@ -213,39 +220,39 @@ pub fn generic_test_correctness_fs<L: Lang>(params: &ProofParams, lparams: &L::L
 
 // #derive is a bit broken for associated types
 
-impl <L:Lang> PartialEq for Commitment<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
-impl <L:Lang> Eq for Commitment<L> {}
-impl <L:Lang> PartialEq for ComRand<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
-impl <L:Lang> Eq for ComRand<L> {}
-impl <L:Lang> PartialEq for Response<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
-impl <L:Lang> Eq for Response<L> {}
+impl <L:SchnorrLang> PartialEq for Commitment<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
+impl <L:SchnorrLang> Eq for Commitment<L> {}
+impl <L:SchnorrLang> PartialEq for ComRand<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
+impl <L:SchnorrLang> Eq for ComRand<L> {}
+impl <L:SchnorrLang> PartialEq for Response<L> { fn eq(&self, other: &Self) -> bool { self.0.eq(&other.0) } }
+impl <L:SchnorrLang> Eq for Response<L> {}
 
-impl <L:Lang> Serialize for Commitment<L> {
+impl <L:SchnorrLang> Serialize for Commitment<L> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>
     { self.0.serialize(serializer) }
 }
-impl <L:Lang> Serialize for ComRand<L> {
+impl <L:SchnorrLang> Serialize for ComRand<L> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>
     { self.0.serialize(serializer) }
 }
-impl <L:Lang> Serialize for Response<L> {
+impl <L:SchnorrLang> Serialize for Response<L> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>
     { self.0.serialize(serializer) }
 }
 
-impl <L:Lang> GetSize for Commitment<L> {
+impl <L:SchnorrLang> GetSize for Commitment<L> {
     fn get_stack_size() -> usize { panic!("I don't know how to implement this"); }
     fn get_heap_size(&self) -> usize { self.0.get_heap_size() }
     fn get_size(&self) -> usize { self.0.get_size() }
 }
 
-impl <L:Lang> GetSize for ComRand<L> {
+impl <L:SchnorrLang> GetSize for ComRand<L> {
     fn get_stack_size() -> usize { panic!("I don't know how to implement this"); }
     fn get_heap_size(&self) -> usize { self.0.get_heap_size() }
     fn get_size(&self) -> usize { self.0.get_size() }
 }
 
-impl <L:Lang> GetSize for Response<L> {
+impl <L:SchnorrLang> GetSize for Response<L> {
     fn get_stack_size() -> usize { panic!("I don't know how to implement this"); }
     fn get_heap_size(&self) -> usize { self.0.get_heap_size() }
     fn get_size(&self) -> usize { self.0.get_size() }

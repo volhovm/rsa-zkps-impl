@@ -35,7 +35,7 @@ pub struct PELangCoDom {
     pub ct: pe::Ciphertext
 }
 
-impl Lang for PELang {
+impl SchnorrLang for PELang {
     type LangParams = u32;
     type Dom = PELangDom;
     type CoDom = PELangCoDom;

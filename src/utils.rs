@@ -21,6 +21,20 @@ pub fn check_small_primes(upto: u64, n: &BigInt) -> bool {
     return true;
 }
 
+/// Takes a byte slice (hash output) and returns
+/// a bigint of the bit_size from its prefix.
+pub fn extract_bits(input: &[u8], bit_size: usize) -> BigInt {
+    let r = bit_size / 8;
+    let q = bit_size & 8;
+    assert!(input.len() >= r + 1);
+    if q == 0 {
+        BigInt::from_bytes(&input[0..r])
+    } else {
+        let last = input[r] & (((1 as u8) << q) - 1); // FIXME check
+        BigInt::from_bytes(&[&input[0..r], &[last]].concat())
+    }
+}
+
 /// Given r_b, samples integer in the range [-r/2,r/2) = [0,r) - r/2, for r = 2^{r_b}
 pub fn bigint_sample_sym(bitlen: u32) -> BigInt {
     &BigInt::sample(bitlen as usize) - &BigInt::pow(&BigInt::from(2),bitlen-1)

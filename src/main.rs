@@ -93,7 +93,7 @@ fn estimate_size_designated_range(params: &dvr::DVRParams) {
              estimate_size(&proof))
 }
 
-fn estimate_size_schnorr<L: sch::Lang>(params: &sch::ProofParams, lparams: &L::LangParams) {
+fn estimate_size_schnorr<L: sch::SchnorrLang>(params: &sch::ProofParams, lparams: &L::LangParams) {
     print!("Schnorr FS, {:?} {:?}. ", params, lparams);
 
     let (lang,inst,wit) = L::sample_liw(lparams);
@@ -144,7 +144,7 @@ fn estimate_proof_sizes() {
 
 
 
-fn profile_schnorr_generic<L: sch::Lang>(params: &sch::ProofParams, lparams: &L::LangParams) {
+fn profile_schnorr_generic<L: sch::SchnorrLang>(params: &sch::ProofParams, lparams: &L::LangParams) {
     let (lang,inst,wit) = L::sample_liw(lparams);
 
     let t_1 = SystemTime::now();

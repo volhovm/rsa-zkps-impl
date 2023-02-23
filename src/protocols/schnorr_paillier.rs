@@ -13,6 +13,7 @@ use crate::bigint::*;
 use crate::utils as u;
 use super::paillier as p;
 use super::schnorr_generic::*;
+use super::schnorr_batched_generic as schb;
 
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
@@ -45,7 +46,7 @@ pub struct PLangCoDom {
 }
 
 
-impl Lang for PLang {
+impl SchnorrLang for PLang {
     type LangParams = PLangParams;
     type Dom = PLangDom;
     type CoDom = PLangCoDom;
@@ -129,34 +130,145 @@ impl Lang for PLang {
     }
 }
 
+impl schb::SchnorrBatchedLang for PLang {
+    type LangParams = PLangParams;
+    type Dom = PLangDom;
+    type CoDom = PLangCoDom;
+
+    fn sample_lang(lparams: &Self::LangParams) -> Self {
+        let (pk,sk) = p::keygen(lparams.n_bitlen as usize);
+        PLang { lparams: lparams.clone(), pk, sk: Some(sk)  }
+    }
+
+    fn to_public(&self) -> Self {
+        let mut other = self.clone();
+        other.sk = None;
+        return other
+    }
+
+    fn sample_wit(&self) -> Self::Dom {
+        let m = match &self.lparams.range {
+            // Full message range N
+            None => BigInt::sample_below(&self.pk.n),
+            // [-R/2,R/2]
+            Some(r) => u::bigint_sample_below_sym(r),
+        };
+        // The order of r^N will be less than N, so it is fine
+        // to sample this not from N^2
+        let r = BigInt::sample_below(&self.pk.n);
+
+        PLangDom { m, r }
+    }
+
+
+    fn eval(&self, wit: &Self::Dom) -> Self::CoDom {
+        let ct = p::encrypt(&self.pk, self.sk.as_ref(), &wit.m, &wit.r);
+        PLangCoDom { ct }
+    }
+
+    fn sample_com_rand(&self, params: &schb::ProofParams) -> Self::Dom {
+        let m = match &self.lparams.range {
+            None => BigInt::sample_below(&self.pk.n),
+            Some(r) => {
+                let rand_range =
+                    BigInt::pow(&BigInt::from(2), params.lambda - 1) * r * BigInt::from(params.reps_n);
+                BigInt::sample_below(&rand_range)
+            },
+        };
+        let r = BigInt::sample_below(&self.pk.n);
+
+        PLangDom { m, r }
+    }
+
+    fn compute_resp(&self, params: &schb::ProofParams, wit: &Vec<Self::Dom>, e_mat_i: &Vec<BigInt>, rand: &Self::Dom) -> Self::Dom {
+        // No need to take modulo N because this computation does not overflow
+        // in the range mode
+        let m =
+            &rand.m +
+            (0..params.reps_n as usize)
+            .map(|j| &e_mat_i[j] * &wit[j].m)
+            .fold(BigInt::from(0), |acc,x| acc + x );
+
+        let r = BigInt::mod_mul(
+            &rand.r,
+            &(0..params.reps_n as usize)
+                .map(|j| BigInt::mod_pow(&wit[j].r, &e_mat_i[j], &self.pk.n))
+                .fold(BigInt::from(1),
+                      |acc,x| BigInt::mod_mul(&acc, &x, &self.pk.n)),
+            &self.pk.n);
+
+        PLangDom { m, r }
+    }
+
+    fn resp_lhs(&self, params: &schb::ProofParams, inst: &Vec<Self::CoDom>, e_mat_i: &Vec<BigInt>, com: &Self::CoDom) -> Self::CoDom {
+
+        let ct =
+            BigInt::mod_mul(
+                &com.ct,
+                &(0..params.reps_n as usize)
+                    .map(|j| BigInt::mod_pow(&inst[j].ct, &e_mat_i[j], &self.pk.nn))
+                    .fold(BigInt::from(1), |acc,x| BigInt::mod_mul(&acc, &x, &self.pk.nn)),
+                &self.pk.nn);
+
+        PLangCoDom { ct }
+    }
+
+    fn check_resp_range(&self, params: &schb::ProofParams, resp: &Self::Dom) -> bool {
+        let r = self.lparams.range.as_ref().expect("schnorr_paillier_batched, check_resp_range: range is None!");
+
+        let rand_range = BigInt::pow(&BigInt::from(2), params.lambda - 1) * r * BigInt::from(params.reps_n);
+
+        &resp.m < &rand_range
+    }
+}
+
 
 
 #[cfg(test)]
 mod tests {
 
     use crate::protocols::schnorr_paillier::*;
-    use crate::protocols::schnorr_generic::*;
+    use crate::protocols::schnorr_generic as sch;
+    use crate::protocols::schnorr_batched_generic as schb;
 
     #[test]
     fn test_correctness() {
         let lparams = PLangParams{ n_bitlen: 1024, range: None };
-        generic_test_correctness::<PLang>(&ProofParams::new(128, 16),&lparams);
-        generic_test_correctness::<PLang>(&ProofParams::new(128, 1),&lparams);
+        sch::generic_test_correctness::<PLang>(&sch::ProofParams::new(128, 16),&lparams);
+        sch::generic_test_correctness::<PLang>(&sch::ProofParams::new(128, 1),&lparams);
     }
 
     #[test]
     fn test_correctness_fs() {
         let lparams = PLangParams{ n_bitlen: 1024, range: None };
-        generic_test_correctness_fs::<PLang>(&ProofParams::new(128, 16),&lparams);
-        generic_test_correctness_fs::<PLang>(&ProofParams::new(128, 1),&lparams);
+        sch::generic_test_correctness_fs::<PLang>(&sch::ProofParams::new(128, 16),&lparams);
+        sch::generic_test_correctness_fs::<PLang>(&sch::ProofParams::new(128, 1),&lparams);
     }
 
     #[test]
     fn test_correctness_range_fs() {
         let range = BigInt::pow(&BigInt::from(2), 256);
         let lparams = PLangParams{ n_bitlen: 1024, range: Some(range) };
-        generic_test_correctness_fs::<PLang>(&ProofParams::new_range(128),&lparams);
-        generic_test_correctness_fs::<PLang>(&ProofParams::new_range(128),&lparams);
+        sch::generic_test_correctness_fs::<PLang>(&sch::ProofParams::new_range(128),&lparams);
+    }
+
+
+    #[test]
+    fn test_correctness_batched_range() {
+        for _i in 0..10 {
+            let range = BigInt::pow(&BigInt::from(2), 256);
+            let lparams = PLangParams{ n_bitlen: 1024, range: Some(range) };
+            schb::generic_test_correctness::<PLang>(&schb::ProofParams::new(128,128,256),&lparams);
+        }
+    }
+
+    #[test]
+    fn test_correctness_batched_range_fs() {
+        for _i in 0..10 {
+            let range = BigInt::pow(&BigInt::from(2), 256);
+            let lparams = PLangParams{ n_bitlen: 1024, range: Some(range) };
+            schb::generic_test_correctness_fs::<PLang>(&schb::ProofParams::new(128,128,256),&lparams);
+        }
     }
 
 //    #[test]

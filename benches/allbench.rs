@@ -121,7 +121,7 @@ fn format_params(params: &sch::ProofParams) -> String {
             (if params.range_mode { "+range" } else { "norange" }))
 }
 
-fn bench_schnorr<L: sch::Lang>(c: &mut Criterion,
+fn bench_schnorr<L: sch::SchnorrLang>(c: &mut Criterion,
                                params: &sch::ProofParams,
                                lparams: &L::LangParams) {
     let mut grp = c.benchmark_group(format!("Sch {} {:?}", format_params(params), lparams));
@@ -168,7 +168,7 @@ fn bench_schnorr<L: sch::Lang>(c: &mut Criterion,
     grp.finish();
 }
 
-fn bench_schnorr_fs<L: sch::Lang>(c: &mut Criterion,
+fn bench_schnorr_fs<L: sch::SchnorrLang>(c: &mut Criterion,
                                   params: &sch::ProofParams,
                                   lparams: &L::LangParams) {
     let mut grp = c.benchmark_group(format!("Sch FS {} {:?}", format_params(params), lparams));

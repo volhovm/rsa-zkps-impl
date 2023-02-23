@@ -63,7 +63,7 @@ pub fn compute_si(pk: &p::PublicKey,
     }
 }
 
-impl Lang for PPLang {
+impl SchnorrLang for PPLang {
     type LangParams = u32;
     type Dom = PPLangDom;
     type CoDom = PPLangCoDom;

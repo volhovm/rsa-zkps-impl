@@ -409,7 +409,7 @@ pub fn verify_vpk(params: &DVRParams, vpk: &VPK) -> bool {
                                n: vpk.n.clone(), h: vpk.h.clone(),
                                p: None, q: None };
     // haven't missed lang. verification anywhere else
-    if !sch::Lang::pre_verify(&se_lang,&se_params) { return false; }
+    if !sch::SchnorrLang::pre_verify(&se_lang,&se_params) { return false; }
     if !sch::fs_verify(&se_params,
                        &se_lang,
                        &se::ExpNLangCoDom{g: vpk.g.clone()},

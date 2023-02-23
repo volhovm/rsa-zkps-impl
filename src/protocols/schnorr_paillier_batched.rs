@@ -8,6 +8,8 @@ use crate::bigint::*;
 use crate::utils::PROFILE_SPB;
 use super::paillier as p;
 
+use super::schnorr_generic as sch;
+
 
 // Common parameters for the proof system.
 #[derive(Clone, PartialEq, Debug)]
