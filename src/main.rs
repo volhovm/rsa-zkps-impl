@@ -184,7 +184,7 @@ fn profile_schnorr() {
 
     profile_schnorr_generic::<spe::PELang>(
         &sch::ProofParams::new(lambda, ch_space_bitlen),
-        &n_bitlen);
+        &spe::PELangParams{n_bitlen, range:None });
 
     profile_schnorr_generic::<se::ExpNLang>(
         &sch::ProofParams::new(lambda, ch_space_bitlen),

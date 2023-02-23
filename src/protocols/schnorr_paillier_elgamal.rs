@@ -10,11 +10,16 @@ use crate::utils as u;
 use super::schnorr_generic::*;
 use super::paillier_elgamal as pe;
 
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, GetSize)]
+pub struct PELangParams {
+    pub n_bitlen: u32,
+    pub range: Option<BigInt>,
+}
 
 #[derive(Clone, PartialEq, Debug, Serialize, GetSize)]
 pub struct PELang {
-    /// Bitlength of the RSA modulus
-    pub n_bitlen: u32,
+    /// Params of the language
+    pub lparams: PELangParams,
     /// Public key that is used to generate instances.
     pub pk: pe::PublicKey,
     /// Optional decryption key that speeds up Paillier
@@ -36,13 +41,13 @@ pub struct PELangCoDom {
 }
 
 impl SchnorrLang for PELang {
-    type LangParams = u32;
+    type LangParams = PELangParams;
     type Dom = PELangDom;
     type CoDom = PELangCoDom;
 
-    fn sample_lang(n_bitlen: &Self::LangParams) -> Self {
-        let (pk,sk) = pe::keygen(*n_bitlen as usize);
-        PELang { n_bitlen: *n_bitlen, pk, sk: Some(sk) }
+    fn sample_lang(lparams: &Self::LangParams) -> Self {
+        let (pk,sk) = pe::keygen(lparams.n_bitlen as usize);
+        PELang { lparams:lparams.clone(), pk, sk: Some(sk) }
     }
 
     fn to_public(&self) -> Self {
@@ -60,7 +65,13 @@ impl SchnorrLang for PELang {
     }
 
     fn sample_wit(&self) -> Self::Dom {
-        let m = BigInt::sample_below(&self.pk.n);
+        let m = match &self.lparams.range {
+            // Full message range N
+            None => BigInt::sample_below(&self.pk.n),
+            // [-R/2,R/2]
+            Some(r) => u::bigint_sample_below_sym(r),
+        };
+
         let r = BigInt::sample_below(&self.pk.n);
         PELangDom { m, r }
     }
@@ -71,10 +82,19 @@ impl SchnorrLang for PELang {
     }
 
     fn sample_com_rand(&self, params: &ProofParams) -> Self::Dom {
-        // Response is mod N
-        let m = BigInt::sample_below(&self.pk.n);
+        let m = match &self.lparams.range {
+            // Perfect blinding, because response is computed mod N
+            None => BigInt::sample_below(&self.pk.n),
+            // Statistical blinding, rand_range has (range * ch + lambda) bits, and in range
+            // proof setting challenges are binary
+            Some(r) => {
+                let rand_range = r * BigInt::pow(&BigInt::from(2), params.lambda - 1);
+                BigInt::sample_below(&rand_range)
+            },
+        };
+
         // Response is additive over integers
-        let r = BigInt::sample((self.n_bitlen + params.ch_space_bitlen + params.lambda) as usize);
+        let r = BigInt::sample((self.lparams.n_bitlen + params.ch_space_bitlen + params.lambda) as usize);
         PELangDom { m, r }
     }
 
@@ -92,8 +112,12 @@ impl SchnorrLang for PELang {
         PELangCoDom { ct: pe::Ciphertext{ ct1, ct2 } }
     }
 
-    fn check_resp_range(&self, _: &ProofParams, _: &Self::Dom) -> bool {
-        panic!("schnorr_paillier_elgamal does not run in the range mode");
+    fn check_resp_range(&self, params: &ProofParams, resp: &Self::Dom) -> bool {
+        let r = self.lparams.range.as_ref().expect("schnorr_paillier_elgamal_batched, check_resp_range: range is None!");
+
+        let rand_range = r * BigInt::pow(&BigInt::from(2), params.lambda - 1);
+
+        &resp.m < &rand_range
     }
 }
 
@@ -107,12 +131,26 @@ mod tests {
     #[test]
     fn test_correctness() {
         let params = ProofParams::new(128, 16);
-        generic_test_correctness::<PELang>(&params,&1024);
+        generic_test_correctness::<PELang>(&params,&PELangParams{n_bitlen:1024,range:None});
     }
 
     #[test]
     fn test_correctness_fs() {
         let params = ProofParams::new(128, 16);
-        generic_test_correctness_fs::<PELang>(&params,&1024);
+        generic_test_correctness_fs::<PELang>(&params,&PELangParams{n_bitlen:1024,range:None});
+    }
+
+    #[test]
+    fn test_correctness_range() {
+        let range = BigInt::pow(&BigInt::from(2), 256);
+        let params = ProofParams::new_range(128);
+        generic_test_correctness::<PELang>(&params,&PELangParams{n_bitlen:1024,range:Some(range)});
+    }
+
+    #[test]
+    fn test_correctness_range_fs() {
+        let range = BigInt::pow(&BigInt::from(2), 256);
+        let params = ProofParams::new_range(128);
+        generic_test_correctness_fs::<PELang>(&params,&PELangParams{n_bitlen:1024,range:Some(range)});
     }
 }
