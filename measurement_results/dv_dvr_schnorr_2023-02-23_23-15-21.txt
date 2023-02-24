@@ -1,0 +1,84 @@
+DV VPK lam = 128, malicious true/keygen
+                        time:   [9.3775 s 9.3912 s 9.4051 s]
+DV VPK lam = 128, malicious true/verify_vpk
+                        time:   [10.916 s 10.923 s 10.930 s]
+DV VPK lam = 128, malicious false/keygen
+                        time:   [2.3672 s 2.3775 s 2.3881 s]
+DV FS lam = 128, malicious true, GGM false/fs_prove
+                        time:   [79.019 ms 79.179 ms 79.361 ms]
+DV FS lam = 128, malicious true, GGM false/fs_verify
+                        time:   [59.249 ms 59.327 ms 59.414 ms]
+DV FS lam = 128, malicious false, GGM false/fs_prove
+                        time:   [66.878 ms 67.012 ms 67.172 ms]
+DV FS lam = 128, malicious false, GGM false/fs_verify
+                        time:   [50.653 ms 50.703 ms 50.754 ms]
+DV FS lam = 128, malicious true, GGM true/fs_prove
+                        time:   [45.428 ms 45.525 ms 45.626 ms]
+DV FS lam = 128, malicious true, GGM true/fs_verify
+                        time:   [38.034 ms 38.099 ms 38.165 ms]
+DV FS lam = 128, malicious false, GGM true/fs_prove
+                        time:   [37.928 ms 37.971 ms 38.013 ms]
+DV FS lam = 128, malicious false, GGM true/fs_verify
+                        time:   [32.790 ms 32.837 ms 32.885 ms]
+
+DVR VPK malicious false, GGM false/keygen
+                        time:   [3.6426 s 3.6577 s 3.6735 s]
+DVR VPK malicious true, GGM false/keygen
+                        time:   [13.589 s 13.613 s 13.639 s]
+DVR VPK malicious true, GGM false/verify_vpk
+                        time:   [15.904 s 15.911 s 15.918 s]
+DVRange FS malicious true, GGM false/fs_prove
+                        time:   [776.11 ms 776.93 ms 777.85 ms]
+DVRange FS malicious true, GGM false/fs_verify
+                        time:   [466.23 ms 466.79 ms 467.42 ms]
+DVRange FS malicious false, GGM false/fs_prove
+                        time:   [622.67 ms 623.31 ms 623.99 ms]
+DVRange FS malicious false, GGM false/fs_verify
+                        time:   [372.70 ms 372.95 ms 373.26 ms]
+DVRange FS malicious true, GGM true/fs_prove
+                        time:   [191.25 ms 191.71 ms 192.20 ms]
+DVRange FS malicious true, GGM true/fs_verify
+                        time:   [125.40 ms 125.55 ms 125.71 ms]
+DVRange FS malicious false, GGM true/fs_prove
+                        time:   [166.08 ms 166.55 ms 167.05 ms]
+DVRange FS malicious false, GGM true/fs_verify
+                        time:   [104.94 ms 105.02 ms 105.09 ms]
+
+Sch FS λ=128 log(Ch)=1 reps=128, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [1.3839 s 1.3854 s 1.3870 s]
+Sch FS λ=128 log(Ch)=1 reps=128, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [2.8961 µs 3.0971 µs 3.3328 µs]
+Sch FS λ=128 log(Ch)=1 reps=128, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [2.4432 s 2.4450 s 2.4468 s]
+Sch FS λ=128 log(Ch)=16 reps=8, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [87.150 ms 87.297 ms 87.458 ms]
+Sch FS λ=128 log(Ch)=16 reps=8, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [3.9454 ms 3.9556 ms 3.9663 ms]
+Sch FS λ=128 log(Ch)=16 reps=8, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [154.94 ms 155.09 ms 155.26 ms]
+Sch FS λ=128 log(Ch)=19 reps=7, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [76.137 ms 76.223 ms 76.309 ms]
+Sch FS λ=128 log(Ch)=19 reps=7, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [36.955 ms 37.071 ms 37.191 ms]
+Sch FS λ=128 log(Ch)=19 reps=7, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [136.65 ms 136.80 ms 136.98 ms]
+Sch FS λ=128 log(Ch)=22 reps=6, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [65.371 ms 65.476 ms 65.590 ms]
+Sch FS λ=128 log(Ch)=22 reps=6, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [337.65 ms 338.33 ms 339.25 ms]
+Sch FS λ=128 log(Ch)=22 reps=6, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [117.21 ms 117.32 ms 117.43 ms]
+Sch FS λ=128 log(Ch)=26 reps=5, norange PELangParams { n_bitlen: 2048, range: None }/fs_prove
+                        time:   [54.662 ms 54.728 ms 54.794 ms]
+Sch FS λ=128 log(Ch)=26 reps=5, norange PELangParams { n_bitlen: 2048, range: None }/lang_verify
+                        time:   [6.5679 s 6.5731 s 6.5789 s]
+Sch FS λ=128 log(Ch)=26 reps=5, norange PELangParams { n_bitlen: 2048, range: None }/fs_verify
+                        time:   [98.172 ms 98.302 ms 98.445 ms]
+
+Sch FS λ=128 log(Ch)=1 reps=128, +range PELangParams { n_bitlen: 2048, range: Some(1157920892373161...
+                        time:   [1.3821 s 1.3835 s 1.3850 s]
+Sch FS λ=128 log(Ch)=1 reps=128, +range PELangParams { n_bitlen: 2048, range: Some(1157920892373161... #2
+                        time:   [2.7404 µs 2.8246 µs 2.9113 µs]
+Sch FS λ=128 log(Ch)=1 reps=128, +range PELangParams { n_bitlen: 2048, range: Some(1157920892373161... #3
+                        time:   [2.4553 s 2.4589 s 2.4627 s]
+
