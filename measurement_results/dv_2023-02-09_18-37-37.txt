@@ -1,7 +1,0 @@
-DV VPK lam = 128, malicious true/keygen
-                        time:   [4.6996 s 4.7552 s 4.8108 s]
-DV VPK lam = 128, malicious true/verify_vpk
-                        time:   [12.289 s 12.363 s 12.457 s]
-DV VPK lam = 128, malicious false/keygen
-                        time:   [778.49 ms 815.35 ms 867.62 ms]
-
