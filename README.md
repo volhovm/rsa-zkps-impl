@@ -6,7 +6,7 @@ The problem and the protocols were introduced in the following paper:
 
 **Zero-Knowledge Arguments for Subverted RSA Groups** by *Dimitris Kolonelos, Mary Maller, and Mikhail Volkhov*.
 
-**TODO** insert eprint link.
+https://eprint.iacr.org/2023/364
 
 The implementation in `/src` contains all the protocols: primarily DV (`designated.rs`), DVRange (`designated_range.rs`), and several variants of the basic Sigma protocol (`schnorr_*.rs`). 
 We provide our benchmarks in `/bench`, and `/measurement_results` contains results of the benchmarks run for the eprint version of the paper.
